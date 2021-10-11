@@ -1,0 +1,49 @@
+[package]
+name = "blitzserver"
+version = "0.8.13"
+authors = ["Blitzserver Admin <admin@blitzserver.net"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "*"
+diesel = { git = "https://github.com/diesel-rs/diesel", features = ["huge-tables", "r2d2", "postgres"] }
+serde = { version = "*", features = ["derive"] }
+dotenv = "*"
+askama = "*"
+r2d2 = "*"
+r2d2_postgres = "*"
+actix-multipart = "*"
+actix-files = "*"
+futures = "*"
+regex = "*"
+crossbeam-channel = "*"
+notify = { version = "5.0.0-pre.4", features = ["serde"] }
+byteorder = "*"
+num_enum = "*"
+zip = "*"
+serde_qs = { version = "0.8.4", features = ["actix"] }
+image = { git = "https://github.com/Moggers/image.git", branch = "sgi", features = ["sgi"] }
+env_logger = "*"
+log = "*"
+lettre = "0.10.0-alpha.4"
+actix-session = "0.4.0"
+flate2 = { version = "1.0.17", features = ["zlib"], default-features = false }
+num-traits = "*"
+num-derive = "*"
+thiserror = "*"
+chrono = "*"
+crc = "*"
+fletcher = "*"
+reqwest = { version = "*", features = ["blocking", "json"] }
+base64 = "*"
+tungstenite = "*"
+url = "*"
+serde_json = "*"
+rand = "*"
+smol = "*"
+sqlx = { verison = "0.5", features = ["runtime-async-std-native-tls", "chrono", "postgres"] }
+nonblock = "*"
+async-std = "*"
+derive_more = "*"
