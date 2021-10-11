@@ -1,0 +1,18 @@
+<title>Blitzserver - Upload Map</title>
+<form method="POST" action="./upload" enctype="multipart/form-data">
+	<label for="map">Map (.map)</label>
+	<input class="btn-file" required type="file" name="map" /><br>
+	<span for="map">{{ map_err }}</spn>
+	<br>
+	<label for="tga">Image (.tga)</label>
+	<input class="btn-file" required type="file" name="tga" /><br>
+	<span for="map">{{ tga_err }}</span>
+	<br>
+	<label for="tga_winter">Winter Image (.tga)</label>
+	<input class="btn-file" required type="file" name="tga_winter" /><br>
+	<span for="map">{{ winter_err }}</span>
+	<br>
+	<input type="submit" value="Upload Map"/>
+</form>
+<br>
+<a href="/maps">Cancel</a>

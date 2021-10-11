@@ -1,0 +1,40 @@
+
+{% extends "container.html" %}
+{% block body %}
+<div class="mods-page">
+	<div class="mod-upload">
+		<div class="pane">
+			<h3>Upload Mod</h3>
+			<form method="post" action="/mods/upload" enctype="multipart/form-data">
+				<div class="input-group">
+					<label for="archive">Mod Archive (.zip)</label>
+					<input class="btn-file" required type="file" name="archive"/>
+				</div>
+				{% if self.errors.len() > 0 %}
+					<div class="error">
+						<ul>
+						{% for err in self.errors %}
+							<li>{{err}}</li>
+						{% endfor %}
+						</ul>
+					</div>
+				{% endif %}
+				<input type="submit" class="btn btn-block btn-primary" value="Upload"/>
+			</form>
+		</div>
+	</div>
+	<div class="mod-list">
+		<div class="pane">
+			<h3>Mods</h3>
+			<div class="striped-table">
+				{% for cmod in mods %}
+				<div class="bg-selector" style="background-image: url('/images/mods/{{cmod.id}}.jpg')">
+					<a href="/mod/{{cmod.id}}">{{cmod.name}}</a>
+					<a download="{{cmod.name}}.zip" class="btn" href="/mod/{{cmod.id}}/download">Download</a>
+				</div>
+				{% endfor %}
+			</div>
+		</div>
+	</div>
+</div>
+{% endblock %}

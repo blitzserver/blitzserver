@@ -1,0 +1,22 @@
+<table class="log-table">
+	{% for log in logs %}
+	<tr>
+		<td>{{log.datetime_string()}}</td>
+		<td>Turn {{log.turn_number}}</td>
+		<td>
+			<a href="?log_output={{log.id}}#logs" class="btn">View Output</a>
+			<a href="?log_errors={{log.id}}#logs" class="btn">View Errors</a>
+		</td>
+	</tr>
+	<tr>
+		<td colspan="3">
+		{% if log.id == self.focused_log.0 %}
+		<b>Launch Arguments:</b>
+		<pre class="log-args">{{self.focused_log.1}}</pre>
+		<b>Result:</b>
+		<pre>{{self.focused_log.2}}</pre>
+		{% endif %}
+		</td>
+	</tr>
+	{% endfor %}
+</table>

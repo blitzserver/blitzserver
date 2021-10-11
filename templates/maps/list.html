@@ -1,0 +1,49 @@
+{% extends "container.html" %}
+{% block body %}
+<div class="maps-page">
+	<div class="map-upload">
+		<div class="pane">
+			<h3>Upload Map</h3>
+			<form method="post" action="/maps/upload" enctype="multipart/form-data">
+				<div class="input-group">
+					<label for="map">Map File (.map)</label>
+					<input class="btn-file" required type="file" name="map"/>
+				</div>
+				<div class="input-group">
+					<label for="tga">Tga File (.tga)</label>
+					<input class="btn-file" required type="file" name="tga"/>
+				</div>
+				<div class="input-group">
+					<label for="tga_winter">Winter File (.tga)</label>
+					<input class="btn-file" type="file" name="tga_winter"/>
+				</div>
+				{% if self.errors.len() > 0 %}
+					<div class="error">
+						<ul>
+						{% for err in self.errors %}
+							<li>{{err}}</li>
+						{% endfor %}
+						</ul>
+					</div>
+				{% endif %}
+				<input type="submit" class="btn btn-block btn-primary" value="Upload"/>
+			</form>
+		</div>
+	</div>
+	<div class="map-list">
+		<div class="pane">
+			<h3>Maps</h3>
+			<div class="striped-table">
+				{% for map in maps %}
+				<div class="bg-selector" style="background-image: url('/images/maps/{{map.id}}_1500-200.jpg')">
+					<div>
+						<a href="/map/{{map.id}}">{{map.name}} ({{map.province_count}}+{{map.uw_count}})</a>
+					</div>
+					<a download="{{map.name}}.zip" class="btn" href="/map/{{map.id}}/download">Download</a>
+				</div>
+				{% endfor %}
+			</div>
+		</div>
+	</div>
+</div>
+{% endblock %}

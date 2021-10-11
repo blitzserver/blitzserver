@@ -1,0 +1,23 @@
+<div class="discord-page">
+	<div class="discord-list pane">
+		<table class="striped-table">
+			{% for notification in self.discord_notifications %}
+			<tr>
+				{% if notification.hours_remaining.is_none() %}
+				<td><b>New Turn Notification</td>
+				{% else %}
+				<td><b>{{notification.hours_remaining.unwrap()}} Hour Reminder</b></td>
+				{% endif %}
+				<td>{{self.get_server_name(notification.discord_guildid)}} - {{
+					self.get_channel_name(notification.discord_guildid, notification.discord_channelid) }}</td>
+				<td>{{ notification.message }}</td>
+			</tr>
+			{% endfor %}
+		</table>
+	</div>
+	<div class="discord-help pane">
+		<a class="btn btn-block"
+			href="https://discord.com/oauth2/authorize?client_id={{ self.discord_clientid.as_ref().unwrap() }}&scope=bot">Add
+			Bot To Server</a>
+		<p>Once the bot has been added, say "help" to him in any channel to get the instructions on how to add notifications</pre></p>
+	</div>

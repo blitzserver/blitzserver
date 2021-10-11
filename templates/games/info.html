@@ -1,0 +1,29 @@
+<div class="pane status">
+	<h3>Info</h3>
+	<table class="striped-table">
+		<tr>
+			<td>Status</td>
+			<td>{{self.get_status_string()}}</td>
+		</tr>
+		{% if !game.archived %}
+			{% match self.game.port %}
+			{% when Some with (port) %}
+			<tr>
+				<td>Address</td>
+				<td><b>{{self.hostname}}:{{port}}</b></td>
+			</tr>
+			{% else %}
+			<tr>
+				Refresh to see port..
+			</tr>
+			{% endmatch %}
+			{% if self.game.next_turn.is_some() %}
+			<tr>
+				<td>Next Turn</td>
+				<td>{{ self.game.next_turn_string() }}</td>
+			</tr>
+			{% endif %}
+			<tr>
+		{% endif %}
+	</table>
+</div>

@@ -1,0 +1,72 @@
+<form>
+	<div class="pane">
+		<div class="pane-search">
+			<div class="input-group">
+				<input required name="email_address" type="text" value="{{self.email_form.email_address}}" placeholder="email@address.com" />
+				<input type="submit" class="btn btn-block" formmethod="get" value="Fetch Alerts" formaction="/game/{{game.id}}#emails"/>
+			</div>
+		</div>
+		<table class="striped-table">
+			{% for email in self.email_configs %}
+			<tr>
+				<td>{{email.email_address}}</td>
+				<td>{{email.subject}}</td>
+				<td>{{self.get_email_config_nation_name(email.id)}}</td>
+				<td><input type="submit" class="btn btn-danger btn-block" formmethod="post" formaction="/game/{{game.id}}/emails/{{email.id}}/delete" value="Delete"/></td>
+			</tr>
+			{% endfor %}
+		</table>
+	</div>
+</form>
+<div class="pane">
+	<div class="checktabs tabset">
+		<input name="reminder_type" checked="checked" value="newturn" hidden=true type="radio" class="css-tab-newturn" id="css-tab-newturn" />
+		<input name="reminder_type" value="turnreminder" type="radio" class="css-tab-turnreminder" id="css-tab-turnreminder" />
+		<nav class="nav tabset_labels tabs css-tab-labels">
+			<h1></h1>
+			<label class="tab css-tab-label tab1" for="css-tab-newturn">New Turn Notification</label>
+			<label class="tab css-tab-label tab2" for="css-tab-turnreminder">Turn Reminder</label>
+		</nav>
+		<div>
+			<section class="tabsection">
+				<form class="email-setup">
+					<input required name="email_address" class="email-address" placeholder="email@address.com" />
+					<input required name="subject" class="subject" value="{% if self.email_form.subject != "" %}{{self.email_form.subject}}{% else %}New Turn %TURNNUMBER% for %GAMENAME%{% endif %}"/>
+					<input required class="btn btn-primary submit" formmethod="post" formaction="/game/{{game.id}}/email" type="submit" value="Create Notification" />
+					<input required type="hidden" type="number" name="is_reminder" value="false"/>
+					<select required name="nation" class="nation">
+						{% for player in self.get_joined_nations() %}
+						<option {% if self.email_form.nation == player.nation_id %}selected="selected"{% endif %}value="{{player.nation_id}}">{{player.name}}</option>
+						{% endfor %}
+					</select>
+					<div class="body">
+						<textarea name="body">{% if self.email_form.body != "" %}{{ self.email_form.body }}{% else %}Turn %TURNNUMBER% is ready for %GAMENAME%, you can play it at %GAMEIP%
+The game can be viewed at %GAMEURL%.{% endif %}</textarea>
+					</div>
+				</form>
+			</section>
+			<section class="tabsection">
+				<form class="email-setup reminder">
+					<input required name="email_address" class="email-address" placeholder="email@address.com" />
+					<input required name="subject" class="subject" value="{% if self.email_form.subject != "" %}{{self.email_form.subject}}{% else %}Turn %TURNNUMBER% Reminder for %GAMENAME%{% endif %}"/>
+					<div class="hours-remaining">
+						<input required type="number" name="hours_remaining" value="{% if self.email_form.hours_remaining != 0 %}{{self.email_form.hours_remaining}}{% else %}12{% endif %}"/>
+					</div>
+					<input required type="hidden" type="number" name="is_reminder" value="true"/>
+					<label for="hours_remaining"></label>
+					<input class="btn btn-primary submit" formmethod="post" formaction="/game/{{game.id}}/email" type="submit" value="Create Reminder" />
+					<select required name="nation" class="nation">
+						{% for player in self.get_joined_nations() %}
+						<option {% if self.email_form.nation == player.nation_id %}selected="selected"{% endif %}value="{{player.nation_id}}">{{player.name}}</option>
+						{% endfor %}
+					</select>
+					<div class="body">
+						<textarea name="body">{% if self.email_form.body != "" %}{{ self.email_form.body }}{% else %}Turn %TURNNUMBER% is due for %GAMENAME% in %HOURSREMAINING%, you can play it at %GAMEIP%
+The game can be viewed at %GAMEURL%.{% endif %}</textarea>
+					</div>
+				</form>
+			</section>
+		</div>
+	</div>
+</div>
+</form>

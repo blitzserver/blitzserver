@@ -1,0 +1,16 @@
+<div class="game-pane pending">
+	<div class="left">
+		<div class="header">
+			<a class="title" href={{format!("game/{}#status", game.id)}}><span>{{ game.name }}</span></a> <br>
+			<section>{{ game.address }}</section>
+		</div>
+		<div class="sep"></div>
+		<div class="details">
+			<section>Players {{ game.players }}/X</section>
+			<section></section>
+		</div>
+	</div>
+	<div class="right">
+		<img src="/images/maps/{{ game.map_id}}_100-0.jpg" />
+	</div>
+</div>

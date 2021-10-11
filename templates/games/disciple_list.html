@@ -1,0 +1,64 @@
+<div>
+	{% for (team, nation) in self.get_team_leaders() %}
+	<section class="team-header">Team {{ team }}</section>
+	<table class="striped-table">
+		{% include "player-row.html" %}
+		{% for nation in self.get_team_disciples(team) %}
+		{% include "player-row.html" %}
+		{% endfor %}
+		{% if self.turn_number == 0 && self.authed == AuthStatus::AuthSuccess %}
+		<tr class="disciple unjoined">
+			<td class="nation-name wide-column">
+				<form action="{{game.id}}/assign-team" method="POST">
+					<section>
+						<input type="hidden" name="team" value="{{team}}" />
+						<input type="hidden" name="disciple" value="1" />
+						<div class="input-group">
+							<select onchange="this.form.submit()" name="nation" required>
+								<option value="" disabled selected>Nation</option>
+								{% for nation in self.nations %}
+								<option value="{{nation.nation_id}}">{{nation.name}}, {{nation.epithet}}</option>
+								{% endfor %}
+							</select>
+						</div>
+					</section>
+					<section>New Disciple</section>
+				</form>
+			</td>
+			<td></td>
+			<td>
+			</td>
+		</tr>
+		{% endif %}
+	</table>
+	{% endfor %}
+	{% if self.turn_number == 0 && self.authed == AuthStatus::AuthSuccess %}
+	<section class="team-header">New Team</section>
+	<table class="striped-table">
+		<tr class="unjoined">
+			<td class="nation-name wide-column">
+				<form action="{{game.id}}/assign-team" method="POST">
+					<section>
+						<input type="hidden" name="disciple" value="0" />
+						<input type="hidden" name="team" value="0" />
+						<div class="input-group">
+							<select onchange="this.form.submit()" name="nation" required>
+								<option value="" disabled selected>Nation</option>
+								{% for nation in self.nations %}
+								<option value="{{nation.nation_id}}">{{nation.name}}, {{nation.epithet}}</option>
+								{% endfor %}
+							</select>
+						</div>
+					</section>
+					<section>
+						New Team Leader
+					</section>
+				</form>
+			</td>
+			<td></td>
+			<td>
+			</td>
+		</tr>
+	</table>
+	{% endif %}
+</div>

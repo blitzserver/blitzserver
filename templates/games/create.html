@@ -1,0 +1,12 @@
+<title>Blitzserver - Create Game</title>
+{% let settings = params.settings.clone() %}
+<form action="./create" method="POST" action="./create">
+	<label for="name">Name</label>
+	<input title="Alphanumeric, underscores and hyphens. No spaces, Dominions dislikes that." pattern="[0-9a-zA-Z_-]+" required type="text" value="{{params.name}}" name="name"/>
+	<br>
+	<hr>
+	{% include "settings.html" %}
+	<hr>
+	<input type="submit" value="Create Game" />
+</form>
+<a href="/games">Cancel</a>

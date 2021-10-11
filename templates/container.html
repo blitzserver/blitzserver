@@ -1,0 +1,24 @@
+<!DOCTYPE html> 
+<html lang="en">
+	<head>
+		<title>{% block title %}Blitzserver{% endblock %}</title>
+		<meta charset="utf-8" />
+		{% block meta %}
+		<meta name="description" content="Dominions 5 hosting service"/>
+		{% endblock %}
+		<link rel="stylesheet" href="/styles.css?{{ env!("CARGO_PKG_VERSION") }}">
+	</head>
+	<body>
+		<div class="container">
+			<nav>
+				<span class="title">Blitzserver</span>
+				<a href="/games">games</a>
+				<a href="/maps">maps</a>
+				<a href="/mods">mods</a>
+				<a href="/help">about</a>
+        <span class="version"><a href="{{ format!("https://github.com/blitzserver/blitzserver/releases/tag/{}", env!("CARGO_PKG_VERSION")) }}">{{env!("CARGO_PKG_VERSION")}}</a></span>
+			</nav>
+			{% block body%}{% endblock %}
+		</div>
+	</body>
+</html>

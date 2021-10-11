@@ -1,0 +1,2 @@
+-- Your SQL goes here
+ALTER TABLE players ADD COLUMN name VARCHAR NOT NULL DEFAULT '';

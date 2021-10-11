@@ -1,0 +1,265 @@
+<div class="game-settings">
+	<!-- When hitting enter, the first submit input is used to submit the form. This ensures the first input is a POST, and not a GET -->
+	<input class="hidden" formmethod="POST" type="submit" value="Search" />
+	<div>
+		<h3>Map</h3>
+		<input name="mapfilter" type="search" value="{{settings.mapfilter}}" placeholder="Search" />
+		<input formmethod="GET" type="submit" formaction="/game/{{game.id}}#settings" formnovalidate value="Search" />
+		<div class="select-sort">
+			{% for map in maps %}
+			<input class="bg-selector" {% if map.id==settings.map %} checked="checked" {% endif %} name="map"
+				id="map-{{map.id}}" type="radio" value="{{map.id}}" />
+			<div {% if !map.name.contains(settings.mapfilter) %} hidden {% endif %} class="bg-selector"
+				style="background-image: url('/images/maps/{{map.id}}_1500-200.jpg')">
+				<label for="map-{{map.id}}"> {{map.name}} ({{map.province_count}}+{{map.uw_count}})</label>
+				<a class="btn" href="/map/{{map.id}}">Goto</a>
+			</div>
+			{% endfor %}
+			<br>
+		</div>
+	</div>
+	<div>
+		<h3>Mods</h3>
+		<input name="modfilter" type="search" value="{{settings.modfilter}}" placeholder="Search" />
+		<input formmethod="GET" type="submit" formaction="/game/{{game.id}}#settings" formnovalidate value="Search" />
+		<div class="select-sort">
+			{% for cmod in mods %}
+			<input class="bg-selector" {% if settings.cmods.contains(cmod.id) %} checked="checked" {% endif %} name="cmods[]"
+				id="mod-{{cmod.id}}" type="checkbox" value="{{cmod.id}}" />
+			<div {% if !cmod.name.contains(settings.modfilter) %} hidden {% endif %} class="bg-selector"
+				style="background-image: url('/images/mods/{{cmod.id}}.jpg')">
+				<label for="mod-{{cmod.id}}">{{cmod.name }}</label>
+				<a class="btn" href="/mod/{{cmod.id}}">Goto</a>
+			</div>
+			{% endfor %}
+		</div>
+	</div>
+	<div>
+		<h3>Era</h3>
+		<div class="settings-group">
+			<div class="input-group">
+				<label for="era">Era</label>
+				<select required selected="{{settings.era}}" name="era">
+					<option {% if settings.era==1 %} selected {% endif %} value="1">Early Age</option>
+					<option {% if settings.era==2 %} selected {% endif %} value="2">Middle Age</option>
+					<option {% if settings.era==3 %} selected {% endif %} value="3">Late Age</option>
+				</select>
+			</div>
+		</div>
+	</div>
+	<div>
+		<h3>Expansion</h3>
+		<div class="settings-group">
+			<div class="input-group">
+				<label for="indepstr">Independent Strength</label>
+				<input name="indepstr" id="indepstr" value="{{settings.indepstr}}" type="number" />
+			</div>
+			<div class="input-group">
+				<label for="startprov">Starting Provinces</label>
+				<input name="startprov" id="startprov" value="{{settings.startprov}}" type="number"></input>
+			</div>
+			<div class="input-group">
+				<label for="startprov">Designated Spawns</label>
+				<select required name="select_start">
+					<option {% if settings.select_start==0 %} selected {% endif %} value="0">Disabled</option>
+					<option {% if settings.select_start==1 %} selected {% endif %} value="1">Player Specified</option>
+					<option {% if settings.select_start==2 %} selected {% endif %} value="2">Admin Specified</option>
+				</select>
+			</div>
+		</div>
+	</div>
+	<div>
+		<h3>Research</h3>
+		<div class="settings-group">
+			<div class="input-group">
+				<label for="research_diff">Research Difficulty</label>
+				<select name="research_diff" id="research_diff">
+					<option {% if settings.research_diff==0 %} selected {% endif %} if value="0">Very Easy</option>
+					<option {% if settings.research_diff==1 %} selected {% endif %} if value="1">Easy</option>
+					<option {% if settings.research_diff==2 %} selected {% endif %} if value="2">Normal</option>
+					<option {% if settings.research_diff==3 %} selected {% endif %} if value="3">Difficult</option>
+					<option {% if settings.research_diff==4 %} selected {% endif %} if value="4">Very Difficult</option>
+				</select>
+			</div>
+			<div class="input-group">
+				<label for="research_rand">Starting Research Distribution</label>
+				<select name="research_rand">
+					<option {% if settings.research_rand==0 %} selected {% endif %} value="0">Evenly Spread</option>
+					<option {% if settings.research_rand==1 %} selected {% endif %} value="1">Randomly Allocated</option>
+				</select>
+			</div>
+		</div>
+	</div>
+	<div>
+		<h3>Limits</h3>
+		<div class="settings-group">
+			<div class="input-group">
+				<label for="hof_size">Hall of Fame Size</label>
+				<input name="hof_size" id="hof_size" value="{{settings.hof_size}}" type="number" />
+			</div>
+			<div class="input-group">
+				<label for="global_size">Global Enchantment Slots</label>
+				<input name="global_size" id="global_size" value="{{settings.global_size}}" type="number" />
+			</div>
+			<div class="input-group">
+				<label for="artrest">Artefact Forging</label>
+				<select name="artrest">
+					<option {% if settings.artrest==0 %} selected {% endif %} value="0">Unlimited</option>
+					<option {% if settings.artrest==1 %} selected {% endif %} value="1">Limited</option>
+				</select>
+			</div>
+		</div>
+	</div>
+	<div>
+		<h3>Thrones</h3>
+		<div class="settings-group">
+			<div class="input-group">
+				<label for="thrones_t1">Level 1 Thrones</label>
+				<input id="thrones_t1" name="thrones_t1" value="{{settings.thrones_t1}}" type="number" />
+			</div>
+			<div class="input-group">
+				<label for="thrones_t2">Level 2 Thrones</label>
+				<input id="thrones_t2" name="thrones_t2" value="{{settings.thrones_t2}}" type="number" />
+			</div>
+			<div class="input-group">
+				<label for="thrones_t3">Level 3 Thrones</label>
+				<input id="thrones_t3" name="thrones_t3" value="{{settings.thrones_t3}}" type="number" />
+			</div>
+			<div class="input-group">
+				<label for="throne_points_required">Throne Points Required</label>
+				<input id="throne_points_required" name="throne_points_required" value="{{settings.throne_points_required}}"
+					type="number" />
+			</div>
+		</div>
+	</div>
+	<div>
+		<h3>Multipliers</h3>
+		<div class="settings-group">
+			<div class="input-group">
+				<label for="magicsites">Magic Site Frequency</label>
+				<input name="magicsites" id="magicsites" value="{{settings.magicsites}}" type="number"></input>
+			</div>
+			<div class="input-group">
+				<label for="richness">Gold Multiplier</label>
+				<input name="richness" id="richness" value="{{settings.richness}}" type="number"></input>
+			</div>
+			<div class="input-group">
+				<label for="resources">Resource Multiplier</label>
+				<input name="resources" id="resources" value="{{settings.resources}}" type="number"></input>
+			</div>
+			<div class="input-group">
+				<label for="recruitment">Recruitment Points Multiplier</label>
+				<input name="recruitment" id="recruitment" value="{{settings.recruitment}}" type="number"></input>
+			</div>
+			<div class="input-group">
+				<label for="supplies">Supplies Multiplier</label>
+				<input name="supplies" id="supplies" value="{{settings.supplies}}" type="number"></input>
+			</div>
+		</div>
+	</div>
+	<div>
+		<h3>Report Visibility</h3>
+		<div class="settings-group">
+			<div class="input-group">
+				<label for="scoregraphs">Score Graphs</label>
+				<select name="scoregraphs">
+					<option {% if settings.scoregraphs==0 %} selected {% endif %} value="0">Hidden</option>
+					<option {% if settings.scoregraphs==1 %} selected {% endif %} value="1">Visible</option>
+				</select>
+			</div>
+			<div class="input-group">
+				<label for="nationinfo">Nation Info</label>
+				<select name="nationinfo" Info</option>
+					<option {% if settings.nationinfo==0 %} selected {% endif %} value="0">Hidden</option>
+					<option {% if settings.nationinfo==1 %} selected {% endif %} value="1">Visible</option>
+				</select>
+			</div>
+		</div>
+	</div>
+	<div>
+		<h3>Disciples</h3>
+		<div class="settings-group">
+			<div class="input-group">
+				<label for="teamgame">Game Mode</label>
+				<select name="teamgame">
+					<option {% if settings.teamgame==1 %} selected {% endif %} value="1">Disciples</option>
+					<option {% if settings.teamgame==0 %} selected {% endif %} value="0">Free For All</option>
+				</select>
+			</div>
+			<div class="input-group">
+				<label for="clustered">Disciple Start Locations</label>
+				<select name="clustered">
+					<option {% if settings.clustered==0 %} selected {% endif %} value="0">Distributed</option>
+					<option {% if settings.clustered==1 %} selected {% endif %} value="1">Clustered</option>
+				</select>
+			</div>
+		</div>
+	</div>
+	<div>
+		<h3>Events</h3>
+		<div class="settings-group">
+			<div class="input-group">
+				<label for="eventrarity">Event Rarity</label>
+				<select name="eventrarity">
+					<option {% if settings.eventrarity==1 %} selected {% endif %} value="1">Common</option>
+					<option {% if settings.eventrarity==2 %} selected {% endif %} value="2">Rare</option>
+				</select>
+			</div>
+			<div class="input-group">
+				<label for="storyevents">Story Events</label>
+				<select name="storyevents">
+					<option {% if settings.storyevents==0 %} selected {% endif %} value="0">Disabled</option>
+					<option {% if settings.storyevents==1 %} selected {% endif %} value="1">Minor Story Events</option>
+					<option {% if settings.storyevents==2 %} selected {% endif %} value="2">All Story Events</option>
+				</select>
+			</div>
+		</div>
+	</div>
+	<div>
+		<h3>Misc.</h3>
+		<div class="settings-group">
+			<div class="input-group">
+				<label for="renaming">Commander Renaming</label>
+				<select name="renaming">
+					<option {% if settings.renaming==0 %} selected="selected" {% endif %} value="0">Not Allowed</option>
+					<option {% if settings.renaming==1 %} selected="selected" {% endif %} value="1">Allowed</option>
+				</select>
+			</div>
+			<div class="input-group">
+				<label for="newailvl">"Become Computer Controlled" Difficulty</label>
+				<select name="newailvl" id="newailvl" type="number">
+					/*
+					<option {% if settings.newailvl==0 %} selected {% endif %} value="0">Disabled</option>
+					<option {% if settings.newailvl==1 %} selected {% endif %} value="1">Easy Diff.</option>
+					<option {% if settings.newailvl==2 %} selected {% endif %} value="2">Normal Diff.</option>
+					<option {% if settings.newailvl==3 %} selected {% endif %} value="3">Difficult Diff.</option>
+					<option {% if settings.newailvl==4 %} selected {% endif %} value="4">Mighty Diff.</option>
+					<option {% if settings.newailvl==5 %} selected {% endif %} value="5">Master Diff.</option>
+					<option {% if settings.newailvl==6 %} selected {% endif %} value="6">Impossible Diff.</option>
+				</select>
+			</div>
+			<div class="input-group">
+				<label for="masterpass">Master Password</label>
+        {% if self.authed == AuthStatus::AuthSuccess %}
+        <input type="password" name="masterpass" value="{{game.masterpass.as_ref().unwrap_or("".to_string())}}" />
+        {% else %}
+				<input type="password" name="masterpass" value="{% if game.masterpass.is_some() %}password{% endif %}" />
+        {% endif %}
+			</div>
+			<div class="input-group">
+				<label for="private">Visibility</label>
+				<select name="private">
+					<option {% if settings.private==0 %} selected="selected" {% endif %} value="0">Public</option>
+					<option {% if settings.private==1 %} selected="selected" {% endif %} value="1">Unlisted</option>
+				</select>
+			</div>
+			<div class="input-group">
+				<label for="require_password">Pretender Passwords</label>
+				<select name="require_password">
+					<option {% if settings.require_password==0 %} selected="selected" {% endif %} value="0">Optional</option>
+					<option {% if settings.require_password==1 %} selected="selected" {% endif %} value="1">Required</option>
+				</select>
+			</div>
+		</div>
+	</div>
+</div>

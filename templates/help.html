@@ -1,0 +1,27 @@
+{% extends "container.html" %}
+{% block body %}
+<div class='about'>
+	<h1>About Blitzserver</h1>
+	<span>Blitzserver is server for hosting direct connect Dominions 5 games. It can be used to host blitzes as well as long term games where one turn is played every day or so.</span>
+
+	<h2>How do I join a game?</h2>
+	<span>You will need to create a pretender prior to joining. Once you have, open Dominions 5 and go to <b>Network</b> then <b>Connect to a Dominions Server</b>. The IP is {{ self.hostname }} and the port is on the status page.</span>
+
+	<h2>How do I create a game?</h2>
+	<span>There's a <b>Create new game</b> form on the front page, enter a name for a game, an admin password, and complete the anti-bot check. Once you've submitted that form the game will have been created, the port can be seen on the status and schedule pages.</span>
+
+	<h2>How do I create email reminders?</h2>
+	<span>Go to the <b>emails</b> tab of the game you want to add reminders for, at the bottom there is a form with two tabs. <b>New Turn Notification</b> is for setting up email notifications when there is a new turn, and <b>Turn Reminder</b> is for setting up reminders if you're running out of time to submit your turn. At the top of the page there is an input <b>Fetch Alerts</b> which you can use to view and then delete the notifications you've set up.</span>
+
+	<h2>How do I create discord reminders?</h2>
+	<span>Go to the <b>discord</b> tab of the game in question (you must be admin for this game) and then click the <b>Add Bot to Server</b>. If you're not an admin for the server in question, send the link to someone who is. Once the bot has been added to a server you can send him <pre>@bot help</pre> to get instructions.</span>
+
+	<h2>Why did my game disappear?</h2>
+	<span>Games will be archived after two weeks without anyone submitting orders for an active game, or adding a pretender for games still in the lobby. If a game lapses and becomes archived, you can go to the <b>schedule</b> page and select <b>Unarchive Game</b> to reactivate it.</span>
+
+	<h2>Its buggered, big time</h2>
+	<span>Admins can check the <b>turn logs</b> tab for the game page to see why a turn may have failed to host. The most common issue is a game trying to start with illegal spawns (i.e. UW nations on a map with no UW provinces).</span>
+
+	<h2>I have a suggestion/bug report</h2>
+	<span>I check the thread every so often.</span>
+{% endblock %}

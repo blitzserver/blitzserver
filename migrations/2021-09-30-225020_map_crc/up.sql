@@ -1,0 +1,5 @@
+-- Your SQL goes here
+ALTER TABLE maps ADD COLUMN map_crc INTEGER;
+ALTER TABLE maps ADD COLUMN tga_crc INTEGER;
+ALTER TABLE maps ADD COLUMN winter_crc INTEGER;
+ALTER TABLE games ADD COLUMN modified_mapcrc INTEGER;

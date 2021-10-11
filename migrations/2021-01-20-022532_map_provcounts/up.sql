@@ -1,0 +1,4 @@
+-- Your SQL goes here
+ALTER TABLE maps 
+	ADD COLUMN province_count INTEGER NOT NULL DEFAULT 0,
+	ADD COLUMN uw_count INTEGER NOT NULL DEFAULT 0;

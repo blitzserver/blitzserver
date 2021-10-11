@@ -1,0 +1,21 @@
+.maps-page {
+	display: grid;
+	grid-template-columns: 1fr 2fr;
+	grid-template-areas: 
+		"upload list";
+}
+.map-upload {
+	grid-area: upload;
+}
+.map-list {
+	grid-area: list;
+}
+.map-list>.striped-table {
+	display: flex;
+	flex-direction: column;
+}
+div.error {
+	color: red;
+	background: #fbb;
+	border: 1px red solid;
+}

@@ -1,0 +1,10 @@
+<input name="modfilter" type="search" value="{{params.modfilter}}" placeholder="Search"/>
+<input formmethod="GET" type="submit" formnovalidate value="Search"/>
+<br>
+{% for cmod in mods %}
+	<section{% if !cmod.name.contains(params.modfilter) %} hidden {% endif %}>
+		<label for="mod-{{cmod.id}}">{{ cmod.name }}</label>
+		<input {% if params.cmods.contains(cmod.id) %} checked="checked" {% endif %} name="cmods[]" id="mod-{{cmod.id}}" type="checkbox" value="{{cmod.id}}" />
+		<br>
+	</section>
+{% endfor %}

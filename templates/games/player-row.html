@@ -1,0 +1,98 @@
+<tr
+		class="{% if nation.status==-1 %}unjoined{% endif %} {% if nation.is_disciple == true %}disciple{% else %}pretender{% endif %}">
+	<td class="nation-name wide-column">
+		{% if self.turn_number == 0 && self.authed == AuthStatus::AuthSuccess && nation.is_disciple == false %}
+		<form action="{{game.id}}/assign-team" method="POST">
+			<section>
+				<input type="hidden" name="disciple" value="{% if nation.is_disciple %}1{% else %}0{% endif %}" />
+				<input type="hidden" name="team" value="{{nation.team}}" />
+				<div class="input-group">
+					<select onchange="this.form.submit()" name="nation" required>
+						<option value="" disabled selected>Nation</option>
+						{% for pnation in self.nations %}
+						<option {% if nation.id==pnation.nation_id %} selected {% endif %} value="{{pnation.nation_id}}">
+						{{pnation.name}}, {{pnation.epithet}}</option>
+						{% endfor %}
+					</select>
+			</section>
+			<section>{{ nation.pretender_name }}</section>
+				</div>
+		</form>
+		{% else %}
+		<section>{{ nation.name }}, {{ nation.epithet }}</section>
+		<section>{{ nation.pretender_name }}</section>
+		{% endif %}
+	</td>
+	{% if self.turn_number > 0 %}
+	<td class="turn-markers">
+		{% for turn in self.get_turn_pips(nation.id) %}
+		{% match turn.status %}
+		{% when 0 %}
+		<span class="unsubmitted">■</span>
+		{% when 1 %}
+		<span class="unfinished">■</span>
+		{% when 2 %}
+		<span class="submitted">■</span>
+		{% when 3 %}
+		<span class="computer">■</span>
+    {% when 4 %}
+    <span class="dead">■</span>
+    {% when 5 %}
+    <span class="dead">■</span>
+		{% else %}
+		<span class="unsubmitted">■</span>
+		{% endmatch %}
+		{% endfor %}
+	</td>
+	{% match nation.status %}
+	{% when 0 %}
+	<td class="unsubmitted">unsubmitted</td>
+	{% when 1 %}
+	<td class="unfinished">unfinished</td>
+	{% when 2 %}
+	<td class="submitted">submitted</td>
+	{% when 3 %}
+	<td class="computer">computer</td>
+  {% when 4 %}
+  <td class="dead">dead</td>
+  {% when 5 %}
+  <td class="dead">dead</td>
+	{% else %}
+	<td class="unsubmitted">unsubmitted</td>
+	{% endmatch %}
+	{% else %}
+	<td></td>
+	<td>
+		<details class="player-dropdown">
+			<summary>
+				<div class="cover"></div>
+			</summary>
+			<div class="cover"></div>
+			<div>
+				<form method="POST">
+					<input type="hidden" name="disciple" value="1" />
+					<input type="hidden" name="team" value="0" />
+					<input type="hidden" name="nation" value="{{nation.id}}" />
+					{% if self.authed == AuthStatus::AuthSuccess %}
+						{% if nation.id > 0 %}
+							{% if nation.status != -1 %}
+								<input type="submit" formaction="{{game.id}}/remove/{{nation.id}}" formmethod="POST" class="btn btn-block btn-danger" value="Remove Pretender" />
+							{% else if nation.status == -1 %}
+								<input type="submit" formaction="{{game.id}}/assign-team" formmethod="POST" class="btn btn-block" value="Remove From Team" />
+							{% endif %}
+						{% endif %}
+					{% else if nation.id != -1 && nation.status != -1 %}
+					<input {% if !nation.has_pass %} disabled="disabled" {% endif %} type="radio" name="action" id="remove-action-{{nation.id}}" />
+					<label {% if !nation.has_pass %} disabled="disabled" {% endif %} for="remove-action-{{nation.id}}" class="btn btn-block btn-danger {% if!nation.has_pass %} disabled {% endif %}" title="A player may use their password to remove themselves from the game, if they have not set a password, the admin must remove them.">Remove Pretender</label>
+					<div class="input-group">
+						<input type="password" name="password" />
+						<input class="btn btn-danger" formaction="{{game.id}}/remove/{{nation.id}}" type="submit" value=">" />
+					</div>
+					{% endif %}
+				</form>
+			</div
+		</details>
+	</td>
+	{% endif %}
+	</form>
+</tr>

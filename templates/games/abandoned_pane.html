@@ -1,0 +1,15 @@
+<div class="game-pane abandoned">
+	<div class="left">
+		<div class="header">
+			<a class="title" href={{format!("game/{}#status", game.id)}}><span>{{ game.name }}</span></a> <br>
+			<section>{{ game.address }}</section>
+		</div>
+		<div class="sep"></div>
+		<div class="details">
+			<section>Abandoned, <a href="/help#:~:text=Why did my game disappear?">will be archived</a> in {{ game.auto_archive_in }} unless there is <a href="/help#:~:text=submitting orders for an active game, or adding a pretender for games still in the lobby">activity</a>.</section>
+		</div>
+	</div>
+	<div class="right">
+		<img src="/images/maps/{{ game.map_id}}_100-0.jpg" />
+	</div>
+</div>

@@ -1,0 +1,40 @@
+{% extends "container.html" %}
+{% block body %}
+<div class="games-list">
+	<div>
+		<p>
+		Games which are <em class="col-active">Active</em> and <em class="col-waiting">Waiting for players</em> are listed on the right. Below you can create a new game, you'll be taken to the settings page after where you can configure things like era, map, and mods.
+		</p>
+		<div class="pane">
+			<form action="/games/create" method="post">
+				<h3>Create New Game</h3>
+				<div class="input-group">
+					<label for="game-name">Name</label>
+					<input required title="Name must be alphanumeric, you can use - and _ for separating words. This is illwinter's fault" pattern="[a-zA-Z0-9\-_]+" name="name" id="game-name" type="text"/>
+				</div>
+				<div class="input-group">
+					<label for="game-pass">Password</label>
+					<input required name="password" id="game-pass" type="password"/>
+				</div>
+				{% if self.antibot_question.is_some() %}
+				<div class="input-group input-group-vertical">
+					<label for="antibot">{{self.question_string()}}</label>
+					<input {% if self.antibot_failed.is_some() %} class="invalid" {% endif %} required name="antibot" id="antibot" type="string"/>
+				</div>
+				{% endif %}
+				<input class="btn btn-block btn-primary" type="submit" value="Create"/>
+			</form>
+		</div>
+	</div>
+	<div>
+		{% for game in pending_games %}
+			{% include "pending_pane.html" %}
+		{% endfor %}
+		{% for game in active_games %}
+			{% include "active_pane.html" %}
+		{% endfor %}
+		{% for game in abandoned_games %}
+			{% include "abandoned_pane.html" %}
+		{% endfor %}
+	</div>
+{% endblock %}

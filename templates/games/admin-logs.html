@@ -1,0 +1,8 @@
+<table class="striped-table">
+	{% for admin_log in admin_logs %}
+	<tr>
+		<td>{{admin_log.datetime_string()}}</td>
+		<td>{{admin_log.action}}</td>
+	</tr>
+	{% endfor %}
+</table>

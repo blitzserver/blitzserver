@@ -1,0 +1,7 @@
+<div>
+	<table class="striped-table">
+		{% for nation in self.get_player_summaries() %}
+			{% include "player-row.html" %}
+		{% endfor %}
+	</table>
+</div>
