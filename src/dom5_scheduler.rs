@@ -6,13 +6,27 @@ impl Scheduler {
     pub fn run(self) {
         std::thread::spawn(move || {
             smol::block_on(async {
-                let mut joins = std::collections::HashMap::<i32, (std::thread::JoinHandle<_>, std::sync::Weak<()>)>::new();
+                let mut joins = std::collections::HashMap::<
+                    i32,
+                    (std::thread::JoinHandle<_>, std::sync::Weak<()>),
+                >::new();
                 loop {
-                    for (game_id, (handle, _)) in joins.drain_filter(|_,  (_, weak): &mut (_, _)| weak.upgrade().is_none()) {
+                    for (game_id, (handle, _)) in
+                        joins.drain_filter(|_, (_, weak): &mut (_, _)| weak.upgrade().is_none())
+                    {
                         match handle.join() {
                             Ok(_) => log::info!("Hosted turn for game {}", game_id),
-                            Err(e) => log::error!("Failed to host turn for game {}: {:?}", game_id, e)
+                            Err(e) => {
+                                log::error!("Failed to host turn for game {}: {:?}", game_id, e)
+                            }
                         }
+                    }
+                    if let Err(e) = sqlx::query!(r#"
+                                                 UPDATE games 
+                                                 SET archived=true, port=NULL 
+                                                 WHERE last_activity < NOW() - interval '2 weeks' AND archived!=true"#
+                                                ).execute(&self.db_pool).await {
+                        log::error!("Failed to archive stale games {:?}", e);
                     }
                     match sqlx::query!(r#"
                         WITH top_turn as (SELECT game_id,MAX(turn_number) as turn_number FROM turns WHERE archived!=TRUE GROUP BY game_id)
@@ -41,7 +55,7 @@ impl Scheduler {
                                                 Some(t) => log::info!("Hosting turn {} for game {}", t, game_id),
                                                 None => log::info!("Starting game {}", game_id)
                                             }
-                                            
+
                                             let dom5_turn = crate::dom5_turn::Dom5Turn {
                                                 db_pool: db_pool,
                                                 game_id: game.id

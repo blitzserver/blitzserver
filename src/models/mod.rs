@@ -1,5 +1,6 @@
 pub mod player;
 
+use std::env;
 use super::schema::{
     admin_logs, disciples, discord_configs, email_configs, files, game_logs, game_mods, games,
     map_provinces, maps, mods, nations, player_turns, turns,
@@ -372,11 +373,24 @@ impl Game {
         D: diesel::Connection<Backend = diesel::pg::Pg>,
     {
         use crate::schema::games::dsl as games_dsl;
+
+        let port_var = env::var("PORT_RANGE").expect("PORT_RANGE must be set (ie. '10000,10999')");
+        let range: Vec<&str> = port_var.split(",").collect();
+        let port = match archived {
+            false => 
+    Some(diesel::dsl::sql::<diesel::sql_types::Int4>(&format!(
+                    "SELECT num FROM generate_series({}, {}) num LEFT OUTER JOIN games g ON g.port=num WHERE g.id IS NULL ORDER BY num ASC LIMIT 1",
+                    range[0], range[1]
+                ))
+                .get_result(db)
+                .unwrap()),
+            true => None
+        };
         diesel::update(games_dsl::games.filter(games_dsl::id.eq(self.id)))
             .set((
                 games_dsl::archived.eq(archived),
                 games_dsl::last_activity.eq(std::time::SystemTime::now()),
-                games_dsl::port.eq::<Option<i32>>(None),
+                games_dsl::port.eq::<Option<i32>>(port),
             ))
             .get_result::<Game>(db)
     }

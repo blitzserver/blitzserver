@@ -1223,10 +1223,6 @@ pub async fn archive_post(
     let game = Game::get(path_id, &db).unwrap();
     game.archive(form.archived, &db).unwrap();
     if form.archived {
-        app_data
-            .msgbus_sender
-            .send(Msg::GameArchived(GameArchivedMsg { game_id: path_id }))
-            .unwrap();
         NewAdminLog {
             game_id: path_id,
             datetime: std::time::SystemTime::now(),
@@ -1235,10 +1231,6 @@ pub async fn archive_post(
         .insert(&db)
         .unwrap();
     } else {
-        app_data
-            .msgbus_sender
-            .send(Msg::CreateGame(CreateGameMsg { game_id: path_id }))
-            .unwrap();
         NewAdminLog {
             game_id: path_id,
             datetime: std::time::SystemTime::now(),
