@@ -118,6 +118,7 @@ struct GameSettings {
     require_password: i32,
     #[serde(default)]
     select_start: i32,
+    cataclysm: Option<i32>,
     // Marker to tell whether the form is on its first load
     loaded: Option<String>,
 }
@@ -158,6 +159,7 @@ impl From<(&Game, &[Mod])> for GameSettings {
             require_password: game.require_password as i32,
             select_start: game.select_start,
             private: game.private as i32,
+            cataclysm: game.cataclysm
         }
     }
 }
@@ -281,6 +283,9 @@ pub struct PNT<'a> {
     nation: &'a Nation,
 }
 impl<'a> GameDetailsTemplate<'a> {
+    pub fn cataclysm_str(&self) -> String {
+        self.settings.cataclysm.map(|c| format!("{}", c)).unwrap_or("".to_owned())
+    }
     pub fn get_player_at_start(&self, province_id: &i32) -> Option<PNT> {
         self.players
             .iter()
@@ -1097,6 +1102,7 @@ async fn settings_post(
                         private.eq(body.private > 0),
                         require_password.eq(body.require_password > 0),
                         select_start.eq(body.select_start),
+                        cataclysm.eq(body.cataclysm)
                     ))
                     .get_result(&db)?
             };

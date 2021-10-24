@@ -504,6 +504,9 @@ impl Dom5Turn {
                 0 => arguments.append(&mut vec!["--nonewai".to_string(), "".to_string()]),
                 l => arguments.append(&mut vec!["--newailvl".to_string(), l.to_string()]),
             }
+            if let Some(c) = game.cataclysm {
+                arguments.append(&mut vec!["--cataclysm".to_string(), format!("{}",c)]);
+            }
             if let Some(masterpass) = game.masterpass.as_ref() {
                 arguments.append(&mut vec!["--masterpass".to_string(), masterpass.clone()]);
             }

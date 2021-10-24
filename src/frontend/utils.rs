@@ -64,3 +64,9 @@ pub fn default_forty() -> i32 {
 pub fn default_hundred() -> i32 {
     100
 }
+pub fn rand_bool() -> bool {
+    match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() % 2 {
+        1 => true,
+        _ => false
+    }
+}

@@ -8,8 +8,8 @@
 	--col-light-grey: #EEE;
 	--col-green: #28a745;
 	--col-cyan: #17a2b8;
-	--col-green-pale: #28a74522;
-	--col-cyan-pale: #17a2b811;
+	--col-green-pale: #e2f3e6;
+	--col-cyan-pale: #eff9fa;
 	--col-faint: #0003;
 	--col-very-faint: #0001;
 }
@@ -46,7 +46,7 @@ nav {
 nav.tabs {
 	border-bottom: var(--col-grey) 3px solid;
 	padding-bottom: 0px;
-	line-height: 1;
+	line-height: 1.1;
 }
 nav>*>a,nav>a,.version {
 	padding-left: 10px;
@@ -77,6 +77,8 @@ nav h1 {
 	display: inline;
 	font-weight: 400;
 	color: black;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .games-list {
 	display: grid;
@@ -161,6 +163,7 @@ p {
 }
 .game-pane .left {
 	flex-grow: 99;
+  max-width: calc(100% - 72px);
 }
 .game-pane img {
 	height: 49px;
@@ -175,10 +178,6 @@ p {
 }
 .game-pane.active {
 	background: var(--col-cyan-pale);
-}
-.game-pane .title {
-	color: blue;
-	font-size: 18px;
 }
 .game-pane .sep {
 	margin-top: -6px;
@@ -290,6 +289,8 @@ p {
 .game-pane .title {
 	color: blue;
 	font-size: 18px;
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 .game-pane .sep {
 	margin-top: -6px;
@@ -374,9 +375,8 @@ h3 {
 }
 .pane {
 	background: #f8f9fa;
-	margin: 15px;
-	margin-bottom: 15px;
-	margin-left: 15px;
+  margin: 15px;
+  margin-top: 0px;
 	padding: 5px;
 }
 .pane-search {
@@ -400,6 +400,10 @@ h3 {
 }
 .nav>div>* {
 	pointer-events: initial;
+}
+.nav>div>a {
+  white-space: nowrap;
+  line-height: 1.4;
 }
 .nav>div:target>a {
 	background: var(--col-grey);
@@ -880,4 +884,23 @@ label[for="noProvince"] {
   height: 100%;
   width: 100%;
   opacity: 0;
+}
+.serpent-dancer {
+  width: 130%;
+}
+.lizard-bg {
+  background: url('serpent-lay-front.jpg');
+  background-size: 700px;
+  background-position-y: -100px;
+  background-position-x: 360px;
+  background-repeat: no-repeat;
+  margin-top: -10px;
+}
+.lizard-bg-alt {
+  background: url('serpent-lay-back.jpg');
+  background-size: 700px;
+  background-position-y: -100px;
+  background-position-x: 360px;
+  background-repeat: no-repeat;
+  margin-top: -10px;
 }

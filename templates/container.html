@@ -6,11 +6,16 @@
 		{% block meta %}
 		<meta name="description" content="Dominions 5 hosting service"/>
 		{% endblock %}
+    <link rel="icon" href="favicon.png">
 		<link rel="stylesheet" href="/styles.css?{{ env!("CARGO_PKG_VERSION") }}">
 	</head>
 	<body>
 		<div class="container">
-			<nav>
+      {% if crate::frontend::utils::rand_bool() %}
+        <nav class="lizard-bg-alt">
+      {% else %}
+        <nav class="lizard-bg">
+      {% endif %}
 				<span class="title">Blitzserver</span>
 				<a href="/games">games</a>
 				<a href="/maps">maps</a>

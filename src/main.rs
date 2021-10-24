@@ -1,4 +1,5 @@
 #![feature(duration_constants)]
+#![recursion_limit="256"]
 #![feature(try_blocks)]
 #![feature(drain_filter)]
 #![feature(async_closure)]
@@ -66,12 +67,6 @@ async fn index() -> Result<HttpResponse> {
         .finish())
 }
 
-#[get("/favicon.ico")]
-async fn favicon() -> Result<HttpResponse> {
-    Ok(HttpResponse::Ok()
-        .content_type("image/png")
-        .body(&include_bytes!("../content/favicon.ico")[..]))
-}
 #[get("/styles.css")]
 async fn styles() -> Result<HttpResponse> {
     Ok(HttpResponse::Ok()
@@ -193,11 +188,9 @@ async fn main() -> std::io::Result<()> {
             )
             .service(
                 actix_files::Files::new("/images/maps", "./images/maps")
-                    .show_files_listing()
                     .default_handler(crate::frontend::maps::map_thumb_handler),
             )
             .service(index)
-            .service(favicon)
             .service(styles)
             .service(frontend::maps::details)
             .service(frontend::maps::image)
@@ -227,6 +220,9 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::mods::download)
             .service(frontend::mods::image)
             .service(frontend::help::help)
+            .service(
+                actix_files::Files::new("/", "./content")
+            )
     })
     .bind("0.0.0.0:8080")?
     .run()
