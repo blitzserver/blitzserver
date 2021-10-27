@@ -889,7 +889,7 @@ label[for="noProvince"] {
   width: 130%;
 }
 .lizard-bg {
-  background: url('serpent-lay-front.jpg');
+  background: url('serpent-lay-front.webp');
   background-size: 700px;
   background-position-y: -100px;
   background-position-x: 360px;
@@ -897,7 +897,7 @@ label[for="noProvince"] {
   margin-top: -10px;
 }
 .lizard-bg-alt {
-  background: url('serpent-lay-back.jpg');
+  background: url('serpent-lay-back.webp');
   background-size: 700px;
   background-position-y: -100px;
   background-position-x: 360px;
