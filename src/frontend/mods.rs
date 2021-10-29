@@ -15,6 +15,18 @@ pub struct ListModsTemplate<'a> {
     mods: Vec<Mod>,
 }
 
+impl<'a> ListModsTemplate<'a> {
+    pub fn get_upload_location() -> String {
+        return format!(
+            "{}/mods/upload",
+            std::env::var("UPLOAD_ADDRESS").unwrap_or(
+                std::env::var("ADDRESS")
+                    .expect("GAMES_ADDRESS env varnot specified, needed for map upload form")
+            )
+        );
+    }
+}
+
 #[derive(Template)]
 #[template(path = "mods/details.html")]
 pub struct ModDetailsTemplate<'a> {
@@ -170,8 +182,10 @@ pub async fn upload_post(
                                         )
                                         .get_result(&db)
                                         .unwrap();
+                                let address = std::env::var("ADDRESS")
+                                    .expect("ADDRESS env var not specified");
                                 return Ok(HttpResponse::Found()
-                                    .header(header::LOCATION, "/mods")
+                                    .header(header::LOCATION, format!("{}/mods", address))
                                     .finish());
                             }
                             _ => {

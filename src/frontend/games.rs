@@ -263,7 +263,7 @@ struct GameDetailsTemplate<'a> {
     email_configs: &'a [EmailConfig],
     turn_number: i32,
     turns: HashMap<i32, Vec<PlayerTurn>>,
-    hostname: String,
+    games_address: String,
     players: &'a Vec<Player>,
     disciples: &'a Vec<Disciple>,
     nations: &'a Vec<Nation>,
@@ -503,7 +503,7 @@ impl<'a> GameDetailsTemplate<'a> {
             "{}\n{}{}",
             &self.get_status_string(),
             match self.game.port {
-                Some(p) => format!("{}:{}\n", self.hostname, p),
+                Some(p) => format!("{}:{}\n", self.games_address, p),
                 None => "".to_owned(),
             },
             match self.game.next_turn {
@@ -824,7 +824,7 @@ async fn details(
             disciples: &disciples,
             nations: &nations,
             turns: player_turn_map,
-            hostname: std::env::var("HOSTNAME").unwrap(),
+            games_address: std::env::var("GAMES_ADDRESS").unwrap_or(std::env::var("ADDRESS").expect("ADDRESS required for showing game location")),
             admin_logs: &admin_logs,
             discord_clientid: app_data
                 .discord_manager
@@ -970,7 +970,7 @@ async fn list(
             name: g.name.clone(),
             address: format!(
                 "{}:{}",
-                std::env::var("HOSTNAME").unwrap(),
+                std::env::var("GAMES_ADDRESS").unwrap(),
                 g.port.unwrap_or(0)
             ),
             auto_archive_in: {
@@ -1003,7 +1003,7 @@ async fn list(
             name: g.name.clone(),
             address: format!(
                 "{}:{}",
-                std::env::var("HOSTNAME").unwrap(),
+                std::env::var("GAMES_ADDRESS").unwrap(),
                 g.port.unwrap_or(0)
             ),
         })
@@ -1019,7 +1019,7 @@ async fn list(
             },
             address: format!(
                 "{}:{}",
-                std::env::var("HOSTNAME").unwrap(),
+                std::env::var("GAMES_ADDRESS").unwrap(),
                 g.port.unwrap_or(0)
             ),
             name: g.name.clone(),

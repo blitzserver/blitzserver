@@ -1,6 +1,6 @@
 use super::AppData;
 use crate::diesel::prelude::*;
-use crate::image::{io::Reader, GenericImageView, ImageFormat};
+use crate::image::GenericImageView;
 use crate::models::{File, Map, NewFile, NewMap};
 use actix_multipart::Multipart;
 use actix_web::http::header;
@@ -75,6 +75,18 @@ pub async fn image(
 struct ListMapsTemplate<'a> {
     maps: &'a [Map],
     errors: &'a [String],
+}
+
+impl<'a> ListMapsTemplate<'a> {
+    pub fn get_upload_location() -> String {
+        return format!(
+            "{}/maps/upload",
+            std::env::var("UPLOAD_ADDRESS").unwrap_or(
+                std::env::var("ADDRESS")
+                    .expect("GAMES_ADDRESS env varnot specified, needed for map upload form")
+            )
+        );
+    }
 }
 
 #[get("/map/{id}/download")]
@@ -362,8 +374,9 @@ async fn upload_post(
         if let Some(provinces) = provinces {
             map.insert_provinces(provinces, &db).unwrap();
         }
+        let address = std::env::var("ADDRESS").expect("ADDRESS env var not specified");
         return Ok(HttpResponse::Found()
-            .header(header::LOCATION, "/maps")
+            .header(header::LOCATION, format!("{}/maps", address))
             .finish());
     }
 }

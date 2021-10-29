@@ -4,7 +4,7 @@
 	<div class="map-upload">
 		<div class="pane">
 			<h3>Upload Map</h3>
-			<form method="post" action="/maps/upload" enctype="multipart/form-data">
+      <form method="post" action="{{Self::get_upload_location()}}" enctype="multipart/form-data">
 				<div class="input-group">
 					<label for="map">Map File (.map)</label>
 					<input class="btn-file" required type="file" name="map"/>
