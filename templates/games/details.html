@@ -23,6 +23,13 @@
                 <form method="POST">
                   <img class="map-img" src={{format!("/images/maps/{}_1000-0.jpg", self.game.map_id)}} />
                   {% if settings.select_start > 0 %}
+                  <style>
+                  {% for province in provinces %}
+                  {% if self.turn_number == 0 && (settings.select_start == 1 || settings.select_start == 2 && authed == AuthStatus::AuthSuccess) %}
+                    #province-{{province.province_id}}:checked ~ div { top: {{province.unit_y * 100.0}}%; left: {{province.unit_x * 100.0}}%; display: flex; }
+                  {% endif %}
+                  {% endfor %}
+                  </style>
                   {% for province in provinces %}
                   {% let player = self.get_player_at_start(province.province_id) %}
                   {% match player %}
@@ -30,7 +37,6 @@
                   <div class="player-marker" style="top: calc({{province.unit_y * 100.0}}% - 2em); left: {{province.unit_x * 100.0}}%;">{{ pnt.nation.name }}</div>
                   {% when None %}
                   {% if self.turn_number == 0 && (settings.select_start == 1 || settings.select_start == 2 && authed == AuthStatus::AuthSuccess) %}
-                    <style> #province-{{province.province_id}}:checked ~ div { top: {{province.unit_y * 100.0}}%; left: {{province.unit_x * 100.0}}%; display: flex; } </style>
                     <input id="province-{{province.province_id}}" name="province_start" style="top: calc({{province.unit_y * 100.0}}% - 8px); left: calc({{province.unit_x * 100.0}}% - 8px);"type="radio" value="{{province.province_id}}"/>
                   {% endif %}
                   {% endmatch %}

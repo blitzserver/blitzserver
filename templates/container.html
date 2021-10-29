@@ -6,8 +6,11 @@
 		{% block meta %}
 		<meta name="description" content="Dominions 5 hosting service"/>
 		{% endblock %}
-    <link rel="icon" href="favicon.png">
 		<link rel="stylesheet" href="/styles.css?{{ env!("CARGO_PKG_VERSION") }}">
+    <link rel="icon" href="/favicon.png">
+    <link rel="preload" as="image" href="/serpent-lay-front.webp">
+    <link rel="preload" as="image" href="/serpent-lay-back.webp">
+    <link rel="preload" as="image" href="/serpent-dancer.webp">
 	</head>
 	<body>
 		<div class="container">
