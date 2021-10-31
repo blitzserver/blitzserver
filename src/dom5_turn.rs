@@ -123,9 +123,14 @@ impl Dom5Turn {
             .await?;
             let startprovs = sqlx::query!(" SELECT nationid, startprov FROM players WHERE game_id=$1 AND startprov IS NOT NULL", self.game_id).fetch_all(&self.db_pool).await?;
             for sp in startprovs {
-                map_record
-                    .mfb
-                    .append(&mut format!("\n#specstart {} {}\n", sp.nationid, sp.startprov.unwrap_or(0)).into_bytes());
+                map_record.mfb.append(
+                    &mut format!(
+                        "\n#specstart {} {}\n",
+                        sp.nationid,
+                        sp.startprov.unwrap_or(0)
+                    )
+                    .into_bytes(),
+                );
             }
             if !map_dir.exists() {
                 std::fs::create_dir_all(&map_dir).map_err(Dom5TurnErr::UncleanMapDir)?;
@@ -185,14 +190,19 @@ impl Dom5Turn {
     }
     fn populate_saves(&mut self, turn_number: i32) -> Result<(), Dom5TurnErr> {
         smol::block_on(async {
-            let ftherlnd = sqlx::query!(r#"
+            let ftherlnd = sqlx::query!(
+                r#"
                 SELECT g.name, f.filename, f.filebinary 
                 FROM games g
                 INNER JOIN turns t
                 ON t.turn_number=$2 AND t.game_id=$1 AND t.archived != TRUE
                 INNER JOIN files f ON f.id=t.file_id
-                WHERE g.id=$1"#, 
-                self.game_id, turn_number).fetch_one(&self.db_pool).await?;
+                WHERE g.id=$1"#,
+                self.game_id,
+                turn_number
+            )
+            .fetch_one(&self.db_pool)
+            .await?;
             let save_files = sqlx::query!(
                 r#"
                 SELECT trn.filename as trnfn, trn.filebinary as trnfb, twoh.filename "twohfn?", twoh.filebinary "twohfb?"
@@ -221,7 +231,8 @@ impl Dom5Turn {
                     .map_err(Dom5TurnErr::UncleanSaveDir)?
                     .write_all(&saves.trnfb)
                     .map_err(Dom5TurnErr::UncleanSaveDir)?;
-                if let (Some(twohfn), Some(twohfb)) = (saves.twohfn.as_ref(), saves.twohfb.as_ref()) {
+                if let (Some(twohfn), Some(twohfb)) = (saves.twohfn.as_ref(), saves.twohfb.as_ref())
+                {
                     std::fs::File::create(save_dir.join(&twohfn))
                         .map_err(Dom5TurnErr::UncleanSaveDir)?
                         .write_all(&twohfb)
@@ -505,7 +516,7 @@ impl Dom5Turn {
                 l => arguments.append(&mut vec!["--newailvl".to_string(), l.to_string()]),
             }
             if let Some(c) = game.cataclysm {
-                arguments.append(&mut vec!["--cataclysm".to_string(), format!("{}",c)]);
+                arguments.append(&mut vec!["--cataclysm".to_string(), format!("{}", c)]);
             }
             if let Some(masterpass) = game.masterpass.as_ref() {
                 arguments.append(&mut vec!["--masterpass".to_string(), masterpass.clone()]);
@@ -565,7 +576,7 @@ impl Dom5Turn {
                     .unwrap();
                 if outbuf.len() == 0 && outerr.len() == 0 {
                     waits = waits + 1;
-                    if waits == 60 {
+                    if waits == 240 {
                         outbuf.push_str(&format!(
                             "WARN: Printed nothing for {} seconds, forcefully killing\n",
                             waits
@@ -575,6 +586,14 @@ impl Dom5Turn {
                             turn_number.unwrap_or(0),
                             game.id
                         );
+                        sqlx::query!(
+                            "UPDATE game_logs SET output=concat(output, $2::text), error=concat(error, $3::text) WHERE id=$1",
+                            game_log.id,
+                            outbuf,
+                            outerr
+                        )
+                        .execute(&self.db_pool)
+                        .await?;
                         child.kill().unwrap();
                         child.wait().unwrap();
                         return Err(Dom5TurnErr::TurnHang);
@@ -588,11 +607,7 @@ impl Dom5Turn {
                     waits = 0;
                 }
                 sqlx::query!(
-                    "UPDATE game_logs
-                SET
-                    output=concat(output, $2::text),
-                    error=concat(error, $3::text)
-                WHERE id=$1",
+                    "UPDATE game_logs SET output=concat(output, $2::text), error=concat(error, $3::text) WHERE id=$1",
                     game_log.id,
                     outbuf,
                     outerr
