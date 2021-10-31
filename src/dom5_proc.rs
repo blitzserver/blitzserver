@@ -554,11 +554,12 @@ impl Dom5Proc {
                 .unwrap();
             if outbuf.len() == 0 && outerr.len() == 0 {
                 waits = waits + 1;
-                if waits == 60 {
+                if waits == 240 {
                     outbuf.push_str(&format!(
                         "WARN: Printed nothing for {} seconds, forcefully killing\n",
                         waits
                     ));
+                    game_log.update_logs(&outbuf, &outerr, db).unwrap();
                     log::error!(
                         "Turn {} for game {} hung, forcefully killing",
                         turn_number,
