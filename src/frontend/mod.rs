@@ -14,6 +14,7 @@ pub mod help;
 #[derive(Clone)]
 pub struct AppData {
     pub pool: r2d2::Pool<ConnectionManager<PgConnection>>,
+    pub sqlx_pool: sqlx::postgres::PgPool,
     pub msgbus_sender: MsgBusTx,
     pub email_manager: EmailManager,
     pub discord_manager: Option<DiscordManager>,

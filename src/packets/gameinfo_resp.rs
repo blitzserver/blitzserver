@@ -1,14 +1,5 @@
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-mod tests {
-    #[test]
-    fn test_ended_gameinfo() {
-        let mut f = std::fs::File::open("./test_data/gameinfo_ended").unwrap();
-        let dat = crate::packets::Packet::from_reader(&mut f);
-        println!("Packet: {:?}", dat);
-    }
-}
-
 #[derive(Clone, Debug)]
 pub struct GameInfoResp {
     pub unk1: u32,

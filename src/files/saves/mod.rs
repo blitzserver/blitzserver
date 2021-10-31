@@ -54,17 +54,8 @@ impl SaveFile {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn deserialize_game_1() {
-        use crate::files::saves::SaveFile;
-        for entry in std::fs::read_dir("./test_data/game_sleepydominions").unwrap() {
-            let entry = entry.unwrap();
-            for entry in std::fs::read_dir(entry.path()).unwrap() {
-                let entry = entry.unwrap();
-                if entry.file_name() == "ftherlnd" {
-                    let f = std::fs::File::open(entry.path()).unwrap();
-                    SaveFile::read_contents(f).unwrap();
-                }
-            }
-        }
+    fn calc_crc() {
+        let rec = crate::util::calculate_crc(std::io::Cursor::new(include_bytes!("../../../test_data/oeridiad5.map"))) as i32;
+        println!("crc for map {}", rec); 
     }
 }

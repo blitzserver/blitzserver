@@ -159,7 +159,7 @@ impl From<(&Game, &[Mod])> for GameSettings {
             require_password: game.require_password as i32,
             select_start: game.select_start,
             private: game.private as i32,
-            cataclysm: game.cataclysm
+            cataclysm: game.cataclysm,
         }
     }
 }
@@ -189,7 +189,8 @@ pub struct TeamForm {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StartLocForm {
     province_start: i32,
-    password: Option<std::collections::HashMap<i32, String>>,
+    #[serde(default)]
+    password: std::collections::HashMap<i32, String>,
 }
 impl Default for EmailForm {
     fn default() -> Self {
@@ -284,7 +285,10 @@ pub struct PNT<'a> {
 }
 impl<'a> GameDetailsTemplate<'a> {
     pub fn cataclysm_str(&self) -> String {
-        self.settings.cataclysm.map(|c| format!("{}", c)).unwrap_or("".to_owned())
+        self.settings
+            .cataclysm
+            .map(|c| format!("{}", c))
+            .unwrap_or("".to_owned())
     }
     pub fn get_player_at_start(&self, province_id: &i32) -> Option<PNT> {
         self.players
@@ -824,7 +828,9 @@ async fn details(
             disciples: &disciples,
             nations: &nations,
             turns: player_turn_map,
-            games_address: std::env::var("GAMES_ADDRESS").unwrap_or(std::env::var("ADDRESS").expect("ADDRESS required for showing game location")),
+            games_address: std::env::var("GAMES_ADDRESS").unwrap_or(
+                std::env::var("ADDRESS").expect("ADDRESS required for showing game location"),
+            ),
             admin_logs: &admin_logs,
             discord_clientid: app_data
                 .discord_manager
@@ -1102,7 +1108,7 @@ async fn settings_post(
                         private.eq(body.private > 0),
                         require_password.eq(body.require_password > 0),
                         select_start.eq(body.select_start),
-                        cataclysm.eq(body.cataclysm)
+                        cataclysm.eq(body.cataclysm),
                     ))
                     .get_result(&db)?
             };
@@ -1402,39 +1408,40 @@ pub async fn assign_start(
 ) -> Result<HttpResponse> {
     let cfg = serde_qs::Config::new(10, false);
     let form = cfg.deserialize_bytes::<StartLocForm>(&bytes).unwrap();
-    let db = app_data.pool.get().expect("Unable to connect to database");
-    let game = Game::get(path_id, &db).unwrap();
-    let player = game.get_player(nation_id, &db).unwrap();
-    match (form.password, &player.password, game.select_start) {
-        (Some(passwords), Some(password), 1) => {
-            if passwords[&nation_id] == *password {
-                player.set_start(form.province_start, &db).unwrap();
-                app_data
-                    .msgbus_sender
-                    .send(Msg::MapChanged(MapChangedMsg {
-                        game_id: game.id,
-                        map_id: game.map_id,
-                    }))
-                    .unwrap();
-            }
+    match form.password.get(&nation_id) {
+        Some(password) => {
+            sqlx::query!("
+            WITH game AS (UPDATE games SET modified_mapcrc=NULL WHERE id=$3 AND select_start=1 RETURNING *)
+                UPDATE players p SET startprov=$1
+                FROM game g 
+                WHERE p.game_id=g.id AND p.nationid=$2 AND p.password=$4",
+                form.province_start,
+                nation_id,
+                path_id,
+                password
+            )
+            .execute(&app_data.sqlx_pool)
+            .await
+            .unwrap();
         }
-        (_, _, 2) => {
-            if session
-                .get(&format!("auth_{}", path_id))
-                .unwrap_or(Some(AuthStatus::Unauthed))
-                .unwrap_or(AuthStatus::Unauthed)
-                == AuthStatus::AuthSuccess
-            {
-                player.set_start(form.province_start, &db).unwrap();
-                app_data
-                    .msgbus_sender
-                    .send(Msg::MapChanged(MapChangedMsg {
-                        game_id: game.id,
-                        map_id: game.map_id,
-                    }))
-                    .unwrap();
-            }
-        }
+        None if session
+            .get(&format!("auth_{}", path_id))
+            .unwrap_or(Some(AuthStatus::Unauthed))
+            .unwrap_or(AuthStatus::Unauthed)
+            == AuthStatus::AuthSuccess =>
+        {
+            sqlx::query!("
+            WITH game AS (UPDATE games SET modified_mapcrc=NULL WHERE id=$3 AND select_start=2 RETURNING *)
+                UPDATE players p SET startprov=$1
+                FROM game g 
+                WHERE p.game_id=g.id AND p.nationid=$2",
+                form.province_start,
+                nation_id,
+                path_id
+            )
+            .execute(&app_data.sqlx_pool)
+            .await
+            .unwrap();        }
         _ => {}
     }
     return Ok(HttpResponse::Found()
