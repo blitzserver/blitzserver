@@ -888,6 +888,12 @@ label[for="noProvince"] {
 .serpent-dancer {
   width: 130%;
 }
+.serpent-map {
+  width: 100%;
+  position: fixed;
+  bottom: 0px;
+  width: max(min(400px, 34vw), 310px);
+}
 .lizard-bg {
   background: url('serpent-lay-front.webp');
   background-size: 700px;
