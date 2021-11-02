@@ -893,7 +893,7 @@ label[for="noProvince"] {
   z-index: -1;
   position: fixed;
   bottom: 0px;
-  width: max(min(400px, 34vw), 310px);
+  width: max(min(398px, 34vw), 310px);
 }
 .lizard-bg {
   background: url('serpent-lay-front.webp');
