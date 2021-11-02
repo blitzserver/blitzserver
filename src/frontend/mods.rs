@@ -251,8 +251,9 @@ async fn download((app_data, modid): (web::Data<AppData>, web::Path<i32>)) -> Re
 
     Ok(HttpResponse::Ok()
         .content_type("application/zip")
-        .set(header::CacheControl(vec![header::CacheDirective::MaxAge(
-            86400u32,
-        )]))
+        .set(header::CacheControl(vec![
+            header::CacheDirective::Public,
+            header::CacheDirective::MaxAge(86400u32),
+        ]))
         .body(zipfile.filebinary))
 }
