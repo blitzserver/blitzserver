@@ -889,7 +889,7 @@ label[for="noProvince"] {
   width: 130%;
 }
 .serpent-map {
-  width: 100%;
+  width: 398px;
   z-index: -1;
   position: fixed;
   bottom: 0px;
