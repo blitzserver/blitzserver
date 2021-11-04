@@ -43,7 +43,8 @@ url = "*"
 serde_json = "*"
 rand = "*"
 smol = "*"
-sqlx = { verison = "0.5", features = ["runtime-async-std-native-tls", "chrono", "postgres"] }
+sqlx = { version = "0.5", features = ["runtime-async-std-native-tls", "chrono", "postgres"] }
 nonblock = "*"
 async-std = "*"
 derive_more = "*"
+libvips = { git = "https://github.com/blitzserver/libvips-rust-bindings.git" }

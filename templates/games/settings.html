@@ -10,7 +10,7 @@
 			<input class="bg-selector" {% if map.id==settings.map %} checked="checked" {% endif %} name="map"
 				id="map-{{map.id}}" type="radio" value="{{map.id}}" />
 			<div {% if !map.name.contains(settings.mapfilter) %} hidden {% endif %} class="bg-selector"
-				style="background-image: url('/images/maps/{{map.id}}_1500-200.jpg')">
+				style="background-image: url('/images/maps/{{map.id}}_600.webp')">
 				<label for="map-{{map.id}}"> {{map.name}} ({{map.province_count}}+{{map.uw_count}})</label>
 				<a class="btn" href="/map/{{map.id}}">Goto</a>
 			</div>

@@ -8,7 +8,9 @@ use actix_web::{get, post, web, HttpResponse, Result};
 use askama::Template;
 use diesel::RunQueryDsl;
 use futures::{StreamExt, TryStreamExt};
+use libvips::{ops, VipsImage};
 use std::convert::TryFrom;
+use std::io::Read;
 use std::io::Write;
 
 #[derive(Template)]
@@ -391,59 +393,40 @@ pub async fn map_thumb_handler(
     let app_data = req
         .app_data::<actix_web::web::Data<crate::frontend::AppData>>()
         .unwrap();
-    let db = app_data.pool.get().unwrap();
+    let db_pool = app_data.sqlx_pool.clone();
     let (http_req, _payload) = req.into_parts();
-    let map_id_regex = regex::Regex::new(r#"/images/maps/([0-9]+)_([0-9]+)-([0-9]+).jpg"#).unwrap();
+    let map_id_regex = regex::Regex::new(r#"/images/maps/([0-9]+)_([0-9]+).webp"#).unwrap();
     if let Some(captures) = map_id_regex.captures(http_req.path()) {
         let id_i32: i32 = captures.get(1).unwrap().as_str().parse().unwrap();
-        let width: u32 = captures.get(2).unwrap().as_str().parse().unwrap();
-        let height: u32 = captures.get(3).unwrap().as_str().parse().unwrap();
-        let (map, file): (Map, File) = crate::schema::maps::dsl::maps
-            .filter(crate::schema::maps::dsl::id.eq(id_i32))
-            .inner_join(
-                crate::schema::files::dsl::files
-                    .on(crate::schema::files::dsl::id.eq(crate::schema::maps::dsl::tgafile_id)),
-            )
-            .get_result::<(Map, File)>(&db)
-            .unwrap();
-        drop(db);
-        let cursor = std::io::Cursor::new(file.filebinary);
-        let reader =
-            crate::image::io::Reader::with_format(cursor.clone(), crate::image::ImageFormat::Tga)
-                .decode()
-                .unwrap_or_else(|_| {
-                    crate::image::io::Reader::with_format(
-                        cursor.clone(),
-                        crate::image::ImageFormat::Sgi,
-                    )
-                    .decode()
-                    .unwrap()
-                });
-        let mut resized = reader.resize(width, width, crate::image::imageops::FilterType::Lanczos3);
-        let (imgwidth, imgheight) = resized.dimensions();
-        let cropped = if height > 0 {
-            resized.crop(0, imgheight / 2 - height / 2, imgwidth, height)
-        } else {
-            resized
-        };
-        let maps_dir = std::path::PathBuf::from("./images/maps");
-        let mut file =
-            std::fs::File::create(maps_dir.join(format!("{}_{}-{}.jpg", map.id, width, height)))
-                .unwrap();
-        let mut jpg_bytes: Vec<u8> = Vec::new();
-        cropped
-            .write_to(
-                &mut std::io::Cursor::new(&mut jpg_bytes),
-                crate::image::ImageOutputFormat::Jpeg(30),
-            )
-            .unwrap();
-        file.write(&jpg_bytes).unwrap();
-
+        let desired_width: f64 = captures.get(2).unwrap().as_str().parse().unwrap();
+        let map = sqlx::query!(
+            "
+        SELECT m.id, filebinary, filename
+        FROM maps m 
+        LEFT JOIN files f ON f.id=m.tgafile_id
+        WHERE m.id=$1",
+            id_i32
+        )
+        .fetch_one(&db_pool)
+        .await
+        .unwrap();
+        let f = std::path::PathBuf::from(format!("./images/maps/{}", map.filename));
+        if !f.exists() {
+            let mut file = std::fs::File::create(&f).unwrap();
+            file.write_all(&map.filebinary).unwrap();
+        }
+        let vips_image = ops::magickload(f.into_os_string().to_str().unwrap()).unwrap();
+        let cur_width = vips_image.get_width() as f64;
+        let scale = desired_width / cur_width;
+        let vips_image = ops::resize(&vips_image, scale).unwrap();
+        let file_loc = format!("./images/maps/{}_{}.webp", map.id, desired_width);
+        ops::webpsave_with_opts(&vips_image, &file_loc, &ops::WebpsaveOptions::default()).unwrap();
+        let mut webp_file = std::fs::File::open(file_loc).unwrap();
+        let mut buff = vec![];
+        webp_file.read_to_end(&mut buff).unwrap();
         Ok(actix_web::dev::ServiceResponse::new(
             http_req,
-            HttpResponse::Ok()
-                .content_type("application/jpg")
-                .body(jpg_bytes),
+            HttpResponse::Ok().content_type("image/webp").body(buff),
         ))
     } else {
         Ok(actix_web::dev::ServiceResponse::new(

@@ -831,6 +831,11 @@ table.log-table .log-args {
   position: relative;
   display: block;
 }
+.game-map:hover {
+  position: absolute;
+  right: 0px;
+  width: 100%;
+}
 .game-map input[type="radio"] {
   position: absolute;
   opacity: 0;

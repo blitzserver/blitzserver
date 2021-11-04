@@ -733,7 +733,7 @@ dependencies = [
  "base64",
  "byteorder",
  "chrono",
- "crc 1.8.1",
+ "crc",
  "crossbeam-channel",
  "derive_more",
  "diesel",
@@ -744,6 +744,7 @@ dependencies = [
  "futures",
  "image",
  "lettre",
+ "libvips",
  "log",
  "nonblock",
  "notify",
@@ -752,7 +753,7 @@ dependencies = [
  "num_enum",
  "r2d2",
  "r2d2_postgres",
- "rand 0.7.3",
+ "rand 0.8.3",
  "regex",
  "reqwest",
  "serde",
@@ -817,12 +818,6 @@ checksum = "fa17aa1cf56bdd6bb30518767d00e58019d326f3f05d8c3e0730b549d332ea83"
 dependencies = [
  "bytes 0.5.6",
 ]
-
-[[package]]
-name = "build_const"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4ae4235e6dac0694637c763029ecea1a2ec9e4e06ec2729bd21ba4d9c863eb7"
 
 [[package]]
 name = "bumpalo"
@@ -1007,15 +1002,6 @@ name = "cpuid-bool"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dcb25d077389e53838a8158c8e99174c5a9d902dee4904320db714f3c653ffba"
-
-[[package]]
-name = "crc"
-version = "1.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d663548de7f5cca343f1e0a48d14dcfb0e9eb4e079ec58883b7251539fa10aeb"
-dependencies = [
- "build_const",
-]
 
 [[package]]
 name = "crc"
@@ -2002,6 +1988,15 @@ name = "libc"
 version = "0.2.94"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18794a8ad5b29321f790b55d93dfba91e125cb1a9edbd4f8e3150acc771c1a5e"
+
+[[package]]
+name = "libvips"
+version = "1.4.3"
+source = "git+https://github.com/blitzserver/libvips-rust-bindings.git#12394faf33c54605db5228ac10abe321712a11bf"
+dependencies = [
+ "num-derive",
+ "num-traits",
+]
 
 [[package]]
 name = "libz-sys"
@@ -3199,7 +3194,7 @@ dependencies = [
  "byteorder",
  "bytes 1.0.1",
  "chrono",
- "crc 2.0.0",
+ "crc",
  "crossbeam-channel",
  "crossbeam-queue",
  "crossbeam-utils",
