@@ -478,8 +478,8 @@ h3 {
 .bg-submitted {
 	background: green;
 }
-.bg-unfinished {
-	background: #ffa500;
+.bg-unsubmitted {
+	background: red;
 }
 .bg-unfinished {
 	background: #ffa500;
