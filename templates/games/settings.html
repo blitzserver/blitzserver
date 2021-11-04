@@ -232,7 +232,6 @@
 			<div class="input-group">
 				<label for="newailvl">"Become Computer Controlled" Difficulty</label>
 				<select name="newailvl" id="newailvl" type="number">
-					/*
 					<option {% if settings.newailvl==0 %} selected {% endif %} value="0">Disabled</option>
 					<option {% if settings.newailvl==1 %} selected {% endif %} value="1">Easy Diff.</option>
 					<option {% if settings.newailvl==2 %} selected {% endif %} value="2">Normal Diff.</option>
@@ -263,6 +262,10 @@
 					<option {% if settings.require_password==0 %} selected="selected" {% endif %} value="0">Optional</option>
 					<option {% if settings.require_password==1 %} selected="selected" {% endif %} value="1">Required</option>
 				</select>
+			</div>
+			<div class="input-group">
+				<label for="max_stales">Maximum Stales</label>
+        <input id="max_stales" type="number" value="{{self.max_stales_str()}}" />
 			</div>
 		</div>
 	</div>

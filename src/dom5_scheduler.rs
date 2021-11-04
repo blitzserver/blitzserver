@@ -38,6 +38,16 @@ impl Scheduler {
                             AND pt.game_id=g.id 
                             AND pt.turn_number=t.turn_number
                             AND pt.status IN (0,1)
+                            AND COALESCE((
+                                SELECT COUNT(*) 
+                                FROM player_turns pt2 
+                                WHERE pt2.turn_number < t.turn_number 
+                                  AND pt2.turn_number >= (t.turn_number - g.max_stales) 
+                                  AND pt2.archived!=TRUE 
+                                  AND pt2.status=0 
+                                  AND pt2.game_id=g.id 
+                                  AND pt2.nation_id=pt.nation_id
+                                ) < g.max_stales, TRUE)
                         WHERE g.archived != TRUE
                         GROUP BY g.id,t.turn_number
                         HAVING g.next_turn < NOW() OR (COUNT(pt.id) = 0 AND t.turn_number > 0)"#)

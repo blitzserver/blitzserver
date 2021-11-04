@@ -119,6 +119,7 @@ struct GameSettings {
     #[serde(default)]
     select_start: i32,
     cataclysm: Option<i32>,
+    max_stales: Option<i32>,
     // Marker to tell whether the form is on its first load
     loaded: Option<String>,
 }
@@ -160,6 +161,7 @@ impl From<(&Game, &[Mod])> for GameSettings {
             select_start: game.select_start,
             private: game.private as i32,
             cataclysm: game.cataclysm,
+            max_stales: game.max_stales
         }
     }
 }
@@ -278,15 +280,25 @@ struct GameDetailsTemplate<'a> {
     discord_clientid: Option<String>,
     discord_notifications: Vec<DiscordConfig>,
     discord_manager: Option<&'a DiscordManager>,
+    staling_players: Vec<i32>
 }
 pub struct PNT<'a> {
     player: &'a Player,
     nation: &'a Nation,
 }
 impl<'a> GameDetailsTemplate<'a> {
+    pub fn nation_staling(&self, nation: &i32) -> bool {
+        return self.staling_players.iter().find(|n| *n == nation).is_some();
+    }
     pub fn cataclysm_str(&self) -> String {
         self.settings
             .cataclysm
+            .map(|c| format!("{}", c))
+            .unwrap_or("".to_owned())
+    }
+    pub fn max_stales_str(&self) -> String {
+        self.settings
+            .max_stales
             .map(|c| format!("{}", c))
             .unwrap_or("".to_owned())
     }
@@ -811,10 +823,36 @@ async fn details(
         let new_provinces = crate::files::MapFile::load_provinces(&img).unwrap();
         provinces = map.insert_provinces(new_provinces, &db).unwrap();
     }
+    let staling_players: Vec<i32> = sqlx::query!(
+        r#"
+        WITH tt AS (SELECT MAX(turn_number) as tt FROM turns WHERE game_id=$1 AND archived!=TRUE)
+        SELECT nation_id
+        FROM player_turns pt
+        LEFT JOIN games g ON g.id=$1
+        INNER JOIN tt ON tt.tt=pt.turn_number
+        WHERE pt.game_id=$1
+        AND pt.status IN (0,1)
+        AND pt.archived != TRUE
+        AND COALESCE((
+            SELECT COUNT(*) 
+            FROM player_turns pt2 
+            WHERE pt2.turn_number < tt.tt
+              AND pt2.turn_number >= (tt.tt - g.max_stales) 
+              AND pt2.archived!=TRUE 
+              AND pt2.status=0 
+              AND pt2.game_id=g.id 
+              AND pt2.nation_id=pt.nation_id
+            ) >= g.max_stales, FALSE)"#,
+        game.id
+    )
+    .fetch_all(&app_data.sqlx_pool)
+    .await
+    .unwrap().into_iter().map(|r| r.nation_id).collect();
     let admin_logs = AdminLog::get_all(game.id, &db).unwrap();
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (GameDetailsTemplate {
             logs: GameLogLite::get_all(game.id, &db).unwrap(),
+            staling_players,
             focused_log: logs_detail,
             settings,
             authed,
@@ -1109,6 +1147,7 @@ async fn settings_post(
                         require_password.eq(body.require_password > 0),
                         select_start.eq(body.select_start),
                         cataclysm.eq(body.cataclysm),
+                        max_stales.eq(body.max_stales)
                     ))
                     .get_result(&db)?
             };
@@ -1441,7 +1480,8 @@ pub async fn assign_start(
             )
             .execute(&app_data.sqlx_pool)
             .await
-            .unwrap();        }
+            .unwrap();
+        }
         _ => {}
     }
     return Ok(HttpResponse::Found()

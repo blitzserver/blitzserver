@@ -1,6 +1,6 @@
 <tr
-		class="{% if nation.status==-1 %}unjoined{% endif %} {% if nation.is_disciple == true %}disciple{% else %}pretender{% endif %}">
-	<td class="nation-name wide-column">
+		class=" {% if nation.status==-1 %} unjoined {% endif %} {% if nation.is_disciple == true %} disciple {% else %} pretender {% endif %}">
+  <td class="nation-name wide-column">
 		{% if self.turn_number == 0 && self.authed == AuthStatus::AuthSuccess && nation.is_disciple == false %}
 		<form action="{{game.id}}/assign-team" method="POST">
 			<section>
@@ -46,7 +46,11 @@
 	</td>
 	{% match nation.status %}
 	{% when 0 %}
-	<td class="unsubmitted">unsubmitted</td>
+  {% if self.nation_staling(nation.id) %}
+    <td title="This player is staling, and the game will not wait for them to submit before hosting the turn" class="staling">staling</td>
+  {% else %}
+    <td class="unsubmitted">unsubmitted</td>
+  {% endif %}
 	{% when 1 %}
 	<td class="unfinished">unfinished</td>
 	{% when 2 %}

@@ -223,6 +223,20 @@ h1 {
 	color: #B00;
 	font-weight: 600;
 }
+.staling {
+	color: #C4A484;
+	font-weight: 600;
+  cursor: pointer;
+}
+.staling:after {
+  content: '?';
+  padding-left: 0.3em;
+  padding-right: 0.3em;
+  margin-left: 2px;
+  color: #0003;
+  border-radius: 20px;
+  border: 2px solid #0003;
+}
 .unfinished {
 	color: #ffa500;
 	font-weight: 600;
@@ -467,8 +481,8 @@ h3 {
 .bg-unfinished {
 	background: #ffa500;
 }
-.bg-unsubmitted {
-	background: red;
+.bg-unfinished {
+	background: #ffa500;
 }
 .bg-computer {
 	background: #BBF;

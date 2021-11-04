@@ -124,6 +124,7 @@ table! {
         select_start -> Int4,
         modified_mapcrc -> Nullable<Int4>,
         cataclysm -> Nullable<Int4>,
+        max_stales -> Nullable<Int4>,
     }
 }
 
