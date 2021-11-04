@@ -8,7 +8,7 @@ use actix_web::{get, post, web, HttpResponse, Result};
 use askama::Template;
 use diesel::RunQueryDsl;
 use futures::{StreamExt, TryStreamExt};
-use libvips::{ops, VipsImage};
+use libvips::ops;
 use std::convert::TryFrom;
 use std::io::Read;
 use std::io::Write;
@@ -415,10 +415,11 @@ pub async fn map_thumb_handler(
             let mut file = std::fs::File::create(&f).unwrap();
             file.write_all(&map.filebinary).unwrap();
         }
-        let vips_image = ops::magickload(f.into_os_string().to_str().unwrap()).unwrap();
+        let mut vips_image = ops::magickload(f.into_os_string().to_str().unwrap()).unwrap();
         let cur_width = vips_image.get_width() as f64;
         let scale = desired_width / cur_width;
-        let vips_image = ops::resize(&vips_image, scale).unwrap();
+        vips_image = ops::flip(&vips_image, ops::Direction::Horizontal).unwrap();
+        vips_image = ops::resize(&vips_image, scale).unwrap();
         let file_loc = format!("./images/maps/{}_{}.webp", map.id, desired_width);
         ops::webpsave_with_opts(&vips_image, &file_loc, &ops::WebpsaveOptions::default()).unwrap();
         let mut webp_file = std::fs::File::open(file_loc).unwrap();
