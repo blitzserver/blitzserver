@@ -189,6 +189,10 @@ pub struct TeamForm {
     disciple: i32,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MotdForm {
+    motd: Option<String>
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StartLocForm {
     province_start: i32,
     #[serde(default)]
@@ -1434,6 +1438,31 @@ pub async fn assign_team(
     }
     return Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#status", path_id))
+        .finish());
+}
+#[post("/game/{id}/motd")]
+pub async fn motd(
+    (app_data, web::Path(path_id), session, form): (
+        web::Data<AppData>,
+        web::Path<i32>,
+        actix_session::Session,
+        web::Form<MotdForm>,
+    ),
+) -> Result<HttpResponse> {
+    if session
+        .get(&format!("auth_{}", path_id))
+        .unwrap_or(Some(AuthStatus::Unauthed))
+        .unwrap_or(AuthStatus::Unauthed)
+        == AuthStatus::Unauthed
+    {
+        return Ok(HttpResponse::Unauthorized()
+            .header(header::LOCATION, format!("/game/{}", path_id))
+            .finish());
+    }
+    let sqlx_pool = app_data.sqlx_pool.clone();
+    sqlx::query!("UPDATE games SET motd=$2 WHERE id=$1", path_id, form.motd).execute(&sqlx_pool).await.unwrap();
+    return Ok(HttpResponse::Found()
+        .header(header::LOCATION, format!("/game/{}#schedule", path_id))
         .finish());
 }
 #[post("/game/{id}/startloc/{nationid}")]

@@ -274,11 +274,20 @@ impl Dom5Conn {
                         crate::packets::Body::PAReq(pkt) => {
                             smol::block_on(async {
                                 loop {
-                                    struct R { max: Option<i32> };
-                                    match sqlx::query_as!(R, "
-                                         SELECT MAX(turn_number) FROM turns WHERE game_id=$1 AND archived!=TRUE",
+                                    struct R { motd: Option<String>, max: Option<i32> };
+                                    match sqlx::query_as!(R, r#"
+                                         WITH tt as (SELECT MAX(turn_number) as max, game_id from turns where archived != true GROUP BY game_id)
+                                         SELECT tt.max as "max?", g.motd as "motd?"
+                                         FROM games g
+                                         LEFT JOIN tt ON tt.game_id=g.id
+                                         WHERE g.id=$1"#,
                                          self.game_id).fetch_one(&self.db_pool).await {
-                                        Ok(R { max: Some(t) } ) => {
+                                        Ok(R { motd: Some(motd), max: Some(t) } ) => {
+                                            LoadingMessageResp { message: format!("{}\nCurrent turn: {}", motd, t) }.write_packet(&mut self.stream);
+                                            PAResp {}.write_packet(&mut self.stream);
+                                            break;
+                                        }
+                                        Ok(R { motd: None, max: Some(t) } ) => {
                                             LoadingMessageResp { message: format!("Current turn: {}", t) }.write_packet(&mut self.stream);
                                             PAResp {}.write_packet(&mut self.stream);
                                             break;

@@ -138,6 +138,12 @@
                 <div class="pane">
                   <fieldset {% if self.game.archived || self.authed != AuthStatus::AuthSuccess %}disabled{% endif %}>
                     <h3>Scheduling</h3>
+                    <form method="post" action="/game/{{game.id}}/motd">
+                      <div class="motd-input">
+                        <textarea required name="motd" rows="3">{{game.motd}}</textarea>
+                        <input type="submit" class="btn btn-block" value="Update MOTD"/>
+                      </div>
+                    </form>
                     <form method="post" action="/game/{{game.id}}/postpone">
                       <div class="input-row">
                         <input required placeholder="1440" name="timer" type="number" />
