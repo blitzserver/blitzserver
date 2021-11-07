@@ -1,0 +1,4 @@
+-- Your SQL goes here
+ALTER TABLE games ALTER COLUMN motd DROP NOT NULL;
+ALTER TABLE games ALTER COLUMN motd DROP DEFAULT;
+UPDATE games SET motd=NULL WHERE motd='';

@@ -65,7 +65,7 @@ pub struct Game {
     pub modified_mapcrc: Option<i32>,
     pub cataclysm: Option<i32>,
     pub max_stales: Option<i32>,
-    pub motd: String
+    pub motd: Option<String>
 }
 
 #[derive(derive_more::From, derive_more::Into)]

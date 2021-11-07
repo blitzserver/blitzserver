@@ -125,7 +125,7 @@ table! {
         modified_mapcrc -> Nullable<Int4>,
         cataclysm -> Nullable<Int4>,
         max_stales -> Nullable<Int4>,
-        motd -> Varchar,
+        motd -> Nullable<Varchar>,
     }
 }
 

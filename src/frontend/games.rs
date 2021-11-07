@@ -294,6 +294,9 @@ impl<'a> GameDetailsTemplate<'a> {
     pub fn nation_staling(&self, nation: &i32) -> bool {
         return self.staling_players.iter().find(|n| *n == nation).is_some();
     }
+    pub fn motd_str(&self) -> String {
+        self.game.motd.as_ref().unwrap_or(&"".to_owned()).to_owned()
+    }
     pub fn cataclysm_str(&self) -> String {
         self.settings
             .cataclysm
@@ -1442,7 +1445,7 @@ pub async fn assign_team(
 }
 #[post("/game/{id}/motd")]
 pub async fn motd(
-    (app_data, web::Path(path_id), session, form): (
+    (app_data, web::Path(path_id), session, mut form): (
         web::Data<AppData>,
         web::Path<i32>,
         actix_session::Session,
@@ -1460,6 +1463,9 @@ pub async fn motd(
             .finish());
     }
     let sqlx_pool = app_data.sqlx_pool.clone();
+    if form.motd == Some("".to_owned()) {
+        form.motd = None;
+    }
     sqlx::query!("UPDATE games SET motd=$2 WHERE id=$1", path_id, form.motd).execute(&sqlx_pool).await.unwrap();
     return Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#schedule", path_id))
