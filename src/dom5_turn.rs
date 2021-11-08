@@ -567,13 +567,13 @@ impl Dom5Turn {
             while !noblock_stdout.is_eof() {
                 std::thread::sleep(std::time::Duration::from_secs(1));
                 let mut outbuf = String::new();
-                noblock_stdout
-                    .read_available_to_string(&mut outbuf)
-                    .unwrap();
+                if let Err(e) = noblock_stdout.read_available_to_string(&mut outbuf) {
+                    outbuf = format!("\nERROR: Failed to read output from Dom5: {:?}", e);
+                }
                 let mut outerr = String::new();
-                noblock_stderr
-                    .read_available_to_string(&mut outerr)
-                    .unwrap();
+                if let Err(e) = noblock_stderr.read_available_to_string(&mut outerr) {
+                    outerr = format!("\nERROR: Failed to read output from Dom5: {:?}", e);
+                }
                 if outbuf.len() == 0 && outerr.len() == 0 {
                     waits = waits + 1;
                     if waits == 240 {
