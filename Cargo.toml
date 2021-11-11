@@ -48,3 +48,4 @@ nonblock = "*"
 async-std = "*"
 derive_more = "*"
 libvips = { git = "https://github.com/blitzserver/libvips-rust-bindings.git" }
+encoding = "*"

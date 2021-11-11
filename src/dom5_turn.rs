@@ -3,6 +3,7 @@ use crate::files::saves::{DomSaveReadError, SaveFile};
 use nonblock::NonBlockingReader;
 use std::io::{Read, Seek, Write};
 use thiserror::Error;
+use encoding::{DecoderTrap, all::ISO_8859_1, Encoding};
 
 pub struct Dom5Turn {
     pub db_pool: sqlx::postgres::PgPool,
@@ -566,15 +567,19 @@ impl Dom5Turn {
             let mut waits: i32 = 0;
             while !noblock_stdout.is_eof() {
                 std::thread::sleep(std::time::Duration::from_secs(1));
-                let mut outbuf = String::new();
-                if let Err(e) = noblock_stdout.read_available_to_string(&mut outbuf) {
-                    outbuf = format!("\nERROR: Failed to read output from Dom5: {:?}", e);
-                }
-                let mut outerr = String::new();
-                if let Err(e) = noblock_stderr.read_available_to_string(&mut outerr) {
-                    outerr = format!("\nERROR: Failed to read output from Dom5: {:?}", e);
-                }
-                if outbuf.len() == 0 && outerr.len() == 0 {
+                let mut outbuf: Vec<u8> = vec![];
+                let mut errbuf: Vec<u8> = vec![];
+                noblock_stdout.read_available(&mut outbuf).unwrap();
+                noblock_stderr.read_available(&mut errbuf).unwrap();
+                let mut outbuf = match ISO_8859_1.decode(&outbuf, DecoderTrap::Ignore) {
+                    Ok(s) => s,
+                    Err(e) => format!("\nERROR: Failed to read output from Dom5: {:?}", e)
+                };
+                let mut errbuf = match ISO_8859_1.decode(&errbuf, DecoderTrap::Ignore) {
+                    Ok(s) => s,
+                    Err(e) => format!("\nERROR: Failed to read output from Dom5: {:?}", e)
+                };
+                if outbuf.len() == 0 && errbuf.len() == 0 {
                     waits = waits + 1;
                     if waits == 240 {
                         outbuf.push_str(&format!(
@@ -590,7 +595,7 @@ impl Dom5Turn {
                             "UPDATE game_logs SET output=concat(output, $2::text), error=concat(error, $3::text) WHERE id=$1",
                             game_log.id,
                             outbuf,
-                            outerr
+                            errbuf
                         )
                         .execute(&self.db_pool)
                         .await?;
@@ -610,7 +615,7 @@ impl Dom5Turn {
                     "UPDATE game_logs SET output=concat(output, $2::text), error=concat(error, $3::text) WHERE id=$1",
                     game_log.id,
                     outbuf,
-                    outerr
+                    errbuf
                 )
                 .execute(&self.db_pool)
                 .await?;

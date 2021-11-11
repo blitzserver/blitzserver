@@ -31,6 +31,7 @@ extern crate async_std;
 extern crate derive_more;
 extern crate chrono;
 extern crate libvips;
+extern crate encoding;
 
 use actix_web::http::header;
 use actix_web::{get, middleware, App, HttpResponse, HttpServer, Result};

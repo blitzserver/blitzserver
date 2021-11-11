@@ -414,14 +414,12 @@ pub async fn map_thumb_handler(
             let mut file = std::fs::File::create(&f).unwrap();
             file.write_all(&map.filebinary).unwrap();
         }
-        let mut vips_image = ops::magickload(f.into_os_string().to_str().unwrap()).unwrap();
+        let mut vips_image = ops::magickload(&f.to_string_lossy()).unwrap();
         let cur_width = vips_image.get_width() as f64;
         let scale = desired_width / cur_width;
         vips_image = ops::resize(&vips_image, scale).unwrap();
+        vips_image = ops::autorot(&vips_image).unwrap();
         let file_loc = format!("./images/maps/{}_{}.webp", map.id, desired_width);
-        if let Some(_) = std::path::PathBuf::from(map.filename).extension().and_then(|e| if &e.to_string_lossy().to_lowercase() == "tga" { Some(()) } else { None }) {
-            vips_image = ops::flip(&vips_image, ops::Direction::Vertical).unwrap();
-        }
         ops::webpsave_with_opts(&vips_image, &file_loc, &ops::WebpsaveOptions::default()).unwrap();
         let mut webp_file = std::fs::File::open(file_loc).unwrap();
         let mut buff = vec![];
