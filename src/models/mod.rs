@@ -1337,7 +1337,6 @@ LEFT OUTER JOIN (SELECT nation_id, game_id, MAX(turn_number) as turn_number FROM
 WHERE
     (ec.last_turn_notified IS NULL OR t.turn_number != ec.last_turn_notified)
     AND t.turn_number IS NOT NULL 
-    AND g.next_turn IS NOT NULL
     AND ec.is_reminder = FALSE
     AND (ec.last_turn_notified IS NULL OR ec.last_turn_notified != t.turn_number)
     ").load(db)
