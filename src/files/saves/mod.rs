@@ -54,8 +54,10 @@ impl SaveFile {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn calc_crc() {
-        let rec = crate::util::calculate_crc(std::io::Cursor::new(include_bytes!("../../../test_data/oeridiad5.map"))) as i32;
-        println!("crc for map {}", rec); 
+    fn test_bandar() {
+        let file = crate::files::saves::SaveFile::read_contents(std::io::Cursor::new(include_bytes!("../../../test_data/mid_bandarlog.2h"))).unwrap();
+        println!("original {:?}", file);
+        let file = crate::files::saves::SaveFile::read_contents(std::io::Cursor::new(include_bytes!("../../../test_data/mid_bandarlog_2.2h"))).unwrap();
+        println!("second {:?}", file);
     }
 }

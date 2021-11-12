@@ -722,7 +722,7 @@ dependencies = [
 
 [[package]]
 name = "blitzserver"
-version = "0.8.37"
+version = "0.8.38"
 dependencies = [
  "actix-files",
  "actix-multipart",
@@ -754,7 +754,7 @@ dependencies = [
  "num_enum",
  "r2d2",
  "r2d2_postgres",
- "rand 0.8.3",
+ "rand 0.7.3",
  "regex",
  "reqwest",
  "serde",
@@ -2057,7 +2057,6 @@ checksum = "18794a8ad5b29321f790b55d93dfba91e125cb1a9edbd4f8e3150acc771c1a5e"
 [[package]]
 name = "libvips"
 version = "1.4.3"
-source = "git+https://github.com/blitzserver/libvips-rust-bindings.git#12394faf33c54605db5228ac10abe321712a11bf"
 dependencies = [
  "num-derive",
  "num-traits",

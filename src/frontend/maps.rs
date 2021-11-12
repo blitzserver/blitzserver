@@ -409,12 +409,7 @@ pub async fn map_thumb_handler(
         .fetch_one(&db_pool)
         .await
         .unwrap();
-        let f = std::path::PathBuf::from(format!("./images/maps/{}", map.filename));
-        if !f.exists() {
-            let mut file = std::fs::File::create(&f).unwrap();
-            file.write_all(&map.filebinary).unwrap();
-        }
-        let mut vips_image = ops::magickload(&f.to_string_lossy()).unwrap();
+        let mut vips_image = ops::magickload_buffer(&map.filebinary).unwrap();
         let cur_width = vips_image.get_width() as f64;
         let scale = desired_width / cur_width;
         vips_image = ops::resize(&vips_image, scale).unwrap();
