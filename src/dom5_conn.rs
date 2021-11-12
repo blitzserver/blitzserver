@@ -496,7 +496,7 @@ impl Dom5Conn {
                             FROM player_turns pt
                             INNER JOIN topturn tt ON tt.turn_number=pt.turn_number
                             INNER JOIN files f ON f.id=pt.twohfile_id
-                            WHERE pt.nation_id=$2 AND pt.archived != TRUE"#, self.game_id, pkt.nation_desired as i32).fetch_one(&self.db_pool).await {
+                            WHERE pt.nation_id=$2 AND pt.archived != TRUE AND game_id=$1"#, self.game_id, pkt.nation_desired as i32).fetch_one(&self.db_pool).await {
                                 Ok(filebinary) => {
                                     TwoHResp {
                                         nation_id: pkt.nation_desired as u16,

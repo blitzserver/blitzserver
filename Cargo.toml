@@ -47,5 +47,5 @@ sqlx = { version = "0.5", features = ["runtime-async-std-native-tls", "chrono", 
 nonblock = "*"
 async-std = "*"
 derive_more = "*"
-libvips = { path = "https://github.com/blitzserver/libvips-rust-bindings.git", branch = "early-adopt" }
+libvips = { git = "https://github.com/blitzserver/libvips-rust-bindings.git", branch = "master" }
 encoding = "*"
