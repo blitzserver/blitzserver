@@ -1,6 +1,8 @@
+pub mod fthr_contents;
+pub mod game_settings;
 pub mod header;
-pub mod land;
 pub mod kingdom;
+pub mod land;
 pub mod trn_contents;
 pub mod twoh_contents;
 pub mod utils;
@@ -9,6 +11,7 @@ use std::io::{Read, Seek};
 use thiserror::Error;
 use utils::ReadDom5Ext;
 
+pub use fthr_contents::FthrContents;
 pub use header::Header;
 pub use trn_contents::TrnContents;
 pub use twoh_contents::TwoHContents;
@@ -18,17 +21,20 @@ pub enum DomSaveReadError {
     #[error("IO Error")]
     ReadError(#[from] std::io::Error),
     #[error("Bad magic")]
-    BadMagic((u64, u64)),
+    BadMagic(([u8; 6], [u8; 6])),
+    #[error("Bad sentinel")]
+    BadSentinel((u32, u32)),
     #[error("Invalid filetype")]
     BadFileType(u32),
     #[error("Invalid kingdom type")]
-    BadKingdomType(u16)
+    BadKingdomType(u16),
 }
 
 #[derive(Debug)]
 pub enum SaveBody {
     TwoHContents(TwoHContents),
     TrnContents(TrnContents),
+    FthrContents(FthrContents),
 }
 
 #[derive(Debug)]
@@ -41,9 +47,10 @@ impl SaveFile {
     pub fn read_contents<R: Seek + Read>(mut file: R) -> Result<Self, DomSaveReadError> {
         let header = Header::read_contents(&mut file)?;
         Ok(Self {
-            body: match header.file_type {
-                0 => SaveBody::TwoHContents(TwoHContents::read_contents(&mut file)?),
-                1 => SaveBody::TrnContents(TrnContents::read_contents(&mut file)?),
+            body: match (header.file_type, header.nationid) {
+                (0, _) => SaveBody::TwoHContents(TwoHContents::read_contents(&mut file)?),
+                (1, -1) => SaveBody::FthrContents(FthrContents::read_contents(&mut file)?),
+                (1, _) => SaveBody::TrnContents(TrnContents::read_contents(&mut file)?),
                 _ => return Err(DomSaveReadError::BadFileType(header.file_type)),
             },
             header,
@@ -54,10 +61,78 @@ impl SaveFile {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn test_bandar() {
-        let file = crate::files::saves::SaveFile::read_contents(std::io::Cursor::new(include_bytes!("../../../test_data/mid_bandarlog.2h"))).unwrap();
-        println!("original {:?}", file);
-        let file = crate::files::saves::SaveFile::read_contents(std::io::Cursor::new(include_bytes!("../../../test_data/mid_bandarlog_2.2h"))).unwrap();
-        println!("second {:?}", file);
+    fn test_game1() {
+        for path in std::fs::read_dir("./test_data/game1")
+            .unwrap()
+            .into_iter()
+            .flatten()
+        {
+            if path.file_type().unwrap().is_file() {
+                println!("Deserializing {}", path.file_name().to_string_lossy());
+                let file = std::fs::File::open(path.path()).unwrap();
+                let deserialized = crate::files::saves::SaveFile::read_contents(file).unwrap();
+                println!("Result: {:?}", deserialized);
+            }
+        }
+    }
+    #[test]
+    fn test_game2() {
+        for path in std::fs::read_dir("./test_data/game2")
+            .unwrap()
+            .into_iter()
+            .flatten()
+        {
+            if path.file_type().unwrap().is_file() {
+                println!("Deserializing {}", path.file_name().to_string_lossy());
+                let file = std::fs::File::open(path.path()).unwrap();
+                let deserialized = crate::files::saves::SaveFile::read_contents(file).unwrap();
+                println!("Result: {:?}", deserialized);
+            }
+        }
+    }
+    #[test]
+    fn test_game3() {
+        for path in std::fs::read_dir("./test_data/game3")
+            .unwrap()
+            .into_iter()
+            .flatten()
+        {
+            if path.file_type().unwrap().is_file() {
+                println!("Deserializing {}", path.file_name().to_string_lossy());
+                let file = std::fs::File::open(path.path()).unwrap();
+                let deserialized = crate::files::saves::SaveFile::read_contents(file).unwrap();
+                println!("Result: {:?}", deserialized);
+            }
+        }
+    }
+    #[test]
+    fn test_game4() {
+        for path in std::fs::read_dir("./test_data/game4")
+            .unwrap()
+            .into_iter()
+            .flatten()
+        {
+            if path.file_type().unwrap().is_file() {
+                println!("Deserializing {}", path.file_name().to_string_lossy());
+                let file = std::fs::File::open(path.path()).unwrap();
+                let deserialized = crate::files::saves::SaveFile::read_contents(file).unwrap();
+                println!("Result: {:?}", deserialized);
+            }
+        }
+    }
+    #[test]
+    fn test_game5() {
+        for path in std::fs::read_dir("./test_data/game5")
+            .unwrap()
+            .into_iter()
+            .flatten()
+        {
+            if path.file_type().unwrap().is_file() {
+                println!("Deserializing {}", path.file_name().to_string_lossy());
+                let file = std::fs::File::open(path.path()).unwrap();
+                let deserialized = crate::files::saves::SaveFile::read_contents(file).unwrap();
+                println!("Result: {:?}", deserialized);
+            }
+        }
     }
 }
