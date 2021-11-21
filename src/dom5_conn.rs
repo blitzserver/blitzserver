@@ -2,7 +2,7 @@ use crate::models::{Player, Mod};
 use std::io::Read;
 use crate::files::saves::SaveFile;
 use crate::packets::{ MapImageFileResp, ModFileResp, TwoHResp, DmFileResp, MapWinterFileResp,  Submit2hResp, AstralPacketResp, MapFileResp, TrnResp, MapResp, TwoHCrcResp, BodyContents, PasswordsResp, PAResp, DisconnectResp, GameInfoResp, LoadingMessageResp, Packet };
-use std::io::{BufReader};
+use std::io::BufReader;
 use std::net::TcpStream;
 use thiserror::Error;
 
@@ -274,20 +274,32 @@ impl Dom5Conn {
                         crate::packets::Body::PAReq(pkt) => {
                             smol::block_on(async {
                                 loop {
-                                    struct R { motd: Option<String>, max: Option<i32> };
+                                    struct R { motd: Option<String>, max: Option<i32>, winner_name: Option<String> };
                                     match sqlx::query_as!(R, r#"
                                          WITH tt as (SELECT MAX(turn_number) as max, game_id from turns where archived != true GROUP BY game_id)
-                                         SELECT tt.max as "max?", g.motd as "motd?"
+                                         SELECT tt.max as "max?", g.motd as "motd?", n.name as "winner_name?"
                                          FROM games g
                                          LEFT JOIN tt ON tt.game_id=g.id
+                                         LEFT JOIN turns t ON t.turn_number=tt.max AND t.archived IS NOT TRUE and t.game_id=g.id
+                                         LEFT JOIN nations n ON n.game_id=g.id AND n.nation_id=t.winner
                                          WHERE g.id=$1"#,
                                          self.game_id).fetch_one(&self.db_pool).await {
-                                        Ok(R { motd: Some(motd), max: Some(t) } ) => {
+                                        Ok(R { motd: Some(motd), winner_name: Some(w), .. } ) => {
+                                            LoadingMessageResp { message: format!("{}\nGame won by {}! Congratulations :)", motd, w) }.write_packet(&mut self.stream);
+                                            PAResp {}.write_packet(&mut self.stream);
+                                            break;
+                                        }
+                                        Ok(R { motd: None, winner_name: Some(w), .. } ) => {
+                                            LoadingMessageResp { message: format!("Game won by {}! Congratulations :)", w) }.write_packet(&mut self.stream);
+                                            PAResp {}.write_packet(&mut self.stream);
+                                            break;
+                                        }
+                                        Ok(R { motd: Some(motd), max: Some(t), winner_name: None } ) => {
                                             LoadingMessageResp { message: format!("{}\nCurrent turn: {}", motd, t) }.write_packet(&mut self.stream);
                                             PAResp {}.write_packet(&mut self.stream);
                                             break;
                                         }
-                                        Ok(R { motd: None, max: Some(t) } ) => {
+                                        Ok(R { motd: None, max: Some(t), winner_name: None } ) => {
                                             LoadingMessageResp { message: format!("Current turn: {}", t) }.write_packet(&mut self.stream);
                                             PAResp {}.write_packet(&mut self.stream);
                                             break;
@@ -624,7 +636,7 @@ impl Dom5Conn {
                                                     let mut contents = vec![];
                                                     file.read_to_end(&mut contents);
                                                     DmFileResp {
-                                                        contents: contents
+                                                        contents
                                                     }.write_packet(&mut self.stream);
                                                 }
                                             }

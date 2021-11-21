@@ -215,6 +215,7 @@ table! {
         created_at -> Timestamp,
         archived -> Bool,
         turnkey -> Nullable<Int4>,
+        winner -> Nullable<Int4>,
     }
 }
 

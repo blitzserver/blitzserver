@@ -9,7 +9,7 @@ use crate::models::{
     AdminLog, Disciple, DiscordConfig, EmailConfig, Game, GameLogLite, Map, MapProvince, Mod,
     Nation, NewAdminLog, NewGame, NewGameMod, Player, PlayerTurn, Turn,
 };
-use crate::msgbus::{CreateGameMsg, GameArchivedMsg, GameScheduleMsg, MapChangedMsg, Msg};
+use crate::msgbus::{GameScheduleMsg, Msg};
 use crate::StartGame;
 use actix_web::http::header;
 use actix_web::{get, post, web, HttpResponse, Result};
@@ -161,7 +161,7 @@ impl From<(&Game, &[Mod])> for GameSettings {
             select_start: game.select_start,
             private: game.private as i32,
             cataclysm: game.cataclysm,
-            max_stales: game.max_stales
+            max_stales: game.max_stales,
         }
     }
 }
@@ -190,7 +190,7 @@ pub struct TeamForm {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MotdForm {
-    motd: Option<String>
+    motd: Option<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StartLocForm {
@@ -284,7 +284,8 @@ struct GameDetailsTemplate<'a> {
     discord_clientid: Option<String>,
     discord_notifications: Vec<DiscordConfig>,
     discord_manager: Option<&'a DiscordManager>,
-    staling_players: Vec<i32>
+    staling_players: Vec<i32>,
+    winner_name: Option<String>,
 }
 pub struct PNT<'a> {
     player: &'a Player,
@@ -511,13 +512,18 @@ impl<'a> GameDetailsTemplate<'a> {
         }
     }
     fn get_status_string(&self) -> String {
-        if self.game.archived {
-            "Archived".to_string()
-        } else {
-            if self.turn_number == 0 {
-                "Waiting for pretenders".to_string()
-            } else {
-                format!("Turn {}", self.turn_number)
+        match (self.game.archived, self.winner_name.as_ref()) {
+            (true, None) => "Archived".to_string(),
+            (true, Some(w)) => format!("Won by {} (Archived)", w),
+            (false, None) => {
+                if self.turn_number == 0 {
+                    "Waiting for pretenders".to_string()
+                } else {
+                    format!("Turn {}", self.turn_number)
+                }
+            }
+            (false, Some(w)) => {
+                format!("Won by {} (Turn {})", w, self.turn_number)
             }
         }
     }
@@ -854,7 +860,10 @@ async fn details(
     )
     .fetch_all(&app_data.sqlx_pool)
     .await
-    .unwrap().into_iter().map(|r| r.nation_id).collect();
+    .unwrap()
+    .into_iter()
+    .map(|r| r.nation_id)
+    .collect();
     let admin_logs = AdminLog::get_all(game.id, &db).unwrap();
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (GameDetailsTemplate {
@@ -867,6 +876,12 @@ async fn details(
             email_form: (*email_form).clone(),
             email_configs: &email_configs,
             turn_number: turns.len() as i32,
+            winner_name: turns.last().and_then(|t| {
+                nations
+                    .iter()
+                    .find(|n| Some(n.nation_id) == t.winner)
+                    .and_then(|n| Some(n.name.clone()))
+            }),
             maps: &maps,
             mods: &mods,
             players: &players,
@@ -995,6 +1010,7 @@ async fn list(
     query: serde_qs::actix::QsQuery<GamesListPayload>,
 ) -> Result<HttpResponse> {
     let db = app_data.pool.get().expect("Unable to connect to database");
+    let sqlx_db = app_data.sqlx_pool.clone();
 
     // Create game
     let mut results = Game::get_public(&db).unwrap();
@@ -1002,8 +1018,10 @@ async fn list(
         results.iter().map(|g| g.id).collect::<Vec<i32>>(),
         &db,
     );
-    let turn_summaries =
-        crate::models::Turn::turn_summary(&results.iter().map(|g| g.id).collect::<Vec<i32>>(), &db);
+    let turn_summaries = crate::models::Turn::turn_summary(
+        &results.iter().map(|g| g.id).collect::<Vec<i32>>(),
+        &sqlx_db,
+    );
     let archived_games: Vec<ArchivedGame> = results
         .drain_filter(|g| g.archived)
         .map(|g| ArchivedGame { id: g.id })
@@ -1154,7 +1172,7 @@ async fn settings_post(
                         require_password.eq(body.require_password > 0),
                         select_start.eq(body.select_start),
                         cataclysm.eq(body.cataclysm),
-                        max_stales.eq(body.max_stales)
+                        max_stales.eq(body.max_stales),
                     ))
                     .get_result(&db)?
             };
@@ -1466,7 +1484,10 @@ pub async fn motd(
     if form.motd == Some("".to_owned()) {
         form.motd = None;
     }
-    sqlx::query!("UPDATE games SET motd=$2 WHERE id=$1", path_id, form.motd).execute(&sqlx_pool).await.unwrap();
+    sqlx::query!("UPDATE games SET motd=$2 WHERE id=$1", path_id, form.motd)
+        .execute(&sqlx_pool)
+        .await
+        .unwrap();
     return Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#schedule", path_id))
         .finish());

@@ -1,9 +1,9 @@
 use crate::files::saves::kingdom::KingdomType;
 use crate::files::saves::{DomSaveReadError, SaveFile};
+use encoding::{all::ISO_8859_1, DecoderTrap, Encoding};
 use nonblock::NonBlockingReader;
 use std::io::{Read, Seek, Write};
 use thiserror::Error;
-use encoding::{DecoderTrap, all::ISO_8859_1, Encoding};
 
 pub struct Dom5Turn {
     pub db_pool: sqlx::postgres::PgPool,
@@ -573,11 +573,11 @@ impl Dom5Turn {
                 noblock_stderr.read_available(&mut errbuf).unwrap();
                 let mut outbuf = match ISO_8859_1.decode(&outbuf, DecoderTrap::Ignore) {
                     Ok(s) => s,
-                    Err(e) => format!("\nERROR: Failed to read output from Dom5: {:?}", e)
+                    Err(e) => format!("\nERROR: Failed to read output from Dom5: {:?}", e),
                 };
-                let mut errbuf = match ISO_8859_1.decode(&errbuf, DecoderTrap::Ignore) {
+                let errbuf = match ISO_8859_1.decode(&errbuf, DecoderTrap::Ignore) {
                     Ok(s) => s,
-                    Err(e) => format!("\nERROR: Failed to read output from Dom5: {:?}", e)
+                    Err(e) => format!("\nERROR: Failed to read output from Dom5: {:?}", e),
                 };
                 if outbuf.len() == 0 && errbuf.len() == 0 {
                     waits = waits + 1;
@@ -640,6 +640,16 @@ impl Dom5Turn {
             file.read_to_end(&mut contents).unwrap();
             file.seek(std::io::SeekFrom::Start(0)).unwrap();
             let ftherlnd = SaveFile::read_contents(file).map_err(Dom5TurnErr::CorruptFthrlnd)?;
+            let (winner, kingdoms) = match ftherlnd.body {
+                crate::files::saves::SaveBody::FthrContents(fth) => (
+                    match fth.settings.winnerid {
+                        -1 => None,
+                        w => Some(w as i32),
+                    },
+                    fth.kingdoms,
+                ),
+                _ => return Err(Dom5TurnErr::FtherlndMixup),
+            };
             let turn_number = ftherlnd.header.turnnumber;
             sqlx::query!(
                 r#"
@@ -647,12 +657,13 @@ impl Dom5Turn {
                 VALUES('ftherlnd', $1) 
             ON CONFLICT (filename,digest(filebinary, 'sha1'::text)) DO UPDATE 
                 SET filename=EXCLUDED.filename RETURNING *)
-            INSERT INTO turns (game_id, turn_number, file_id, turnkey)
-            SELECT $2, $3, id, $4 FROM inserted"#,
+            INSERT INTO turns (game_id, turn_number, file_id, turnkey, winner)
+            SELECT $2, $3, id, $4, $5 FROM inserted"#,
                 &contents,
                 self.game_id,
                 turn_number,
-                ftherlnd.header.turnkey as i32
+                ftherlnd.header.turnkey as i32,
+                winner
             )
             .execute(&mut transaction)
             .await?;
@@ -660,10 +671,6 @@ impl Dom5Turn {
             let nations = sqlx::query!("SELECT * FROM nations WHERE game_id=$1", self.game_id)
                 .fetch_all(&mut transaction)
                 .await?;
-            let kingdoms = match ftherlnd.body {
-                crate::files::saves::SaveBody::TrnContents(trn) => trn.kingdoms,
-                _ => return Err(Dom5TurnErr::FtherlndMixup),
-            };
             let mut computer_nationids = vec![];
             let mut defeated_nationids = vec![];
             for kingdom in kingdoms {
@@ -750,7 +757,11 @@ impl Dom5Turn {
             .execute(&mut transaction)
             .await?;
 
-            sqlx::query!("UPDATE games SET next_turn=NOW()+timer * interval '1 minute' WHERE id=$1 AND timer IS NOT NULL", self.game_id).execute(&mut transaction).await?;
+            if winner.is_none() {
+                sqlx::query!("UPDATE games SET next_turn=NOW()+ timer * interval '1 minute' WHERE id=$1 AND timer IS NOT NULL", self.game_id).execute(&mut transaction).await?;
+            } else {
+                sqlx::query!("UPDATE games SET next_turn=NULL WHERE id=$1 AND timer IS NOT NULL", self.game_id).execute(&mut transaction).await?;
+            }
             transaction.commit().await?;
 
             Ok(())

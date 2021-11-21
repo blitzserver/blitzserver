@@ -6,6 +6,7 @@ pub mod land;
 pub mod trn_contents;
 pub mod twoh_contents;
 pub mod utils;
+pub mod calendar;
 
 use std::io::{Read, Seek};
 use thiserror::Error;
@@ -123,6 +124,36 @@ mod tests {
     #[test]
     fn test_game5() {
         for path in std::fs::read_dir("./test_data/game5")
+            .unwrap()
+            .into_iter()
+            .flatten()
+        {
+            if path.file_type().unwrap().is_file() {
+                println!("Deserializing {}", path.file_name().to_string_lossy());
+                let file = std::fs::File::open(path.path()).unwrap();
+                let deserialized = crate::files::saves::SaveFile::read_contents(file).unwrap();
+                println!("Result: {:?}", deserialized);
+            }
+        }
+    }
+    #[test]
+    fn test_game6() {
+        for path in std::fs::read_dir("./test_data/game6")
+            .unwrap()
+            .into_iter()
+            .flatten()
+        {
+            if path.file_type().unwrap().is_file() {
+                println!("Deserializing {}", path.file_name().to_string_lossy());
+                let file = std::fs::File::open(path.path()).unwrap();
+                let deserialized = crate::files::saves::SaveFile::read_contents(file).unwrap();
+                println!("Result: {:?}", deserialized);
+            }
+        }
+    }
+    #[test]
+    fn test_game7() {
+        for path in std::fs::read_dir("./test_data/game7")
             .unwrap()
             .into_iter()
             .flatten()

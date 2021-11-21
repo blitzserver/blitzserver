@@ -33,6 +33,8 @@ impl Scheduler {
                         SELECT g.id, t.turn_number as "tt?" FROM games g
                         LEFT JOIN top_turn t 
                             ON t.game_id=g.id 
+                        LEFT JOIN turns tt
+                            ON tt.game_id=g.id AND tt.turn_number=t.turn_number AND tt.archived != TRUE
                         LEFT JOIN player_turns pt 
                             ON pt.archived!=TRUE 
                             AND pt.game_id=g.id 
@@ -48,7 +50,7 @@ impl Scheduler {
                                   AND pt2.game_id=g.id 
                                   AND pt2.nation_id=pt.nation_id
                                 ) < g.max_stales, TRUE)
-                        WHERE g.archived != TRUE
+                        WHERE g.archived != TRUE AND tt.winner IS NULL
                         GROUP BY g.id,t.turn_number
                         HAVING g.next_turn < NOW() OR (COUNT(pt.id) = 0 AND t.turn_number > 0)"#)
                         .fetch_all(&self.db_pool)

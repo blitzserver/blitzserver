@@ -225,7 +225,7 @@ impl Dom5Proc {
                         status: 3,
                         nation_id: kingdom.nation_id.into(),
                         game_id: self.game_id,
-                        turn_number: turn_number,
+                        turn_number,
                     })
                     .insert(db)
                     .unwrap(),
@@ -249,7 +249,7 @@ impl Dom5Proc {
                             trnfile_id: Some(file.id),
                             nation_id: kingdom.nation_id.into(),
                             game_id: self.game_id,
-                            turn_number: turn_number,
+                            turn_number,
                             status: 0,
                         })
                         .insert(db)
@@ -530,7 +530,7 @@ impl Dom5Proc {
         let game_log = NewGameLog {
             game_id: game.id,
             datetime: std::time::SystemTime::now(),
-            turn_number: turn_number,
+            turn_number,
             output: "",
             error: "",
             log_command: &arguments.join(" "),

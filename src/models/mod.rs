@@ -798,18 +798,16 @@ pub struct Turn {
     pub created_at: std::time::SystemTime,
     pub archived: bool,
     pub turnkey: Option<i32>,
+    pub winner: Option<i32>
 }
 
-#[derive(Clone, Deserialize, QueryableByName)]
+#[derive(Clone, Deserialize)]
 pub struct TurnSummary {
-    #[sql_type = "diesel::sql_types::Integer"]
     pub game_id: i32,
-    #[sql_type = "diesel::sql_types::Integer"]
     pub turn_number: i32,
-    #[sql_type = "diesel::sql_types::BigInt"]
-    pub submitted: i64,
-    #[sql_type = "diesel::sql_types::BigInt"]
-    pub total: i64,
+    pub submitted: Option<i64>,
+    pub total: Option<i64>,
+    pub winner_name: Option<String>
 }
 
 #[derive(Debug, Error)]
@@ -912,24 +910,25 @@ impl Turn {
             format!("SELECT * FROM turns t INNER JOIN (SELECT game_id,MAX(turn_number) as turn_number FROM turns WHERE game_id IN ({}) AND archived = false GROUP BY game_id ) as mt ON mt.turn_number = t.turn_number AND mt.game_id = t.game_id", game_ids.iter().map(|i| i.to_string()).collect::<Vec<String>>().join(",")),
         ).get_results(db).unwrap()
     }
-    pub fn turn_summary<D>(game_ids: &[i32], db: &D) -> Vec<TurnSummary>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        if game_ids.len() == 0 {
-            vec![]
-        } else {
-            diesel::sql_query(
-            format!("\
-SELECT t.game_id, t.turn_number, COALESCE(pt.submitted, 0) as submitted, COALESCE(pt.total, 0) as total
-FROM turns t 
-INNER JOIN (SELECT game_id,MAX(turn_number) as turn_number FROM turns WHERE game_id IN ({}) AND archived = false GROUP BY game_id ) as mt 
-    ON mt.turn_number = t.turn_number AND mt.game_id = t.game_id
-LEFT JOIN (SELECT game_id,turn_number,COUNT(twohfile_id) submitted, COUNT(trnfile_id) total FROM player_turns WHERE archived = false GROUP BY game_id, turn_number) as pt
-    ON pt.turn_number = t.turn_number AND pt.game_id = t.game_id\
-", game_ids.iter().map(|i| i.to_string()).collect::<Vec<String>>().join(",")),
-        ).get_results(db).unwrap()
-        }
+        
+    pub fn turn_summary(game_ids: &[i32], db_pool: &sqlx::postgres::PgPool) -> Vec<TurnSummary> {
+        smol::block_on(async {
+            if game_ids.len() == 0 {
+                vec![]
+            } else {
+                sqlx::query_as!(TurnSummary, r#"
+WITH tt as (SELECT game_id,MAX(turn_number) as "turn_number" FROM turns WHERE ARCHIVED != true GROUP BY game_id)
+SELECT t.game_id, t.turn_number, n.name as "winner_name?", COUNT(submitted) as "submitted", COUNT(total) as "total"
+FROM turns t
+INNER JOIN tt ON tt.game_id=t.game_id AND tt.turn_number=t.turn_number AND t.archived != TRUE
+LEFT JOIN nations n ON t.winner=n.nation_id AND t.game_id=n.game_id
+LEFT JOIN player_turns submitted ON submitted.turn_number=t.turn_number AND submitted.archived != TRUE and submitted.game_id=t.game_id AND submitted.status=2
+LEFT JOIN player_turns total ON total.turn_number=t.turn_number AND total.archived != TRUE and total.game_id=t.game_id AND total.status IN (0,1,2)
+WHERE t.game_id = ANY($1)
+GROUP BY t.game_id,t.turn_number,n.name
+"#, game_ids).fetch_all(db_pool).await.unwrap()
+            }
+        })
     }
 }
 
@@ -1393,8 +1392,8 @@ impl Disciple {
         {
             Ok(d) => Ok(d),
             Err(diesel::result::Error::NotFound) => Ok(NewDisciple {
-                game_id: game_id,
-                nation_id: nation_id,
+                game_id,
+                nation_id,
                 is_disciple: 0,
                 team: None,
             }
