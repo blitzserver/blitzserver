@@ -922,8 +922,8 @@ SELECT t.game_id, t.turn_number, n.name as "winner_name?", COUNT(submitted) as "
 FROM turns t
 INNER JOIN tt ON tt.game_id=t.game_id AND tt.turn_number=t.turn_number AND t.archived != TRUE
 LEFT JOIN nations n ON t.winner=n.nation_id AND t.game_id=n.game_id
-LEFT JOIN player_turns submitted ON submitted.turn_number=t.turn_number AND submitted.archived != TRUE and submitted.game_id=t.game_id AND submitted.status=2
 LEFT JOIN player_turns total ON total.turn_number=t.turn_number AND total.archived != TRUE and total.game_id=t.game_id AND total.status IN (0,1,2)
+LEFT JOIN player_turns submitted ON submitted.turn_number=t.turn_number AND submitted.archived != TRUE and submitted.game_id=t.game_id AND submitted.status=2 AND submitted.nation_id=total.nation_id
 WHERE t.game_id = ANY($1)
 GROUP BY t.game_id,t.turn_number,n.name
 "#, game_ids).fetch_all(db_pool).await.unwrap()
