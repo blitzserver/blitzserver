@@ -38,16 +38,12 @@ use actix_web::{get, middleware, App, HttpResponse, HttpServer, Result};
 use diesel::r2d2::ConnectionManager;
 use diesel::PgConnection;
 use dotenv::dotenv;
-use game_manager::{GameManager, GameManagerConfig};
 use serde::Deserialize;
 use std::env;
 
 pub mod discord;
-pub mod dom5_emu;
-pub mod dom5_proc;
 pub mod email_manager;
 pub mod frontend;
-pub mod game_manager;
 pub mod files;
 pub mod models;
 pub mod msgbus;
@@ -98,17 +94,6 @@ async fn main() -> std::io::Result<()> {
         r2d2::Pool::new(manager).unwrap().clone()
     };
     let bus = msgbus::MsgBus::new();
-
-    let mut manager = {
-        let cfg = GameManagerConfig {
-            bus_rx: bus.new_recv(),
-            bus_tx: bus.sender.clone(),
-            db_pool: &pool.clone(),
-            tmp_dir: &env::current_dir().unwrap().join("tmp"),
-        };
-
-        GameManager::new(cfg)
-    };
 
     let sqlx_pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(20)
@@ -218,6 +203,7 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::games::unstart_post)
             .service(frontend::games::assign_team)
             .service(frontend::games::assign_start)
+            .service(frontend::games::download_turn)
             .service(frontend::mods::list)
             .service(frontend::mods::upload_post)
             .service(frontend::mods::details)

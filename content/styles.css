@@ -955,3 +955,32 @@ label[for="noProvince"] {
   background-repeat: no-repeat;
   margin-top: -10px;
 }
+.download-turn summary {
+  height: 1em;
+  width: 2em;
+  display: block;
+  cursor: pointer;
+}
+.download-turn summary::marker {
+  content: '';
+}
+.download-turn .password {
+  position: absolute;
+  width: 120px;
+  display: flex;
+  flex-direction: row;
+}
+.download-turn .password>*{
+  position: relative;
+}
+.download-turn .cover {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+.download-turn[open] .cover {
+  display: block;
+}

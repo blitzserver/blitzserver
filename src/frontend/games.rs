@@ -1,10 +1,11 @@
 use super::utils::*;
+use std::io::Write;
 use super::AppData;
 use crate::diesel::prelude::*;
 use std::env;
 
 use crate::discord::DiscordManager;
-use crate::dom5_proc::Dom5Proc;
+use crate::dom5_turn::Dom5Turn;
 use crate::models::{
     AdminLog, Disciple, DiscordConfig, EmailConfig, Game, GameLogLite, Map, MapProvince, Mod,
     Nation, NewAdminLog, NewGame, NewGameMod, Player, PlayerTurn, Turn,
@@ -249,6 +250,11 @@ pub struct ArchiveForm {
 pub struct RemovePlayerForm {
     password: Option<String>,
 }
+#[derive(Debug, Deserialize)]
+pub struct DownloadTurnForm {
+    #[serde(default)]
+    password: String
+}
 
 #[derive(Debug)]
 struct PlayerSummary {
@@ -292,6 +298,17 @@ pub struct PNT<'a> {
     nation: &'a Nation,
 }
 impl<'a> GameDetailsTemplate<'a> {
+    pub fn turn_color_class(turn_status: &i32) -> String {
+        match turn_status {
+            0 => "bg-unsubmitted".to_owned(),
+            1 => "bg-unfinished".to_owned(),
+            2 => "bg-submitted".to_owned(),
+            3 => "bg-computer".to_owned(),
+            4 => "bg-dead".to_owned(),
+            5 => "bg-dead".to_owned(),
+            _ => "bg-unsubmitted".to_owned(),
+        }
+    }
     pub fn nation_staling(&self, nation: &i32) -> bool {
         return self.staling_players.iter().find(|n| *n == nation).is_some();
     }
@@ -997,8 +1014,11 @@ async fn create_post(
 
     let addr = format!("/game/{}?password={}#settings", game.id, new_game.password);
 
-    let dom5_proc = Dom5Proc::new(&game);
-    dom5_proc.update_nations(&db);
+    let dom5_proc = Dom5Turn {
+        db_pool: app_data.sqlx_pool.clone(),
+        game_id: game.id,
+    };
+    dom5_proc.update_nations();
 
     Ok(HttpResponse::Found()
         .header(header::LOCATION, addr)
@@ -1203,9 +1223,11 @@ async fn settings_post(
             .any(|m| !old_mods.iter().any(|om| om.id == m.id))
         || game.era != old_game.era
     {
-        let mut dom5_proc = Dom5Proc::new(&game);
-        dom5_proc.populate_mods(&db);
-        dom5_proc.update_nations(&db);
+        let dom5_proc = Dom5Turn {
+            db_pool: app_data.sqlx_pool.clone(),
+            game_id: game.id,
+        };
+        dom5_proc.update_nations();
     }
     Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#settings", game.id))
@@ -1543,4 +1565,60 @@ pub async fn assign_start(
     return Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#status", path_id))
         .finish());
+}
+
+#[post("/game/{id}/turns/{turn}/download/{nation_id}")]
+pub async fn download_turn(
+    (app_data, web::Path((game_id, turn, nation_id)), form): (
+        web::Data<AppData>,
+        web::Path<(i32, i32, i32)>,
+        web::Form<DownloadTurnForm>,
+    ),
+) -> Result<HttpResponse> {
+    let db = app_data.sqlx_pool.clone();
+    let files = sqlx::query!(
+        r#"
+    SELECT 
+        g.name as game_name, n.name as nation_name,
+        trn.filename as "trnfilename", trn.filebinary as "trnfilebinary", 
+        twoh.filename as "twohfilename?", twoh.filebinary as "twohfilebinary?"
+    FROM player_turns pt 
+    INNER JOIN games g ON g.id=$1
+    INNER JOIN nations n ON n.nation_id=pt.nation_id AND n.game_id=pt.game_id
+    INNER JOIN players p ON p.password=$4 AND p.game_id=$1 AND p.nationid=$2
+    INNER JOIN files trn ON trn.id=pt.trnfile_id
+    LEFT JOIN files twoh ON twoh.id=pt.twohfile_id
+    WHERE pt.game_id=$1 AND pt.nation_id=$2 AND pt.turn_number=$3 AND pt.archived != TRUE
+    "#,
+        game_id,
+        nation_id,
+        turn,
+        form.password
+    )
+    .fetch_all(&db)
+    .await
+    .unwrap();
+    if files.len() == 0 {
+        return Ok(HttpResponse::Found()
+            .header(header::LOCATION, format!("/game/{}#schedule", game_id))
+            .finish());
+    }
+    let mut bytes: Vec<u8> = vec![];
+    let mut zip = zip::ZipWriter::new(std::io::Cursor::new(&mut bytes));
+    zip
+        .start_file(&format!("{}.trn", files[0].trnfilename), zip::write::FileOptions::default())
+        .unwrap();
+    zip.write_all(&files[0].trnfilebinary).unwrap();
+    if let (Some(twohfn), Some(twohfb)) = (files[0].twohfilename.as_ref(), files[0].twohfilebinary.as_ref()) {
+        zip
+            .start_file(twohfn, zip::write::FileOptions::default())
+            .unwrap();
+        zip.write_all(twohfb).unwrap();
+    }
+    zip.finish().unwrap();
+    drop(zip);
+    return Ok(HttpResponse::Ok()
+              .set_header("content-disposition", format!(r#"attachment; filename="{} {} turn {}.zip""#, files[0].game_name, files[0].nation_name, turn))
+              .content_type("application/zip")
+              .body(bytes))
 }

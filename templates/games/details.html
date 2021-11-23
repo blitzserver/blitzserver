@@ -109,22 +109,19 @@
                       <tr>
                         <td>Turn {{turn}}</td>
                         {% for player in self.get_joined_nations() %}
-                        {% match self.get_turn_status(player.nation_id, turn) %}
-                        {% when 0 %}
-                        <td class="bg-unsubmitted"></td>
-                        {% when 1 %}
-                        <td class="bg-unfinished"></td>
-                        {% when 2 %}
-                        <td class="bg-submitted"></td>
-                        {% when 3 %}
-                        <td class="bg-computer"></td>
-                        {% when 4 %}
-                        <td class="bg-dead"></td>
-                        {% when 5 %}
-                        <td class="bg-dead"></td>
-                        {% else %}
-                        <td class="bg-unsubmitted"></td>
-                        {% endmatch %}
+                        <td class="{{ Self::turn_color_class(self.get_turn_status(player.nation_id, turn)) }}">
+                          <details class='download-turn'>
+                            <summary>
+                                <div class='cover'></div>
+                            </summary>
+                            <form method="post" action="/game/{{game.id}}/turns/{{turn}}/download/{{player.nation_id}}">
+                              <div class='password'>
+                                <input placeholder='password' type='password' />
+                                <button class='btn' type='submit'>Download</button>
+                              </div>
+                            </form>
+                          </details>
+                        </td>
                         {% endfor %}
                         <td>
                       </tr>
