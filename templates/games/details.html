@@ -17,238 +17,235 @@
           {% else %}
           {% include "player_list.html" %}
           {% endif %}
-          <div>
-            <div>
-              <div class="game-map">
-                <form method="POST">
-                  <img class="map-img" src={{format!("/images/maps/{}_1200.webp", self.game.map_id)}} />
-                  {% if settings.select_start > 0 %}
-                  <style>
-                  {% for province in provinces %}
-                  {% if self.turn_number == 0 && (settings.select_start == 1 || settings.select_start == 2 && authed == AuthStatus::AuthSuccess) %}
-                    #province-{{province.province_id}}:checked ~ div { top: {{province.unit_y * 100.0}}%; left: {{province.unit_x * 100.0}}%; display: flex; }
-                  {% endif %}
-                  {% endfor %}
-                  </style>
-                  {% for province in provinces %}
-                  {% let player = self.get_player_at_start(province.province_id) %}
-                  {% match player %}
-                  {% when Some with (pnt) %}
-                  <div class="player-marker" style="top: calc({{province.unit_y * 100.0}}% - 2em); left: {{province.unit_x * 100.0}}%;">{{ pnt.nation.name }}</div>
-                  {% when None %}
-                  {% if self.turn_number == 0 && (settings.select_start == 1 || settings.select_start == 2 && authed == AuthStatus::AuthSuccess) %}
-                    <input id="province-{{province.province_id}}" name="province_start" style="top: calc({{province.unit_y * 100.0}}% - 8px); left: calc({{province.unit_x * 100.0}}% - 8px);"type="radio" value="{{province.province_id}}"/>
-                  {% endif %}
-                  {% endmatch %}
-                  {% endfor %}
-                  {% endif %}
-                  <input checked type="radio" id="noProvince" name="province_start" value="0" />
-                  <label for="noProvince"></label>
-                  <div class="province-dropdown {% if settings.select_start == 2 && authed == AuthStatus::AuthSuccess %} admin {% endif %}">
-                    {% for nation in self.get_player_summaries() %}
-                    <input {% if !nation.has_pass && settings.select_start == 1 %} disabled {% endif %} id="province-dropdown-{{nation.id}}" type="radio" name="nation_id" value="{{nation.id}}"/>
-                    <label for="province-dropdown-{{nation.id}}">
-                      {% if settings.select_start == 2 %}
-                      <input class="btn" type="submit" formaction="{{game.id}}/startloc/{{nation.id}}" value="{{nation.name}}" />
-                      {% else if settings.select_start == 1 %}
-                      <span class="btn {% if !nation.has_pass && settings.select_start == 1 %} disabled {% endif %}">{{nation.name}}</span>
-                      <div class="input-group">
-                        <input type="password" name="password[{{nation.id}}]" />
-                        <input class="btn" type="submit" formaction="{{game.id}}/startloc/{{nation.id}}" value=">" />
-                      </div>
-                      {% endif %}
-                    </label>
-                    {% endfor %}
+          <div class="game-map">
+            <form method="POST">
+              <img class="map-img" src={{format!("/images/maps/{}_1200.webp", self.game.map_id)}} />
+              {% if settings.select_start > 0 %}
+              <style>
+{% for province in provinces %}
+{% if self.turn_number == 0 && (settings.select_start == 1 || settings.select_start == 2 && authed == AuthStatus::AuthSuccess) %}
+#province-{{province.province_id}}:checked ~ div { top: {{province.unit_y * 100.0}}%; left: {{province.unit_x * 100.0}}%; display: flex; }
+{% endif %}
+{% endfor %}
+              </style>
+              {% for province in provinces %}
+              {% let player = self.get_player_at_start(province.province_id) %}
+              {% match player %}
+              {% when Some with (pnt) %}
+              <div class="player-marker" style="top: calc({{province.unit_y * 100.0}}% - 2em); left: {{province.unit_x * 100.0}}%;">{{ pnt.nation.name }}</div>
+              {% when None %}
+              {% if self.turn_number == 0 && (settings.select_start == 1 || settings.select_start == 2 && authed == AuthStatus::AuthSuccess) %}
+              <input id="province-{{province.province_id}}" name="province_start" style="top: calc({{province.unit_y * 100.0}}% - 8px); left: calc({{province.unit_x * 100.0}}% - 8px);"type="radio" value="{{province.province_id}}"/>
+              {% endif %}
+              {% endmatch %}
+              {% endfor %}
+              {% endif %}
+              <input checked type="radio" id="noProvince" name="province_start" value="0" />
+              <label for="noProvince"></label>
+              <div class="province-dropdown {% if settings.select_start == 2 && authed == AuthStatus::AuthSuccess %} admin {% endif %}">
+                {% for nation in self.get_player_summaries() %}
+                <input {% if !nation.has_pass && settings.select_start == 1 %} disabled {% endif %} id="province-dropdown-{{nation.id}}" type="radio" name="nation_id" value="{{nation.id}}"/>
+                <label for="province-dropdown-{{nation.id}}">
+                  {% if settings.select_start == 2 %}
+                  <input class="btn" type="submit" formaction="{{game.id}}/startloc/{{nation.id}}" value="{{nation.name}}" />
+                  {% else if settings.select_start == 1 %}
+                  <span class="btn {% if !nation.has_pass && settings.select_start == 1 %} disabled {% endif %}">{{nation.name}}</span>
+                  <div class="input-group">
+                    <input type="password" name="password[{{nation.id}}]" />
+                    <input class="btn" type="submit" formaction="{{game.id}}/startloc/{{nation.id}}" value=">" />
                   </div>
-                </form>
+                  {% endif %}
+                </label>
+                {% endfor %}
               </div>
-              {% include "info.html" %}
-              <div class="pane">
-                <h3>Downloads</h3>
-                <table class="striped-table link-list">
-                  {% for cmod in self.get_current_mods() %}
+            </form>
+          </div>
+          {% include "info.html" %}
+          <div class="pane downloads">
+            <h3>Downloads</h3>
+            <table class="striped-table link-list">
+              {% for cmod in self.get_current_mods() %}
+              <tr>
+                <td>{{cmod.name}}</td>
+                <td><a class="btn" href="{{format!("/mod/{}", cmod.id)}}">Goto</a></td>
+                <td><a download="{{cmod.name}}.zip" class="btn" href="{{format!("/mod/{}/download", cmod.id)}}">Download</a></td>
+              </tr>
+              {% endfor %}
+              {% match self.get_current_map() %}
+              {% when Some with (map) %}
+              <tr>
+                <td>{{map.name}}</td>
+                <td><a class="btn" href="{{format!("/map/{}", map.id)}}">Goto</a></td>
+                <td><a download="{{map.name}}.zip" class="btn" href="{{format!("/map/{}/download", map.id)}}">Download</a></td>
+              </tr>
+              {% else %}
+              {% endmatch %}
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+    <div id="schedule">
+      <a href="#schedule">schedule</a>
+      <section class="tabsection">
+        <div class="schedule-details">
+          <div>
+            <div class="pane">
+              <h3>Turn Log</h3>
+              <table class="turn-log">
+                <thead>
                   <tr>
-                    <td>{{cmod.name}}</td>
-                    <td><a class="btn" href="{{format!("/mod/{}", cmod.id)}}">Goto</a></td>
-                    <td><a download="{{cmod.name}}.zip" class="btn" href="{{format!("/mod/{}/download", cmod.id)}}">Download</a></td>
+                    <th></th>
+                    {% for player in self.get_joined_nations() %}
+                    <th class="rotate"><div><span>{{player.name}}</span></div></th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for turn in 1..=self.turn_number %}
+                  <tr>
+                    <td>Turn {{turn}}</td>
+                    {% for player in self.get_joined_nations() %}
+                    <td class="{{ Self::turn_color_class(self.get_turn_status(player.nation_id, turn)) }}">
+                      <details class='download-turn'>
+                        <summary>
+                          <div class='cover'></div>
+                        </summary>
+                        <form method="post" action="/game/{{game.id}}/turns/{{turn}}/download/{{player.nation_id}}">
+                          <div class='password'>
+                            <input name='password' placeholder='password' type='password' />
+                            <button class='btn' type='submit'>Download</button>
+                          </div>
+                        </form>
+                      </details>
+                    </td>
+                    {% endfor %}
+                    <td>
                   </tr>
                   {% endfor %}
-                  {% match self.get_current_map() %}
-                  {% when Some with (map) %}
-                  <tr>
-                    <td>{{map.name}}</td>
-                    <td><a class="btn" href="{{format!("/map/{}", map.id)}}">Goto</a></td>
-                    <td><a download="{{map.name}}.zip" class="btn" href="{{format!("/map/{}/download", map.id)}}">Download</a></td>
-                  </tr>
-                  {% else %}
-                  {% endmatch %}
-                </table>
-              </div>
+                </tbody>
+              </table>
             </div>
           </div>
-      </section>
-        </div>
-        <div id="schedule">
-          <a href="#schedule">schedule</a>
-          <section class="tabsection">
-            <div class="schedule-details">
-              <div>
-                <div class="pane">
-                  <h3>Turn Log</h3>
-                  <table class="turn-log">
-                    <thead>
-                      <tr>
-                        <th></th>
-                        {% for player in self.get_joined_nations() %}
-                        <th class="rotate"><div><span>{{player.name}}</span></div></th>
-                        {% endfor %}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {% for turn in 1..=self.turn_number %}
-                      <tr>
-                        <td>Turn {{turn}}</td>
-                        {% for player in self.get_joined_nations() %}
-                        <td class="{{ Self::turn_color_class(self.get_turn_status(player.nation_id, turn)) }}">
-                          <details class='download-turn'>
-                            <summary>
-                                <div class='cover'></div>
-                            </summary>
-                            <form method="post" action="/game/{{game.id}}/turns/{{turn}}/download/{{player.nation_id}}">
-                              <div class='password'>
-                                <input name='password' placeholder='password' type='password' />
-                                <button class='btn' type='submit'>Download</button>
-                              </div>
-                            </form>
-                          </details>
-                        </td>
-                        {% endfor %}
-                        <td>
-                      </tr>
-                      {% endfor %}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              <div>
-                {% include "info.html" %}
-                <div class="pane">
-                  <fieldset {% if self.game.archived || self.authed != AuthStatus::AuthSuccess %}disabled{% endif %}>
-                    <h3>Scheduling</h3>
-                    <form method="post" action="/game/{{game.id}}/motd">
-                      <div class="motd-input">
-                        <textarea name="motd" rows="3">{{self.motd_str()}}</textarea>
-                        <input type="submit" class="btn btn-block" value="Update MOTD"/>
-                      </div>
-                    </form>
-                    <form method="post" action="/game/{{game.id}}/postpone">
-                      <div class="input-row">
-                        <input required placeholder="1440" name="timer" type="number" />
-                        <input type="submit" class="btn btn-block" value="Postpone (Mins)"/>
-                      </div>
-                    </form>
-                    <form method="post" action="/game/{{game.id}}/timer">
-                      <div class="input-row">
-                        <input required placeholder="1440" name="timer" type="number" />
-                        <input type="submit" class="btn btn-block" value="Set Timer (Mins)"/>
-                      </div>
-                    </form>
-                    {% if self.turn_number == 0 %}
-                    <form method="post" action="/game/{{game.id}}/launch">
-                      <div class="input-row">
-                        <input required placeholder="60" name="countdown" type="number" />
-                        <input type="submit" class="btn btn-block" value="Begin Countdown (Secs)"/>
-                      </div>
-                    </form>
-                    {% else %}
-                    {% if self.turn_number > 1 %} 
-                    <form action="/game/{{game.id}}/rollback" method="POST">
-                      <input value="Rollback Turn"  type="submit" class="btn btn-block"/>
-                    </form>
-                    {% endif %}
-                    <form action="/game/{{game.id}}/unstart" method="POST">
-                      <input value="Unstart Game" type="submit" class="btn btn-block"/>
-                    </form>
-                    <form action="/game/{{game.id}}/forcehost" method="POST">
-                      <input value="Forcehost" type="submit" class="btn btn-block btn-danger"/>
-                    </form>
-                    {% endif %}
-                  </fieldset>
-                  <fieldset {% if self.authed != AuthStatus::AuthSuccess%}disabled{% endif %}>
-                    <form action="/game/{{game.id}}/archive" method="POST">
-                      {% if !self.game.archived %} 
-                      <input value="Archive Game" type="submit" class="btn btn-block btn-danger"/>
-                      <input type="hidden" name="archived" value="true" />
-                      {% else %}
-                      <input value="Unarchive Game" type="submit" class="btn btn-block btn-primary"/>
-                      <input type="hidden" value="false" name="archived" value="true" />
-                      {% endif %}
-                    </form>
-                  </fieldset>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-        <div id="settings">
-          <a href="#settings">settings</a>
-          <section class="tabsection">
+          <div>
+            {% include "info.html" %}
             <div class="pane">
-              <form action="/game/{{game.id}}/settings" method="post">
-                <input type="hidden" name="loaded" value="1" />
-                <fieldset {% if self.game.archived || self.turn_number != 0 || self.authed != AuthStatus::AuthSuccess %}disabled="disabled"{% endif %}>
-                  {% include "settings.html" %}
-                  <input type="submit" class="btn btn-primary btn-block" value="Save Settings" />
-                </fieldset>
-              </form>
+              <fieldset {% if self.game.archived || self.authed != AuthStatus::AuthSuccess %}disabled{% endif %}>
+                <h3>Scheduling</h3>
+                <form method="post" action="/game/{{game.id}}/motd">
+                  <div class="motd-input">
+                    <textarea name="motd" rows="3">{{self.motd_str()}}</textarea>
+                    <input type="submit" class="btn btn-block" value="Update MOTD"/>
+                  </div>
+                </form>
+                <form method="post" action="/game/{{game.id}}/postpone">
+                  <div class="input-row">
+                    <input required placeholder="1440" name="timer" type="number" />
+                    <input type="submit" class="btn btn-block" value="Postpone (Mins)"/>
+                  </div>
+                </form>
+                <form method="post" action="/game/{{game.id}}/timer">
+                  <div class="input-row">
+                    <input required placeholder="1440" name="timer" type="number" />
+                    <input type="submit" class="btn btn-block" value="Set Timer (Mins)"/>
+                  </div>
+                </form>
+                {% if self.turn_number == 0 %}
+                <form method="post" action="/game/{{game.id}}/launch">
+                  <div class="input-row">
+                    <input required placeholder="60" name="countdown" type="number" />
+                    <input type="submit" class="btn btn-block" value="Begin Countdown (Secs)"/>
+                  </div>
+                </form>
+                {% else %}
+                {% if self.turn_number > 1 %} 
+                <form action="/game/{{game.id}}/rollback" method="POST">
+                  <input value="Rollback Turn"  type="submit" class="btn btn-block"/>
+                </form>
+                {% endif %}
+                <form action="/game/{{game.id}}/unstart" method="POST">
+                  <input value="Unstart Game" type="submit" class="btn btn-block"/>
+                </form>
+                <form action="/game/{{game.id}}/forcehost" method="POST">
+                  <input value="Forcehost" type="submit" class="btn btn-block btn-danger"/>
+                </form>
+                {% endif %}
+              </fieldset>
+              <fieldset {% if self.authed != AuthStatus::AuthSuccess%}disabled{% endif %}>
+                <form action="/game/{{game.id}}/archive" method="POST">
+                  {% if !self.game.archived %} 
+                  <input value="Archive Game" type="submit" class="btn btn-block btn-danger"/>
+                  <input type="hidden" name="archived" value="true" />
+                  {% else %}
+                  <input value="Unarchive Game" type="submit" class="btn btn-block btn-primary"/>
+                  <input type="hidden" value="false" name="archived" value="true" />
+                  {% endif %}
+                </form>
+              </fieldset>
             </div>
-          </section>
+          </div>
         </div>
-        <div id="emails">
-          <a href="#emails">emails</a>
-          <section class="tabsection">
-            <fieldset {% if game.archived %} disabled {% endif %}>
-              {% include "email.html" %}
+      </section>
+    </div>
+    <div id="settings">
+      <a href="#settings">settings</a>
+      <section class="tabsection">
+        <div class="pane">
+          <form action="/game/{{game.id}}/settings" method="post">
+            <input type="hidden" name="loaded" value="1" />
+            <fieldset {% if self.game.archived || self.turn_number != 0 || self.authed != AuthStatus::AuthSuccess %}disabled="disabled"{% endif %}>
+              {% include "settings.html" %}
+              <input type="submit" class="btn btn-primary btn-block" value="Save Settings" />
             </fieldset>
-          </section>
-        </div>
-        <div id="admin-logs">
-          <a href="#admin-logs">admin logs</a>
-          <section class="tabsection">
-            {% include "admin-logs.html" %}
-          </section>
-        </div>
-        <!-- Admin Only -->
-        {% if self.authed == AuthStatus::AuthSuccess %}
-        <div id="logs">
-          <a href="#logs">logs</a>
-          <section class="tabsection">
-            {% if self.authed == AuthStatus::AuthSuccess %}
-            {% include "logs.html" %}
-            {% endif %}
-          </section>
-        </div>
-        {% if self.discord_manager.is_some() %}
-        <div id="discord">
-          <a href="#discord">discord</a>
-          <section class="tabsection">
-            {% if self.authed == AuthStatus::AuthSuccess && self.discord_manager.is_some() %}
-            {% include "discord.html" %}
-            {% endif %}
-          </section>
-        </div>
-        {% endif %}
-        {% endif %}
-        <!-- End Admin -->
-        <div class="auth-input">
-          <form action="/game/{{game.id}}" method="get">
-            <div class="input-group">
-              <input {% if self.authed == AuthStatus::AuthFail %}class="invalid"{% endif %} name="password" type="password" placeholder="password" {% if self.authed == AuthStatus::AuthSuccess%}value="hello:)"{% endif %}/>
-              <input class="btn btn-block" type="submit" value="admin mode" />
-            </div>
           </form>
         </div>
-  </nav>
+      </section>
     </div>
+    <div id="emails">
+      <a href="#emails">emails</a>
+      <section class="tabsection">
+        <fieldset {% if game.archived %} disabled {% endif %}>
+          {% include "email.html" %}
+        </fieldset>
+      </section>
+    </div>
+    <div id="admin-logs">
+      <a href="#admin-logs">admin logs</a>
+      <section class="tabsection">
+        {% include "admin-logs.html" %}
+      </section>
+    </div>
+    <!-- Admin Only -->
+    {% if self.authed == AuthStatus::AuthSuccess %}
+    <div id="logs">
+      <a href="#logs">logs</a>
+      <section class="tabsection">
+        {% if self.authed == AuthStatus::AuthSuccess %}
+        {% include "logs.html" %}
+        {% endif %}
+      </section>
+    </div>
+    {% if self.discord_manager.is_some() %}
+    <div id="discord">
+      <a href="#discord">discord</a>
+      <section class="tabsection">
+        {% if self.authed == AuthStatus::AuthSuccess && self.discord_manager.is_some() %}
+        {% include "discord.html" %}
+        {% endif %}
+      </section>
+    </div>
+    {% endif %}
+    {% endif %}
+    <!-- End Admin -->
+    <div class="auth-input">
+      <form action="/game/{{game.id}}" method="get">
+        <div class="input-group">
+          <input {% if self.authed == AuthStatus::AuthFail %}class="invalid"{% endif %} name="password" type="password" placeholder="password" {% if self.authed == AuthStatus::AuthSuccess%}value="hello:)"{% endif %}/>
+          <input class="btn btn-block" type="submit" value="admin mode" />
+        </div>
+      </form>
+    </div>
+  </nav>
+</div>
 </div>
 {% endblock %}

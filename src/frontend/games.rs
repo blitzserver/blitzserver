@@ -628,20 +628,9 @@ async fn postpone(
             .get_result::<Game>(&db)
             .unwrap()
     };
-    let sched = std::time::SystemTime::now()
-        .add(std::time::Duration::from_secs(60 * timer_form.timer as u64));
-    use crate::schema::games::dsl::*;
-    diesel::update(games.filter(id.eq(game.id)))
-        .set(next_turn.eq(Some(sched)))
-        .execute(&db)
-        .unwrap();
-    app_data
-        .msgbus_sender
-        .send(Msg::GameSchedule(GameScheduleMsg {
-            game_id: game.id,
-            schedule: sched,
-        }))
-        .unwrap();
+    sqlx::query!(
+        r#"UPDATE games set next_turn=COALESCE(next_turn,NOW()) + interval '1 minute' * $2
+        WHERE id=$1"#, game.id, timer_form.timer as f64).execute(&app_data.sqlx_pool).await.unwrap();
     NewAdminLog {
         game_id: path_id,
         datetime: std::time::SystemTime::now(),

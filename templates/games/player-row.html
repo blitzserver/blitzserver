@@ -19,7 +19,7 @@
 				</div>
 		</form>
 		{% else %}
-		<section>{{ nation.name }}, {{ nation.epithet }}</section>
+    <section><b>{{ nation.name }}</b><span class="epithet">, {{ nation.epithet }}</span></section>
 		<section>{{ nation.pretender_name }}</section>
 		{% endif %}
 	</td>
