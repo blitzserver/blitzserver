@@ -9,7 +9,7 @@ pub struct TwoHContents {
 
 impl TwoHContents {
     pub fn read_contents<R: std::io::Read>(mut file: R) -> Result<Self, DomSaveReadError> {
-        let mut unk: [u8; 40] = [0; 40];
+        let mut unk: [u8; 36] = [0; 36];
         file.read_exact(&mut unk)?;
         let pretender_unitid = file.read_u16::<LittleEndian>()?;
         let mut unk: [u8; 45] = [0; 45];

@@ -885,6 +885,7 @@ impl Turn {
                     .eq(game_id)
                     .and(turns_dsl::archived.eq(false)),
             )
+            .order(turns_dsl::turn_number.asc())
             .get_results(db)
     }
     pub fn get<D>(game_id: i32, db: &D) -> Result<Turn, diesel::result::Error>

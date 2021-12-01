@@ -713,6 +713,10 @@ input.invalid {
 	min-width: 1px;
 	max-width: 150px;
 }
+.nation-name {
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .nation-name :nth-child(1) {
 	font-size: 16px;
 }
@@ -755,6 +759,10 @@ input.invalid {
 }
 .pretender .nation-name select:nth-child(1), .pretender .nation-name section:nth-child(1) {
 	font-weight: bold;
+}
+.nation-name {
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 .nation-name .input-group {
 	margin-bottom: 0px;
@@ -1064,6 +1072,12 @@ label[for="noProvince"] {
   }
   .game-details .game-map {
     display: none;
+  }
+  nav {
+    padding-bottom: 0px;
+  }
+  nav.lizard-bg,nav.lizard-bg-alt {
+    background: none;
   }
 }
 @media (max-width: 400px) {

@@ -415,7 +415,10 @@ pub async fn map_thumb_handler(
         vips_image = ops::resize(&vips_image, scale).unwrap();
         vips_image = ops::autorot(&vips_image).unwrap();
         let file_loc = format!("./images/maps/{}_{}.webp", map.id, desired_width);
-        ops::webpsave_with_opts(&vips_image, &file_loc, &ops::WebpsaveOptions::default()).unwrap();
+        let mut options = ops::WebpsaveOptions::default();
+        options.preset = ops::ForeignWebpPreset::Icon;
+        options.q = 100;
+        ops::webpsave_with_opts(&vips_image, &file_loc, &options).unwrap();
         let mut webp_file = std::fs::File::open(file_loc).unwrap();
         let mut buff = vec![];
         webp_file.read_to_end(&mut buff).unwrap();
