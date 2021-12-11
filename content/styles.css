@@ -1085,3 +1085,36 @@ label[for="noProvince"] {
     display: none;
   }
 }
+.dialog input[type="checkbox"] {
+  display: none;
+}
+.dialog input[type="checkbox"]:not(:checked)~.open {
+  display: block;
+}
+.dialog input[type="checkbox"]:checked~.open {
+  display: none;
+}
+.dialog input[type="checkbox"]:not(:checked)~.confirm {
+  display: none;
+}
+.dialog input[type="checkbox"]:checked~.confirm {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.dialog input[type="checkbox"]~.message{
+  max-height: 0px;
+  transition: max-height 0.2s;
+  overflow: hidden;
+  display: block;
+  padding-left: 10px;
+  padding-right: 10px;
+  text-align: center;
+  box-sizing: border-box;
+}
+.dialog input[type="checkbox"]:checked+.message {
+  max-height: 40px;
+}
+.dialog .message>:first-child {
+  padding-top: 5px;
+  display: block;
+}

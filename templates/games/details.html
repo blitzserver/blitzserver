@@ -160,26 +160,65 @@
                 {% else %}
                 {% if self.turn_number > 1 %} 
                 <form action="/game/{{game.id}}/rollback" method="POST">
-                  <input value="Rollback Turn"  type="submit" class="btn btn-block"/>
+                  <div class='dialog'>
+                    <input type='checkbox' id='rollback-check' />
+                    <div class='message'>
+                      <span>Are you sure you want to <b>rollback</b> the turn? (You) can't undo this!</span>
+                    </div>
+                    <div class='confirm'>
+                    <input value="Rollback Turn"  type="submit" class="btn btn-block btn-danger"/>
+                      <label for='rollback-check' class="btn btn-block">Cancel</label>
+                    </div>
+                    <label class='open btn btn-block btn-danger' for='rollback-check'>Rollback Turn</label>
                 </form>
                 {% endif %}
                 <form action="/game/{{game.id}}/unstart" method="POST">
-                  <input value="Unstart Game" type="submit" class="btn btn-block"/>
+                  <div class='dialog'>
+                    <input type='checkbox' id='unstart-check' />
+                    <div class='message'>
+                      <span>Are you sure you want to <b>unstart</b> the game? (You) can't undo this!</span>
+                    </div>
+                    <div class='confirm'>
+                      <input value="Unstart Game" class='btn btn-block btn-danger' type="submit" class="btn btn-block"/>
+                      <label for='unstart-check' class="btn btn-block">Cancel</label>
+                    </div>
+                    <label class='open btn btn-block btn-danger' for='unstart-check'>Unstart Game</label>
+                  </div>
                 </form>
                 <form action="/game/{{game.id}}/forcehost" method="POST">
-                  <input value="Forcehost" type="submit" class="btn btn-block btn-danger"/>
+                  <div class='dialog'>
+                    <input type='checkbox' id='forcehost-check' />
+                    <div class='message'>
+                      <span>Are you sure you want to <b>forcehost</b> the game?</span>
+                    </div>
+                    <div class='confirm'>
+                      <input value="Forcehost" type="submit" class="btn btn-block btn-danger"/>
+                      <label for='forcehost-check' class="btn btn-block">Cancel</label>
+                    </div>
+                    <label class='open btn btn-block btn-danger' for='forcehost-check'>Forcehost Game</label>
+                  </div>
                 </form>
                 {% endif %}
               </fieldset>
-              <fieldset {% if self.authed != AuthStatus::AuthSuccess%}disabled{% endif %}>
+              <fieldset {% if self.authed != AuthStatus::AuthSuccess %}disabled{% endif %}>
                 <form action="/game/{{game.id}}/archive" method="POST">
-                  {% if !self.game.archived %} 
-                  <input value="Archive Game" type="submit" class="btn btn-block btn-danger"/>
-                  <input type="hidden" name="archived" value="true" />
-                  {% else %}
-                  <input value="Unarchive Game" type="submit" class="btn btn-block btn-primary"/>
-                  <input type="hidden" value="false" name="archived" value="true" />
-                  {% endif %}
+                {% if !self.game.archived %} 
+                <div class='dialog'>
+                  <input type='checkbox' id='archive-check' />
+                  <div class='message'>
+                    <span>Are you sure you want to <b>archive</b> the game?</span>
+                  </div>
+                  <div class='confirm'>
+                    <input value="Archive Game" type="submit" class="btn btn-block btn-danger"/>
+                    <input type="hidden" name="archived" value="true" />
+                    <label for='archive-check' class="btn btn-block">Cancel</label>
+                  </div>
+                  <label class='open btn btn-block btn-danger' for='archive-check'>Archive Game</label>
+                </div>
+                {% else %}
+                <input value="Unarchive Game" type="submit" class="btn btn-block btn-primary"/>
+                <input type="hidden" value="false" name="archived" value="true" />
+                {% endif %}
                 </form>
               </fieldset>
             </div>
