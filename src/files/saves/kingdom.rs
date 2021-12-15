@@ -27,7 +27,7 @@ impl Kingdom {
         file.read_u16::<LittleEndian>()?;
         let magic = file.read_u16::<LittleEndian>()?;
         if magic != 12546 {
-            return Err(DomSaveReadError::BadSentinel((magic.into(), 12546)));
+            return Err(DomSaveReadError::BadKingdomSentinel((magic.into(), 12546)));
         }
         let mut unk = [0u8; 16];
         file.read_exact(&mut unk)?;

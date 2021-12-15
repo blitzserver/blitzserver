@@ -37,7 +37,7 @@ impl Header {
     fn read_sentinel<R: std::io::Read>(mut file: R) -> Result<u32, DomSaveReadError> {
         let s = file.read_u32::<LittleEndian>()?;
         if s != 12546 {
-            return Err(DomSaveReadError::BadSentinel((s, 123456)));
+            return Err(DomSaveReadError::BadSentinel((s, 12546)));
         }
         return Ok(s);
     }

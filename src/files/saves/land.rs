@@ -18,7 +18,9 @@ pub struct Land {
     term_list: Vec<u8>,
     event_log: String,
     recruiting_unitids: Vec<u16>,
-    unk_vec: Vec<u16>
+    unk_vec: Vec<u16>,
+    unk_vec1: Vec<(u16, u32)>,
+    unk: [u8; 3]
 }
 impl Land {
     pub fn read_contents<R: std::io::Read>(mut file: R) -> Result<Option<Self>, DomSaveReadError> {
@@ -61,7 +63,17 @@ impl Land {
         let mut unk = [0u8; 8];
         file.read_exact(&mut unk)?;
         let unk_vec = file.read_domu16vec()?;
-        let mut unk = [0u8; 5];
+        let mut unk_vec1 = vec![];
+        loop {
+            let id = file.read_u16::<LittleEndian>()?;
+            if id != 0 {
+            let body = file.read_u32::<LittleEndian>()?;
+                unk_vec1.push((id, body));
+            } else {
+                break;
+            }
+        }
+        let mut unk = [0u8; 3];
         file.read_exact(&mut unk)?;
         Ok(Some(Self {
             id,
@@ -78,7 +90,9 @@ impl Land {
             term_list,
             event_log,
             recruiting_unitids,
-            unk_vec
+            unk_vec,
+            unk_vec1,
+            unk
         }))
     }
 }

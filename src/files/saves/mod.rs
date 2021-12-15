@@ -29,6 +29,8 @@ pub enum DomSaveReadError {
     BadFileType(u32),
     #[error("Invalid kingdom type")]
     BadKingdomType(u16),
+    #[error("Bad kingdom sentinel")]
+    BadKingdomSentinel((u32, u32)),
 }
 
 #[derive(Debug)]
@@ -180,5 +182,21 @@ mod tests {
                 println!("Result: {:?}", deserialized);
             }
         }
+    }    
+    #[test]
+    fn test_game8() {
+        for path in std::fs::read_dir("./test_data/game8")
+            .unwrap()
+            .into_iter()
+            .flatten()
+        {
+            if path.file_type().unwrap().is_file() {
+                println!("Deserializing {}", path.file_name().to_string_lossy());
+                let file = std::fs::File::open(path.path()).unwrap();
+                let deserialized = crate::files::saves::SaveFile::read_contents(file).unwrap();
+                println!("Result: {:?}", deserialized);
+            }
+        }
     }
+
 }
