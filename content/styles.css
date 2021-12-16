@@ -300,7 +300,8 @@ h1 {
   grid-template-areas:
     "players map"
     "players status"
-    "players downloads";
+    "players downloads"
+    "players .";
 }
 .game-details .players {
   grid-area: players;
