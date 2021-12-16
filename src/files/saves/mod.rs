@@ -198,5 +198,19 @@ mod tests {
             }
         }
     }
-
+    #[test]
+    fn test_game9() {
+        for path in std::fs::read_dir("./test_data/game9")
+            .unwrap()
+            .into_iter()
+            .flatten()
+        {
+            if path.file_type().unwrap().is_file() {
+                println!("Deserializing {}", path.file_name().to_string_lossy());
+                let file = std::fs::File::open(path.path()).unwrap();
+                let deserialized = crate::files::saves::SaveFile::read_contents(file).unwrap();
+                println!("Result: {:?}", deserialized);
+            }
+        }
+    }
 }

@@ -5,6 +5,33 @@ use nonblock::NonBlockingReader;
 use std::io::{Read, Seek, Write};
 use thiserror::Error;
 
+pub struct AutokilledProc(std::process::Child);
+
+impl Drop for AutokilledProc {
+    fn drop(&mut self) {
+        match self.0.kill() {
+            Err(ref e) if e.kind() == std::io::ErrorKind::InvalidInput => {}
+            Err(ref e) => { log::warn!("Failed to kill process on drop: {:?}", e); }
+            _ => {}
+        }
+        match self.0.wait() {
+            Err(ref e) => { log::warn!("Failed to wait process on drop: {:?}", e); }
+            _ => {}
+        }
+    }
+}
+impl std::ops::Deref for AutokilledProc {
+    type Target = std::process::Child;
+    fn deref(&self) -> &std::process::Child {
+        &self.0
+    }
+}
+impl std::ops::DerefMut for AutokilledProc {
+    fn deref_mut(&mut self) -> &mut std::process::Child {
+        &mut self.0
+    }
+}
+
 pub struct Dom5Turn {
     pub db_pool: sqlx::postgres::PgPool,
     pub game_id: i32,
@@ -295,7 +322,7 @@ impl Dom5Turn {
                 Err(e) => panic!("{}", e),
                 Ok(_) => {}
             }
-            let mut proc = std::process::Command::new(std::path::PathBuf::from(
+            let mut proc = AutokilledProc(std::process::Command::new(std::path::PathBuf::from(
                 std::env::var("DOM5_BIN")
                     .expect("DOM5_BIN not specified")
                     .to_string(),
@@ -304,7 +331,7 @@ impl Dom5Turn {
             .env("DOM5_CONF", &data_dir)
             .args(arguments)
             .spawn()
-            .map_err(Dom5TurnErr::ProcessError)?;
+            .map_err(Dom5TurnErr::ProcessError)?);
             let statusdump;
             let mut wait_counter: i32 = 10;
             loop {
@@ -316,7 +343,7 @@ impl Dom5Turn {
                     Err(_) => {
                         if wait_counter == 0 {
                             let mut s = String::new();
-                            match proc.stdout.unwrap().read_to_string(&mut s) {
+                            match proc.stdout.as_mut().unwrap().read_to_string(&mut s) {
                             // TODO: Updatenation run logs should be stored with turn logs
                             Ok(_) => panic!("Unable to find statusdump with nation info for game {}\nStdout:\n{}", self.game_id, &s),
                             Err(e) => panic!("Unable to find statusdump with nation info for game {} and unable to fetch logs ({:?})", self.game_id, e)
@@ -530,7 +557,7 @@ impl Dom5Turn {
             if let None = game.turn {
                 arguments.append(&mut vec!["--newgame".to_string()]);
             }
-            let mut child = std::process::Command::new(std::path::PathBuf::from(
+            let mut child = AutokilledProc(std::process::Command::new(std::path::PathBuf::from(
                 std::env::var("DOM5_BIN")
                     .expect("DOM5_BIN not specified")
                     .to_string(),
@@ -547,7 +574,7 @@ impl Dom5Turn {
             .stderr(std::process::Stdio::piped())
             .args(&arguments)
             .spawn()
-            .map_err(Dom5TurnErr::ProcessError)?;
+            .map_err(Dom5TurnErr::ProcessError)?);
 
             let game_log = sqlx::query!(
                 r#"
