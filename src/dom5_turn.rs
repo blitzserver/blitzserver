@@ -540,7 +540,7 @@ impl Dom5Turn {
                 game.name.clone(),
             ]);
             match game.newailvl {
-                0 => arguments.append(&mut vec!["--nonewai".to_string(), "".to_string()]),
+                0 => arguments.append(&mut vec!["--nonewai".to_string()]),
                 l => arguments.append(&mut vec!["--newailvl".to_string(), l.to_string()]),
             }
             if let Some(c) = game.cataclysm {
