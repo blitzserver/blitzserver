@@ -130,6 +130,18 @@ table! {
 }
 
 table! {
+    jobs (job_id) {
+        job_id -> Int4,
+        game_id -> Int4,
+        turn_number -> Int4,
+        started_at -> Timestamptz,
+        updated_at -> Timestamptz,
+        reaped -> Bool,
+        finished_at -> Nullable<Timestamptz>,
+    }
+}
+
+table! {
     map_provinces (id) {
         id -> Int4,
         map_id -> Int4,
@@ -207,6 +219,17 @@ table! {
 }
 
 table! {
+    subjobs (subjob_id) {
+        subjob_id -> Int4,
+        job_id -> Int4,
+        label -> Text,
+        logs -> Nullable<Text>,
+        started_at -> Timestamptz,
+        finished_at -> Nullable<Timestamptz>,
+    }
+}
+
+table! {
     turns (id) {
         id -> Int4,
         game_id -> Int4,
@@ -224,6 +247,7 @@ joinable!(email_configs -> games (game_id));
 joinable!(game_mods -> mods (mod_id));
 joinable!(games -> maps (map_id));
 joinable!(players -> files (file_id));
+joinable!(subjobs -> jobs (job_id));
 joinable!(turns -> files (file_id));
 
 allow_tables_to_appear_in_same_query!(
@@ -236,11 +260,13 @@ allow_tables_to_appear_in_same_query!(
     game_logs,
     game_mods,
     games,
+    jobs,
     map_provinces,
     maps,
     mods,
     nations,
     player_turns,
     players,
+    subjobs,
     turns,
 );

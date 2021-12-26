@@ -11,11 +11,15 @@ impl Drop for AutokilledProc {
     fn drop(&mut self) {
         match self.0.kill() {
             Err(ref e) if e.kind() == std::io::ErrorKind::InvalidInput => {}
-            Err(ref e) => { log::warn!("Failed to kill process on drop: {:?}", e); }
+            Err(ref e) => {
+                log::warn!("Failed to kill process on drop: {:?}", e);
+            }
             _ => {}
         }
         match self.0.wait() {
-            Err(ref e) => { log::warn!("Failed to wait process on drop: {:?}", e); }
+            Err(ref e) => {
+                log::warn!("Failed to wait process on drop: {:?}", e);
+            }
             _ => {}
         }
     }
@@ -270,7 +274,7 @@ impl Dom5Turn {
             Ok(())
         })
     }
-    fn _update_nations(&mut self) -> Result<(), Dom5TurnErr> {
+    fn _update_nations(&mut self, subjob_id: Option<i32>) -> Result<(), Dom5TurnErr> {
         smol::block_on(async {
             let game = sqlx::query!(
                 "SELECT g.era, g.name FROM games g WHERE g.id=$1",
@@ -322,19 +326,49 @@ impl Dom5Turn {
                 Err(e) => panic!("{}", e),
                 Ok(_) => {}
             }
-            let mut proc = AutokilledProc(std::process::Command::new(std::path::PathBuf::from(
-                std::env::var("DOM5_BIN")
-                    .expect("DOM5_BIN not specified")
-                    .to_string(),
-            ))
-            .stdout(std::process::Stdio::piped())
-            .env("DOM5_CONF", &data_dir)
-            .args(arguments)
-            .spawn()
-            .map_err(Dom5TurnErr::ProcessError)?);
+            let mut proc = AutokilledProc(
+                std::process::Command::new(std::path::PathBuf::from(
+                    std::env::var("DOM5_BIN")
+                        .expect("DOM5_BIN not specified")
+                        .to_string(),
+                ))
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .env("DOM5_CONF", &data_dir)
+                .args(arguments)
+                .spawn()
+                .map_err(Dom5TurnErr::ProcessError)?,
+            );
             let statusdump;
             let mut wait_counter: i32 = 10;
+
+            let stdout = proc.stdout.take().unwrap();
+            let mut noblock_stdout = NonBlockingReader::from_fd(stdout).unwrap();
+            let stderr = proc.stderr.take().unwrap();
+            let mut noblock_stderr = NonBlockingReader::from_fd(stderr).unwrap();
+
             loop {
+                if let Some(subjob_id) = subjob_id {
+                    let mut outbuf: Vec<u8> = vec![];
+                    let mut errbuf: Vec<u8> = vec![];
+                    noblock_stdout.read_available(&mut outbuf).unwrap();
+                    noblock_stderr.read_available(&mut errbuf).unwrap();
+                    let outbuf = match ISO_8859_1.decode(&outbuf, DecoderTrap::Ignore) {
+                        Ok(s) => s,
+                        Err(e) => format!("\nERROR: Failed to read stdout from Dom5: {:?}", e),
+                    };
+                    let errbuf = match ISO_8859_1.decode(&errbuf, DecoderTrap::Ignore) {
+                        Ok(s) => s,
+                        Err(e) => format!("\nERROR: Failed to read stderr from Dom5: {:?}", e),
+                    };
+                    sqlx::query!("UPDATE subjobs SET logs=concat(logs, $2::text, $3::text) WHERE subjob_id=$1",
+                        subjob_id,
+                        outbuf,
+                        errbuf
+                    )
+                    .execute(&self.db_pool)
+                    .await?;
+                }
                 match std::fs::File::open(save_dir.join("statusdump.txt")) {
                     Ok(f) => {
                         statusdump = Some(f);
@@ -364,6 +398,15 @@ impl Dom5Turn {
                 let mut contents = vec![];
                 statusdump.read_to_end(&mut contents).unwrap();
                 let statusdump_str = String::from_utf8_lossy(&contents);
+                if let Some(subjob_id) = subjob_id {
+                    sqlx::query!(
+                        "UPDATE subjobs SET logs=concat(logs, $2::text) WHERE subjob_id=$1",
+                        subjob_id,
+                        &*statusdump_str
+                    )
+                    .execute(&self.db_pool)
+                    .await?;
+                }
                 for l in statusdump_str
                     .lines()
                     .filter(|l| nation_info_regex.is_match(l))
@@ -418,18 +461,62 @@ impl Dom5Turn {
 
     pub fn update_nations(mut self) -> Result<(), Dom5TurnErr> {
         self.populate_mods()?;
-        self._update_nations()?;
+        self._update_nations(None)?;
         Ok(())
     }
-    pub fn run(mut self, turn_number: Option<i32>) -> Result<(), Dom5TurnErr> {
+    pub fn run(mut self, job_id: i32) -> Result<(), Dom5TurnErr> {
         smol::block_on(async {
-            match turn_number {
-                Some(tt) => self.populate_saves(tt)?,
-                None => self.populate_pretenders()?,
+            let job = sqlx::query!("SELECT * FROM jobs WHERE job_id=$1", job_id)
+                .fetch_one(&self.db_pool)
+                .await?;
+
+            let subjob = sqlx::query!(
+                "INSERT INTO subjobs (job_id, label) VALUES ($1, 'populate saves/pretenders') RETURNING *",
+                job_id
+            )
+            .fetch_one(&self.db_pool)
+            .await?;
+            match job.turn_number {
+                0 => self.populate_pretenders()?,
+                tt => self.populate_saves(tt)?,
             }
+            let subjob = sqlx::query!(
+                "
+                WITH _0 as (UPDATE subjobs SET finished_at=NOW() WHERE subjob_id=$2),
+                     _1 as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1)
+                INSERT INTO subjobs (job_id, label) VALUES ($1, 'populate maps') RETURNING *",
+                job_id,
+                subjob.subjob_id
+            )
+            .fetch_one(&self.db_pool)
+            .await?;
             self.populate_maps()?;
+            let subjob = sqlx::query!(
+                "
+                WITH _0 as (UPDATE subjobs SET finished_at=NOW() WHERE subjob_id=$2),
+                     _1 as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1)
+                INSERT INTO subjobs (job_id, label) VALUES ($1, 'populate mods') RETURNING *",
+                job_id,
+                subjob.subjob_id
+            )
+            .fetch_one(&self.db_pool)
+            .await?;
             self.populate_mods()?;
-            self._update_nations()?;
+            let subjob = sqlx::query!(
+                "
+                WITH _0 as (UPDATE subjobs SET finished_at=NOW() WHERE subjob_id=$2),
+                     _1 as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1)
+                INSERT INTO subjobs (job_id, label) VALUES ($1, 'update nations') RETURNING *",
+                job_id,
+                subjob.subjob_id
+            )
+            .fetch_one(&self.db_pool)
+            .await?;
+            self._update_nations(Some(subjob.subjob_id))?;
+            let subjob = sqlx::query!("
+                WITH _0 as (UPDATE subjobs SET finished_at=NOW() WHERE subjob_id=$2),
+                     _1 as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1)
+                INSERT INTO subjobs (job_id, label) VALUES ($1, 'dom5 processing turn') RETURNING *", job_id, subjob.subjob_id).fetch_one(&self.db_pool).await?;
             let game = sqlx::query!(
                 r#"SELECT g.*,MAX(t.turn_number) as "turn?",f.filename as mapfilename FROM games g
                                     LEFT JOIN turns t ON t.game_id=g.id AND t.archived != TRUE
@@ -540,7 +627,7 @@ impl Dom5Turn {
                 game.name.clone(),
             ]);
             match game.newailvl {
-                0 => arguments.append(&mut vec!["--nonewai".to_string(), "".to_string()]),
+                0 => arguments.append(&mut vec!["--nonewai".to_string()]),
                 l => arguments.append(&mut vec!["--newailvl".to_string(), l.to_string()]),
             }
             if let Some(c) = game.cataclysm {
@@ -557,36 +644,27 @@ impl Dom5Turn {
             if let None = game.turn {
                 arguments.append(&mut vec!["--newgame".to_string()]);
             }
-            let mut child = AutokilledProc(std::process::Command::new(std::path::PathBuf::from(
-                std::env::var("DOM5_BIN")
-                    .expect("DOM5_BIN not specified")
-                    .to_string(),
-            ))
-            .env(
-                "DOM5_CONF",
-                std::env::current_dir()
-                    .unwrap()
-                    .join("tmp")
-                    .join("games")
-                    .join(self.game_id.to_string()),
-            )
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .args(&arguments)
-            .spawn()
-            .map_err(Dom5TurnErr::ProcessError)?);
+            let mut child = AutokilledProc(
+                std::process::Command::new(std::path::PathBuf::from(
+                    std::env::var("DOM5_BIN")
+                        .expect("DOM5_BIN not specified")
+                        .to_string(),
+                ))
+                .env(
+                    "DOM5_CONF",
+                    std::env::current_dir()
+                        .unwrap()
+                        .join("tmp")
+                        .join("games")
+                        .join(self.game_id.to_string()),
+                )
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .args(&arguments)
+                .spawn()
+                .map_err(Dom5TurnErr::ProcessError)?,
+            );
 
-            let game_log = sqlx::query!(
-                r#"
-            INSERT INTO game_logs 
-                (game_id, datetime, turn_number, log_command, output, error) 
-            VALUES($1, NOW(), $2, $3, '', '') RETURNING *"#,
-                self.game_id,
-                game.turn.unwrap_or(0),
-                &arguments.join(" ")
-            )
-            .fetch_one(&self.db_pool)
-            .await?;
             let stdout = child.stdout.take().unwrap();
             let mut noblock_stdout = NonBlockingReader::from_fd(stdout).unwrap();
             let stderr = child.stderr.take().unwrap();
@@ -615,12 +693,15 @@ impl Dom5Turn {
                         ));
                         log::error!(
                             "Turn {} for game {} hung, forcefully killing",
-                            turn_number.unwrap_or(0),
+                            job.turn_number,
                             game.id
                         );
                         sqlx::query!(
-                            "UPDATE game_logs SET output=concat(output, $2::text), error=concat(error, $3::text) WHERE id=$1",
-                            game_log.id,
+                            "WITH _ as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1)
+                            UPDATE subjobs SET logs=concat(logs, $3::text, $4::text) WHERE subjob_id=$2
+                            ",
+                            job_id,
+                            subjob.subjob_id,
                             outbuf,
                             errbuf
                         )
@@ -638,18 +719,29 @@ impl Dom5Turn {
                 } else {
                     waits = 0;
                 }
-                sqlx::query!(
-                    "UPDATE game_logs SET output=concat(output, $2::text), error=concat(error, $3::text) WHERE id=$1",
-                    game_log.id,
+                sqlx::query!("WITH _ as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1) UPDATE subjobs SET logs=concat(logs, $3::text, $4::text) WHERE subjob_id=$2",
+                    job_id,
+                    subjob.subjob_id,
                     outbuf,
                     errbuf
                 )
                 .execute(&self.db_pool)
                 .await?;
+
                 if noblock_stdout.is_eof() {
                     break;
                 }
             }
+            let subjob = sqlx::query!(
+                "
+                WITH _0 as (UPDATE subjobs SET finished_at=NOW() WHERE subjob_id=$2),
+                     _1 as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1)
+                INSERT INTO subjobs (job_id, label) VALUES ($1, 'commit new turn') RETURNING *",
+                job_id,
+                subjob.subjob_id
+            )
+            .fetch_one(&self.db_pool)
+            .await?;
             let mut transaction = self.db_pool.begin().await?;
             let save_dir = std::env::current_dir()
                 .unwrap()
@@ -702,71 +794,51 @@ impl Dom5Turn {
             let mut defeated_nationids = vec![];
             for kingdom in kingdoms {
                 match kingdom.player_type {
+                    // Player_turns which should be inserted with files
+                    KingdomType::DefeatedWithTurn | KingdomType::Human => {
+                        let status = match kingdom.player_type {
+                            KingdomType::DefeatedWithTurn => 5,
+                            KingdomType::Human => 0,
+                            _ => panic!("Impossible to reach defeated & human branch without being defeated or human")
+                        };
+                        let nation = nations
+                            .iter()
+                            .find(|n| n.nation_id == kingdom.nation_id as i32)
+                            .unwrap();
+                        let mut player_turn_file =
+                            std::fs::File::open(save_dir.join(format!("{}.trn", nation.filename)))
+                                .map_err(Dom5TurnErr::MissingTrn)?;
+                        let mut contents = vec![];
+                        player_turn_file
+                            .read_to_end(&mut contents)
+                            .map_err(Dom5TurnErr::MissingTrn)?;
+                        sqlx::query!(
+                            "
+                        WITH inserted AS (INSERT INTO files (filename, filebinary) 
+                            VALUES($1, $2) 
+                        ON CONFLICT (filename,digest(filebinary, 'sha1'::text)) DO UPDATE 
+                            SET filebinary=EXCLUDED.filebinary RETURNING *)
+                        INSERT INTO player_turns
+                        (trnfile_id, nation_id, game_id, turn_number, status)
+                        SELECT id, $3, $4, $5, $6 FROM inserted",
+                            &nation.filename,
+                            &contents,
+                            kingdom.nation_id as i32,
+                            self.game_id,
+                            turn_number,
+                            status
+                        )
+                        .execute(&mut transaction)
+                        .await?;
+                    }
+                    // Player_turns which should be inserted without files (in bulk, later on)
                     KingdomType::Computer => computer_nationids.push(kingdom.nation_id as i32),
-                    KingdomType::Human => {
-                        let nation = nations
-                            .iter()
-                            .find(|n| n.nation_id == kingdom.nation_id as i32)
-                            .unwrap();
-                        let mut player_turn_file =
-                            std::fs::File::open(save_dir.join(format!("{}.trn", nation.filename)))
-                                .map_err(Dom5TurnErr::MissingTrn)?;
-                        let mut contents = vec![];
-                        player_turn_file
-                            .read_to_end(&mut contents)
-                            .map_err(Dom5TurnErr::MissingTrn)?;
-                        sqlx::query!(
-                            "
-                        WITH inserted AS (INSERT INTO files (filename, filebinary) 
-                            VALUES($1, $2) 
-                        ON CONFLICT (filename,digest(filebinary, 'sha1'::text)) DO UPDATE 
-                            SET filebinary=EXCLUDED.filebinary RETURNING *)
-                        INSERT INTO player_turns
-                        (trnfile_id, nation_id, game_id, turn_number, status)
-                        SELECT id, $3, $4, $5, 0 FROM inserted",
-                            &nation.filename,
-                            &contents,
-                            kingdom.nation_id as i32,
-                            self.game_id,
-                            turn_number
-                        )
-                        .execute(&mut transaction)
-                        .await?;
-                    }
-                    KingdomType::DefeatedWithTurn => {
-                        let nation = nations
-                            .iter()
-                            .find(|n| n.nation_id == kingdom.nation_id as i32)
-                            .unwrap();
-                        let mut player_turn_file =
-                            std::fs::File::open(save_dir.join(format!("{}.trn", nation.filename)))
-                                .map_err(Dom5TurnErr::MissingTrn)?;
-                        let mut contents = vec![];
-                        player_turn_file
-                            .read_to_end(&mut contents)
-                            .map_err(Dom5TurnErr::MissingTrn)?;
-                        sqlx::query!(
-                            "
-                        WITH inserted AS (INSERT INTO files (filename, filebinary) 
-                            VALUES($1, $2) 
-                        ON CONFLICT (filename,digest(filebinary, 'sha1'::text)) DO UPDATE 
-                            SET filebinary=EXCLUDED.filebinary RETURNING *)
-                        INSERT INTO player_turns
-                        (trnfile_id, nation_id, game_id, turn_number, status)
-                        SELECT id, $3, $4, $5, 5 FROM inserted",
-                            &nation.filename,
-                            &contents,
-                            kingdom.nation_id as i32,
-                            self.game_id,
-                            turn_number
-                        )
-                        .execute(&mut transaction)
-                        .await?;
-                    }
                     KingdomType::Defeated => defeated_nationids.push(kingdom.nation_id as i32),
+                    // Kingdom types we shall ignore
                     KingdomType::Special => {}
                 }
             }
+            // Bulk insert player_turns without files
             sqlx::query!(
                 "
             WITH inserted AS (INSERT INTO player_turns
@@ -787,9 +859,24 @@ impl Dom5Turn {
             if winner.is_none() {
                 sqlx::query!("UPDATE games SET next_turn=NOW()+ timer * interval '1 minute' WHERE id=$1 AND timer IS NOT NULL", self.game_id).execute(&mut transaction).await?;
             } else {
-                sqlx::query!("UPDATE games SET next_turn=NULL WHERE id=$1 AND timer IS NOT NULL", self.game_id).execute(&mut transaction).await?;
+                sqlx::query!(
+                    "UPDATE games SET next_turn=NULL WHERE id=$1 AND timer IS NOT NULL",
+                    self.game_id
+                )
+                .execute(&mut transaction)
+                .await?;
             }
             transaction.commit().await?;
+
+            sqlx::query!(
+                "
+                WITH _0 as (UPDATE subjobs SET finished_at=NOW() WHERE subjob_id=$2)
+                UPDATE jobs SET finished_at=NOW(), updated_at=NOW() WHERE job_id=$1",
+                job_id,
+                subjob.subjob_id
+            )
+            .execute(&self.db_pool)
+            .await?;
 
             Ok(())
         })

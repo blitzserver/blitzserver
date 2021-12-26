@@ -15,7 +15,9 @@ pub enum UploadPretenderErr {
     #[error("Illegal nation")]
     IllegalNation,
     #[error("Missing nation")]
-    MissingNation(i32)
+    MissingNation(i32),
+    #[error("Version mismatch")]
+    VersionMismatch((u32, u32))
 }
 
 #[derive(Error, Debug)]
@@ -59,6 +61,21 @@ impl Dom5Conn {
         smol::block_on(async {
             let twoh =
                 SaveFile::read_contents(std::io::Cursor::new(&req.pretender_contents[..])).unwrap();
+            // Make sure pretender is new enough
+            let required_version = std::env::var("MIN_VERSION").ok()
+                .or_else(|| {
+                    log::warn!("No MIN_VERSION specified! Unable to validate pretenders min versions.");
+                    None
+                })
+                .and_then(|s| {
+                    s.parse::<u32>().or_else(|e| {
+                        log::warn!("Failed to parse MIN_VERSION as an integer! Unable to validate pretender min versions: {:?}.", e);
+                        Err(e)
+                    }).ok()
+                });
+            if required_version.map(|r| r > twoh.header.version) == Some(true) {
+                return Err(UploadPretenderErr::VersionMismatch((twoh.header.version, required_version.unwrap())));
+            }
             // Make sure cdkey isnt violated
             let old_cdkey = Player::get_cdkey(self.game_id, twoh.header.nationid, &self.db_pool).map_err(|_| UploadPretenderErr::CdKeyDiffer)?;
             if let Some(old_cdkey) = old_cdkey {
@@ -188,6 +205,19 @@ impl Dom5Conn {
                                 }
         })
     }
+    fn send_message(&mut self, msg: &str) {
+        for i in (1..10).rev() {
+            LoadingMessageResp {
+                message: format!("{} ({} seconds)", msg, i),
+            }
+            .write_packet(&mut self.stream);
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
+        LoadingMessageResp {
+            message: "".to_string(),
+        }
+        .write_packet(&mut self.stream);
+    }
     pub fn run(mut self) {
         std::thread::spawn(move || {
             smol::block_on(async {
@@ -243,29 +273,18 @@ impl Dom5Conn {
                          * Player wants to set or overwrite a newlord
                          */
                         crate::packets::Body::UploadPretenderReq(pkt) => {
-                            let err_msg = match self.accept_pretender(pkt) {
+                            match self.accept_pretender(pkt) {
                                 Err(UploadPretenderErr::CdKeyDiffer) => 
-                                    Some("This pretender is already claimed by another player. Your submission has been discarded".to_owned()),
+                                    self.send_message("This pretender is already claimed by another player. Your submission has been discarded"),
                                 Err(UploadPretenderErr::PassswordRequired) => 
-                                    Some("This game requires passwords for all pretenders. Your submission has been discarded".to_owned()),
+                                    self.send_message("This game requires passwords for all pretenders. Your submission has been discarded"),
                                 Err(UploadPretenderErr::IllegalNation) => 
-                                    Some("There was an error accepting your pretender, contact the admin".to_owned()),
+                                    self.send_message("There was an error accepting your pretender, contact the admin"),
                                 Err(UploadPretenderErr::MissingNation(n)) => 
-                                    Some(format!("Unable to identify nation {}, contact the admin", n)),
-                                _ => None
-                            };
-                            if let Some(err_msg) = err_msg {
-                                for i in (1..10).rev() {
-                                    LoadingMessageResp {
-                                        message: format!("{} ({} seconds)", err_msg, i),
-                                    }
-                                    .write_packet(&mut self.stream);
-                                    std::thread::sleep(std::time::Duration::from_secs(1));
-                                }
-                                LoadingMessageResp {
-                                    message: "".to_string(),
-                                }
-                                .write_packet(&mut self.stream);
+                                    self.send_message(&format!("Unable to identify nation {}, contact the admin", n)),
+                                Err(UploadPretenderErr::VersionMismatch((n,m))) => 
+                                    self.send_message(&format!("Pretender was made with Dom5 version {}, but minimum version is {}, please remake it!", (n as f32) / 100., (m as f32) / 100.)),
+                                _ => {}
                             }
                         }
                         /*
@@ -274,7 +293,7 @@ impl Dom5Conn {
                         crate::packets::Body::PAReq(pkt) => {
                             smol::block_on(async {
                                 loop {
-                                    struct R { motd: Option<String>, max: Option<i32>, winner_name: Option<String> };
+                                    struct R { motd: Option<String>, max: Option<i32>, winner_name: Option<String> }
                                     match sqlx::query_as!(R, r#"
                                          WITH tt as (SELECT MAX(turn_number) as max, game_id from turns where archived != true GROUP BY game_id)
                                          SELECT tt.max as "max?", g.motd as "motd?", n.name as "winner_name?"
@@ -332,21 +351,13 @@ impl Dom5Conn {
                         crate::packets::Body::SetTeamReq(pkt) => {
                             if let Err(e) = sqlx::query!("UPDATE disciples SET team=$3 WHERE game_id=$1 AND nation_id=$2", self.game_id, pkt.nation_id as i32, pkt.team as i32).execute(&self.db_pool).await {
                                 log::error!("Unable to set team for nation {} game {}", pkt.nation_id, self.game_id);
-                                for t in 1..10 {
-                                    LoadingMessageResp { message: format!("Could not set team! Contact the admin! ({} secs)", 10-t) }.write_packet(&mut self.stream);
-                                    std::thread::sleep(std::time::Duration::from_secs(1));
-                                }
-                                LoadingMessageResp { message: "".to_owned() }.write_packet(&mut self.stream);
+                                self.send_message("Could not set team! Contact the admin!");
                             }
                         }
                         crate::packets::Body::SetDiscReq(pkt) => {
                             if let Err(e) = sqlx::query!("UPDATE disciples SET is_disciple=$3 WHERE game_id=$1 AND nation_id=$2", self.game_id, pkt.nation_id as i32, pkt.is_disc as i32).execute(&self.db_pool).await {
                                 log::error!("Unable to set disciple status for nation {} game {}", pkt.nation_id, self.game_id);
-                                for t in 1..10 {
-                                    LoadingMessageResp { message: format!("Could not set disciple status! Contact the admin! ({} secs)", 10-t) }.write_packet(&mut self.stream);
-                                    std::thread::sleep(std::time::Duration::from_secs(1));
-                                }
-                                LoadingMessageResp { message: "".to_owned() }.write_packet(&mut self.stream);
+                                self.send_message("Could not set disciple status! Contact the admin!");
                             }
                         }
                         /*
@@ -517,11 +528,7 @@ impl Dom5Conn {
                                 }
                                 Err(e) => {
                                     log::error!("Failed to get save for nation {} game {}", pkt.nation_desired, self.game_id);
-                                    for t in 1..10 {
-                                        LoadingMessageResp { message: format!("There was an issue downloading the orders from the server! You may have to contact the admin! ({} secs)", 10-t) }.write_packet(&mut self.stream);
-                                        std::thread::sleep(std::time::Duration::from_secs(1));
-                                    }
-                                    DisconnectResp {}.write_packet(&mut self.stream);
+                                    self.send_message("There was an issue downloading the orders from the server! You may have to contact the admin!");
                                 }
                             }
                         }
@@ -539,11 +546,7 @@ impl Dom5Conn {
                                         }
                                         Err(e) => {
                                             log::error!("Failed to check current turn for game {}: {:?}", self.game_id, e);
-                                            for t in 1..10 {
-                                                LoadingMessageResp { message: format!("There was an issue submitting your turn! You may have to contact the admin! ({} secs)", 10-t) }.write_packet(&mut self.stream);
-                                                std::thread::sleep(std::time::Duration::from_secs(1));
-                                            }
-                                            LoadingMessageResp { message: "".to_owned()}.write_packet(&mut self.stream);
+                                            self.send_message("There was an issue submitting your turn! You may have to contact the admin!");
                                             Submit2hResp {}.write_packet(&mut self.stream);
                                         }
                                     }
@@ -566,20 +569,15 @@ impl Dom5Conn {
                                         }
                                         Err(e) => {
                                             log::error!("Failed to receive and save 2h for nation {} in game {}: {:?}", twoh.header.turnnumber, self.game_id, e);
-                                            for t in 1..10 {
-                                                LoadingMessageResp { message: format!("There was an issue submitting your turn! You may have to contact the admin! ({} secs)", 10-t) }.write_packet(&mut self.stream);
-                                                std::thread::sleep(std::time::Duration::from_secs(1));
-                                            }
-                                            LoadingMessageResp { message: "".to_owned()}.write_packet(&mut self.stream);
+                                            self.send_message("There was an issue submitting your turn! You may have to contact the admin!");
                                             Submit2hResp {}.write_packet(&mut self.stream);
                                         }
                                     }
                                 },
                                 Err(e) => {
                                     log::error!("Corrupt orders received for game {}", self.game_id);
-                                    for t in 10..1 {
-                                        LoadingMessageResp { message: format!("Your orders seem to be corrupt to me, this is probably a bug with the server! Contact the admin! ({} secs)", t) }.write_packet(&mut self.stream);
-                                    }
+                                    self.send_message("Your orders seem to be corrupt! This is probably a bug with the server! Contact the admin!");
+                                    Submit2hResp {}.write_packet(&mut self.stream);
                                 }
                             }
                         }
@@ -591,9 +589,7 @@ impl Dom5Conn {
                             match sqlx::query!("SELECT gm.mod_id, m.file_id,m.dm_filename FROM game_mods gm LEFT JOIN mods m ON m.id=gm.mod_id WHERE game_id=$1", self.game_id).fetch_all(&self.db_pool).await {
                                 Err(e) => {
                                     log::error!("Unable to find mod list for game {}", self.game_id);
-                                    for t in 10..1 {
-                                        LoadingMessageResp { message: format!("Somethings wrong with the mods. Contact the admin! ({} secs)", t) }.write_packet(&mut self.stream);
-                                    }
+                                    self.send_message("Somethings wrong with the mods. Contact the admin!");
                                 }
                                 Ok(mods) => {
                                     for m in mods {
@@ -607,7 +603,8 @@ impl Dom5Conn {
                                                 Ok(marchive) => marchive,
                                                 Err(e) => {
                                                     log::error!("Unable to extract mod for game {}: {:?}", self.game_id, e);
-                                                    LoadingMessageResp { message: format!("Somethings wrong with the mods. Contact the admin!") }.write_packet(&mut self.stream);
+
+                                                    self.send_message("Somethings wrong with the mods. Contact the admin!");
                                                     continue;
                                                 }
                                             };
@@ -615,13 +612,13 @@ impl Dom5Conn {
                                                 Ok(archive) => archive,
                                                 Err(e) => {
                                                     log::error!("Unable to extract mod for game {}: {:?}", self.game_id, e);
-                                                    LoadingMessageResp { message: format!("Somethings wrong with the mods. Contact the admin!") }.write_packet(&mut self.stream);
+                                                    self.send_message("Somethings wrong with the mods. Contact the admin!");
                                                     continue;
                                                 }
                                             };
                                             if let Err(e) = archive.extract(&mod_dir) {
                                                 log::error!("Unable to extract mod for game {}: {:?}", self.game_id, e);
-                                                LoadingMessageResp { message: format!("Somethings wrong with the mods. Contact the admin!") }.write_packet(&mut self.stream);
+                                                self.send_message("Somethings wrong with the mods. Contact the admin!");
                                                 continue;
                                             }
                                         }
@@ -629,7 +626,7 @@ impl Dom5Conn {
                                             match std::fs::File::open(mod_dir.join(&pkt.filename)) {
                                                 Err(e) => {
                                                     log::error!("Unable to find dm file for mod that should have it: {:?}", e);
-                                                    LoadingMessageResp { message: format!("Somethings wrong with the mods. Contact the admin!") }.write_packet(&mut self.stream);
+                                                    self.send_message("Somethings wrong with the mods. Contact the admin!");
                                                     continue;
                                                 }
                                                 Ok(mut file) => {
@@ -649,9 +646,7 @@ impl Dom5Conn {
                             match sqlx::query!("SELECT gm.mod_id, m.file_id,m.dm_filename FROM game_mods gm LEFT JOIN mods m ON m.id=gm.mod_id WHERE game_id=$1", self.game_id).fetch_all(&self.db_pool).await {
                                 Err(e) => {
                                     log::error!("Unable to find mod list for game {}", self.game_id);
-                                    for t in 10..1 {
-                                        LoadingMessageResp { message: format!("Somethings wrong with the mods. Contact the admin! ({} secs)", t) }.write_packet(&mut self.stream);
-                                    }
+                                    self.send_message("Somethings wrong with the mods. Contact the admin!");
                                 }
                                 Ok(mods) => {
                                     match mods.into_iter().flat_map(|m| {
@@ -669,9 +664,7 @@ impl Dom5Conn {
                                         }
                                         None => {
                                             log::error!("Unable to find file {} for game {}", pkt.filename, self.game_id);
-                                            for t in 10..1 {
-                                                LoadingMessageResp { message: format!("Somethings wrong with the mods. Contact the admin! ({} secs)", t) }.write_packet(&mut self.stream);
-                                            }
+                                            self.send_message("Somethings wrong with the mods. Contact the admin!");
                                         }
                                     }
                                 }
