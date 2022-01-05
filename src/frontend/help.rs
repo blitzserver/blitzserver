@@ -8,7 +8,7 @@ struct HelpTemplate { hostname: String }
 #[get("/help")]
 pub async fn help() -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().content_type("text/html").body(
-        (HelpTemplate { hostname: std::env::var("HOSTNAME").expect("HOSTNAME env var missing") })
+        (HelpTemplate { hostname: std::env::var("GAMES_ADDRESSS").expect("GAMES_ADDRESS env var missing") })
         .render()
         .unwrap(),
     ))
