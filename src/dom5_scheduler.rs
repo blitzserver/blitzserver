@@ -26,7 +26,7 @@ impl Scheduler {
                         LEFT JOIN turns tt
                             ON tt.game_id=g.id AND tt.turn_number=t.turn_number AND tt.archived != TRUE
                         LEFT JOIN jobs j 
-                            ON j.game_id=g.id AND j.turn_number=COALESCE(t.turn_number, 0) AND j.reaped!=TRUE
+                            ON j.game_id=g.id AND j.turn_number=COALESCE(t.turn_number, 0) AND j.reaped!=TRUE AND finished_at IS NULL
                         LEFT JOIN player_turns pt 
                             ON pt.archived!=TRUE 
                             AND pt.game_id=g.id 
