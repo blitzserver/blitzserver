@@ -1131,6 +1131,7 @@ async fn settings_post(
         bytes.extend_from_slice(&item?);
     }
     let config = serde_qs::Config::new(10, false);
+    log::debug!("Game settings {:?}", bytes);
     let body: GameSettings = config.deserialize_bytes(&*bytes).unwrap();
     if session
         .get(&format!("auth_{}", path_id))
