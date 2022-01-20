@@ -1,8 +1,8 @@
 use super::utils::*;
-use std::io::Write;
 use super::AppData;
 use crate::diesel::prelude::*;
 use std::env;
+use std::io::Write;
 
 use crate::discord::DiscordManager;
 use crate::dom5_turn::Dom5Turn;
@@ -253,7 +253,7 @@ pub struct RemovePlayerForm {
 #[derive(Debug, Deserialize)]
 pub struct DownloadTurnForm {
     #[serde(default)]
-    password: String
+    password: String,
 }
 
 #[derive(Debug)]
@@ -630,7 +630,13 @@ async fn postpone(
     };
     sqlx::query!(
         r#"UPDATE games set next_turn=COALESCE(next_turn,NOW()) + interval '1 minute' * $2
-        WHERE id=$1"#, game.id, timer_form.timer as f64).execute(&app_data.sqlx_pool).await.unwrap();
+        WHERE id=$1"#,
+        game.id,
+        timer_form.timer as f64
+    )
+    .execute(&app_data.sqlx_pool)
+    .await
+    .unwrap();
     NewAdminLog {
         game_id: path_id,
         datetime: std::time::SystemTime::now(),
@@ -1217,7 +1223,19 @@ async fn settings_post(
             db_pool: app_data.sqlx_pool.clone(),
             game_id: game.id,
         };
-        dom5_proc.update_nations();
+        dom5_proc
+            .update_nations()
+            .expect("Failed to refresh nations after mod change");
+    }
+    if game.map_id != old_game.map_id || (game.select_start == 0 && old_game.select_start != 0) {
+        sqlx::query!(
+            "WITH res as (UPDATE players SET startprov=NULL WHERE game_id=$1)
+            UPDATE games SET modified_mapcrc=NULL WHERE id=$1",
+            game.id
+        )
+        .execute(&app_data.sqlx_pool)
+        .await
+        .unwrap();
     }
     Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#settings", game.id))
@@ -1595,20 +1613,30 @@ pub async fn download_turn(
     }
     let mut bytes: Vec<u8> = vec![];
     let mut zip = zip::ZipWriter::new(std::io::Cursor::new(&mut bytes));
-    zip
-        .start_file(&format!("{}.trn", files[0].trnfilename), zip::write::FileOptions::default())
-        .unwrap();
+    zip.start_file(
+        &format!("{}.trn", files[0].trnfilename),
+        zip::write::FileOptions::default(),
+    )
+    .unwrap();
     zip.write_all(&files[0].trnfilebinary).unwrap();
-    if let (Some(twohfn), Some(twohfb)) = (files[0].twohfilename.as_ref(), files[0].twohfilebinary.as_ref()) {
-        zip
-            .start_file(twohfn, zip::write::FileOptions::default())
+    if let (Some(twohfn), Some(twohfb)) = (
+        files[0].twohfilename.as_ref(),
+        files[0].twohfilebinary.as_ref(),
+    ) {
+        zip.start_file(twohfn, zip::write::FileOptions::default())
             .unwrap();
         zip.write_all(twohfb).unwrap();
     }
     zip.finish().unwrap();
     drop(zip);
     return Ok(HttpResponse::Ok()
-              .set_header("content-disposition", format!(r#"attachment; filename="{} {} turn {}.zip""#, files[0].game_name, files[0].nation_name, turn))
-              .content_type("application/zip")
-              .body(bytes))
+        .set_header(
+            "content-disposition",
+            format!(
+                r#"attachment; filename="{} {} turn {}.zip""#,
+                files[0].game_name, files[0].nation_name, turn
+            ),
+        )
+        .content_type("application/zip")
+        .body(bytes));
 }

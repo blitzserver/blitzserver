@@ -149,7 +149,7 @@ impl Dom5Turn {
             )
             .fetch_one(&self.db_pool)
             .await?;
-            let startprovs = sqlx::query!(" SELECT nationid, startprov FROM players WHERE game_id=$1 AND startprov IS NOT NULL", self.game_id).fetch_all(&self.db_pool).await?;
+            let startprovs = sqlx::query!("SELECT p.nationid, p.startprov FROM players p WHERE p.game_id=$1 AND p.startprov IS NOT NULL", self.game_id).fetch_all(&self.db_pool).await?;
             for sp in startprovs {
                 map_record.mfb.append(
                     &mut format!(
