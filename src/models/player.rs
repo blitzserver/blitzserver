@@ -64,13 +64,6 @@ impl Player {
         diesel::delete(p_dsl::players)
             .filter(p_dsl::id.eq(self.id))
             .execute(db)?;
-        let nation = Nation::get(self.game_id, self.nationid, db)?;
-        NewAdminLog {
-            game_id: self.game_id,
-            datetime: std::time::SystemTime::now(),
-            action: format!("Removed {}", nation.name),
-        }
-        .insert(db)?;
         Ok(())
     }
 

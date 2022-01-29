@@ -17,7 +17,7 @@ impl Scheduler {
                     match sqlx::query!(r#"
                         WITH 
                           top_turn as (SELECT game_id,MAX(turn_number) as turn_number FROM turns WHERE archived!=TRUE GROUP BY game_id),
-                          reaped_jobs as (UPDATE jobs SET reaped=TRUE WHERE NOW() > updated_at + interval '30 seconds' AND finished_at IS NULL RETURNING *)
+                          reaped_jobs as (UPDATE jobs SET reaped=TRUE, finished_at=NOW() WHERE NOW() > updated_at + interval '30 seconds' AND finished_at IS NULL RETURNING *)
                         INSERT INTO jobs ("game_id", "turn_number", "started_at", "updated_at")
                         SELECT g.id, COALESCE(t.turn_number, 0), NOW(), NOW()
                         FROM games g

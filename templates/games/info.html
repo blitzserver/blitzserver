@@ -17,12 +17,25 @@
 				Refresh to see port..
 			</tr>
 			{% endmatch %}
-			{% if self.game.next_turn.is_some() %}
 			<tr>
 				<td>Next Turn</td>
-				<td>{{ self.game.next_turn_string() }}</td>
+
+        {% if self.active_job.is_some() %}
+        <td>
+        {% match self.turn_number %}
+        {% when 0 %}
+        Starting
+        {% else %}
+        Hosting
+        {% endmatch %}
+        {% if self.get_fail_count() > 0 %}
+        (<span class="host-fail">Attempt #{{ self.get_fail_count() }}</span>)
+        {% endif %}
+        </td>
+        {% else %}
+				<td>{{ self.next_turn_string() }}</td>
+        {% endif %}
 			</tr>
-			{% endif %}
 			<tr>
 		{% endif %}
 	</table>

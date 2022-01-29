@@ -7,7 +7,7 @@
 		<div class="sep"></div>
 		<div class="details">
 			<section>Players {{ game.players }}/X</section>
-			<section></section>
+      <section>{% if game.hosting %}Starting{% if game.fail_count> 0 %} (<span class="host-fail">Attempt #{{ game.fail_count + 1}}</span>){% endif %}{% endif %}</section>
 		</div>
 	</div>
 	<div class="right">

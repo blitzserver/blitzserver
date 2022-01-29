@@ -161,7 +161,7 @@ impl Dom5Conn {
                                             disciples: game_record.teamgame,
                                             renaming: game_record.renaming,
                                             unk3: 0,
-                                            milliseconds_to_host: game_record.next_turn.map(|nt| (nt - chrono::Utc::now().naive_utc()).num_milliseconds() as u32),
+                                            milliseconds_to_host: game_record.next_turn.map(|nt| (nt - chrono::Utc::now()).num_milliseconds() as u32),
                                             unk4: 0,
                                             conn_statuses: player_status_records.iter().filter(|p| p.connected.is_some()).fold( std::collections::HashMap::new(), |mut acc, record| {
                                                 acc.insert(record.nationid, 1);
@@ -231,7 +231,7 @@ impl Dom5Conn {
                          */
                         crate::packets::Body::StartGameReq(_) => {
                             if let Err(e) = sqlx::query!("UPDATE games SET next_turn=$1 WHERE id=$2",
-                                                         chrono::Utc::now().naive_utc() + chrono::Duration::seconds(5),
+                                                         chrono::Utc::now() + chrono::Duration::seconds(5),
                                                          self.game_id)
                                 .execute(&self.db_pool).await {
                                     log::error!( "Failed to set countdown for game {}: {:?}", self.game_id, e);
@@ -349,14 +349,41 @@ impl Dom5Conn {
                          * Player is trying to set the team of a disciple or pretender
                          */
                         crate::packets::Body::SetTeamReq(pkt) => {
-                            if let Err(e) = sqlx::query!("UPDATE disciples SET team=$3 WHERE game_id=$1 AND nation_id=$2", self.game_id, pkt.nation_id as i32, pkt.team as i32).execute(&self.db_pool).await {
-                                log::error!("Unable to set team for nation {} game {}", pkt.nation_id, self.game_id);
+                            // Find count of pretender's on the specified team
+                            // Find is_disciple status of possibly existing disciple record 
+                            //
+                            // Insert disciple record with is_disciple set to true if there already
+                            // is a pretender, or if the nation was already set to be a disciple
+                            // (otherwise default to pretender)
+                            //
+                            // If there already is a record, set the team and is_disciple based on
+                            // aforementioned rules
+                            if let Err(e) = sqlx::query!("
+                                    WITH current_pretender as (SELECT COUNT(*) as p_count FROM disciples WHERE game_id=$1 AND team=$3 AND team>0 AND is_disciple=0 GROUP BY game_id),
+                                    existing as (SELECT is_disciple FROM disciples WHERE game_id=$1 AND nation_id=$2),
+                                    insert_vars as (SELECT $1::Int as game_id, $2::Int as nation_id, $3::Int as team)
+                                    INSERT INTO disciples AS d (game_id,nation_id, team, is_disciple)
+                                    SELECT iv.*,GREATEST(0, existing.is_disciple, p_count)
+                                    FROM insert_vars iv
+                                    LEFT JOIN current_pretender cp ON 1=1
+                                    LEFT JOIN existing ON 1=1
+                                    ON CONFLICT (game_id,nation_id) DO UPDATE SET (team, is_disciple) = (EXCLUDED.team, EXCLUDED.is_disciple)
+                                    ", self.game_id, pkt.nation_id as i32, pkt.team as i32).execute(&self.db_pool).await {
+                                log::error!("Unable to set team for nation {} game {}: {:?}", pkt.nation_id, self.game_id, e);
                                 self.send_message("Could not set team! Contact the admin!");
                             }
                         }
                         crate::packets::Body::SetDiscReq(pkt) => {
-                            if let Err(e) = sqlx::query!("UPDATE disciples SET is_disciple=$3 WHERE game_id=$1 AND nation_id=$2", self.game_id, pkt.nation_id as i32, pkt.is_disc as i32).execute(&self.db_pool).await {
-                                log::error!("Unable to set disciple status for nation {} game {}", pkt.nation_id, self.game_id);
+                            // Insert or update record to be disciple, set ALL OTHER records on
+                            // this team in this game to disciple (there can only ever be one
+                            // pretender, so we don't have to check if we're actually setting
+                            // ourselves to be a pretender, since if we're not, then everything 
+                            // will already be a disciple anyway).
+                            if let Err(e) = sqlx::query!("
+                                                         WITH inserted as (INSERT INTO disciples (is_disciple, game_id, nation_id) VALUES ($3, $1, $2) 
+                                                         ON CONFLICT (game_id, nation_id) DO UPDATE SET is_disciple=EXCLUDED.is_disciple RETURNING *)
+                                                         UPDATE disciples d SET is_disciple=1 FROM inserted WHERE d.team=inserted.team AND d.team>0 AND d.game_id=inserted.game_id", self.game_id, pkt.nation_id as i32, pkt.is_disc as i32).execute(&self.db_pool).await {
+                                log::error!("Unable to set disciple status for nation {} game {}: {:?}", pkt.nation_id, self.game_id, e);
                                 self.send_message("Could not set disciple status! Contact the admin!");
                             }
                         }

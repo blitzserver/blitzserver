@@ -37,4 +37,5 @@ INSERT INTO subjobs ("job_id", "label", "started_at", "finished_at")
   SELECT jobs.job_id as "job_id", 'dom5 processing turn' as "label", jobs.started_at as "started_at", jobs.finished_at as "finished_at"
   FROM jobs;
 
+ALTER TABLE games ALTER next_turn TYPE timestamptz USING next_turn AT TIME ZONE 'UTC';
 

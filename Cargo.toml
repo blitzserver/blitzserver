@@ -1,6 +1,6 @@
 [package]
 name = "blitzserver"
-version = "0.8.49"
+version = "0.8.55"
 authors = ["Blitzserver Admin <admin@blitzserver.net"]
 edition = "2018"
 
@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 actix-web = "*"
-diesel = { git = "https://github.com/diesel-rs/diesel", features = ["huge-tables", "r2d2", "postgres"] }
+diesel = { git = "https://github.com/diesel-rs/diesel", features = ["huge-tables", "r2d2", "postgres", "chrono"] }
 serde = { version = "*", features = ["derive"] }
 dotenv = "*"
 askama = "*"
@@ -47,5 +47,5 @@ sqlx = { version = "0.5", features = ["runtime-async-std-native-tls", "chrono", 
 nonblock = "*"
 async-std = "*"
 derive_more = "*"
-libvips = { git = "https://github.com/blitzserver/libvips-rust-bindings.git", branch = "master" }
+libvips = { git = "https://github.com/blitzserver/libvips-rust-bindings.git", commit = "e7b591d" }
 encoding = "*"

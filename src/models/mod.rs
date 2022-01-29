@@ -54,12 +54,12 @@ pub struct Game {
     pub clustered: bool,
     pub storyevents: i32,
     pub newailvl: i32,
-    pub next_turn: Option<std::time::SystemTime>,
+    pub next_turn: Option<chrono::DateTime::<chrono::Utc>>,
     pub password: String,
     pub archived: bool,
     pub masterpass: Option<String>,
     pub private: bool,
-    pub last_activity: std::time::SystemTime,
+    pub last_activity: chrono::DateTime::<chrono::Utc>,
     pub require_password: bool,
     pub select_start: i32,
     pub modified_mapcrc: Option<i32>,
@@ -100,7 +100,7 @@ pub struct SqlxGame {
     pub clustered: bool,
     pub storyevents: i32,
     pub newailvl: i32,
-    pub next_turn: Option<chrono::NaiveDateTime>,
+    pub next_turn: Option<chrono::Utc>,
     pub password: String,
     pub archived: bool,
     pub masterpass: Option<String>,
@@ -139,7 +139,7 @@ impl Game {
     }
     pub fn get_next_wakeup<D>(
         db: &D,
-    ) -> Result<Option<std::time::SystemTime>, diesel::result::Error>
+    ) -> Result<Option<chrono::DateTime::<chrono::Utc>>, diesel::result::Error>
     where
         D: diesel::Connection<Backend = diesel::pg::Pg>,
     {
@@ -173,15 +173,6 @@ impl Game {
             .filter(games_dsl::name.eq(name).and(games_dsl::archived.eq(false)))
             .get_result(db)
     }
-    pub fn get_public<D>(db: &D) -> Result<Vec<Game>, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::games::dsl as games_dsl;
-        games_dsl::games
-            .filter(games_dsl::private.eq(false))
-            .get_results(db)
-    }
     pub fn get_mods<D>(&self, db: &D) -> Result<Vec<Mod>, diesel::result::Error>
     where
         D: diesel::Connection<Backend = diesel::pg::Pg>,
@@ -206,7 +197,7 @@ impl Game {
 
     pub fn schedule_turn<D>(
         &self,
-        next_turn: std::time::SystemTime,
+        next_turn: chrono::DateTime::<chrono::Utc>,
         db: &D,
     ) -> Result<Game, crate::diesel::result::Error>
     where
@@ -224,21 +215,27 @@ impl Game {
         match self.next_turn {
             None => "When these shazbots submit their turns".to_string(),
             Some(next_turn) => {
-                if let Ok(until) = next_turn.duration_since(std::time::SystemTime::now()) {
+                let duration = chrono::Utc::now() - next_turn;
+                if duration.num_seconds() > 0 {
                     format!(
-                        "{}{}",
-                        if until.as_secs() > (60 * 60) {
+                        "{}{}{}",
+                        if duration.num_seconds() > (60 * 60) {
                             // More than one hour
-                            format!("{} hours, ", (until.as_secs() as f32 / 60.0 / 60.0).floor())
+                            format!("{} hours, ", (duration.num_seconds() as f32 / 60.0 / 60.0).floor())
                         } else {
                             "".to_string()
                         },
-                        if until.as_secs() % (60 * 60) > 0 {
+                        if duration.num_seconds() % (60 * 60) > 0 {
                             // More than one minute within the hour
                             format!(
                                 "{} minutes",
-                                (until.as_secs() as f32 % (60.0 * 60.0) / 60.0).floor(),
+                                (duration.num_seconds() as f32 % (60.0 * 60.0) / 60.0).floor(),
                             )
+                        } else {
+                            "".to_string()
+                        },
+                        if duration.num_seconds() < 60 {
+                            format!("{} seconds", duration.num_seconds())
                         } else {
                             "".to_string()
                         }
@@ -367,7 +364,7 @@ impl Game {
         use crate::schema::games::dsl as games_dsl;
         diesel::update(games_dsl::games)
             .filter(games_dsl::id.eq(self.id))
-            .set(games_dsl::next_turn.eq::<Option<std::time::SystemTime>>(None))
+            .set(games_dsl::next_turn.eq::<Option<chrono::DateTime<chrono::Utc>>>(None))
             .get_result::<Game>(db)
     }
 
@@ -392,7 +389,7 @@ impl Game {
         diesel::update(games_dsl::games.filter(games_dsl::id.eq(self.id)))
             .set((
                 games_dsl::archived.eq(archived),
-                games_dsl::last_activity.eq(std::time::SystemTime::now()),
+                games_dsl::last_activity.eq(chrono::Utc::now()),
                 games_dsl::port.eq::<Option<i32>>(port),
             ))
             .get_result::<Game>(db)
@@ -801,13 +798,17 @@ pub struct Turn {
     pub winner: Option<i32>
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone)]
 pub struct TurnSummary {
     pub game_id: i32,
+    pub next_turn: Option<chrono::DateTime<chrono::Utc>>,
     pub turn_number: i32,
     pub submitted: Option<i64>,
     pub total: Option<i64>,
-    pub winner_name: Option<String>
+    pub winner_name: Option<String>,
+    pub cj_tn: Option<i32>,
+    pub cj_l: Option<String>,
+    pub cj_sa: Option<chrono::DateTime<chrono::Utc>>
 }
 
 #[derive(Debug, Error)]
@@ -919,14 +920,17 @@ impl Turn {
             } else {
                 sqlx::query_as!(TurnSummary, r#"
 WITH tt as (SELECT game_id,MAX(turn_number) as "turn_number" FROM turns WHERE ARCHIVED != true GROUP BY game_id)
-SELECT t.game_id, t.turn_number, n.name as "winner_name?", COUNT(submitted) as "submitted", COUNT(total) as "total"
+SELECT t.game_id, t.turn_number, n.name as "winner_name?", COUNT(submitted) as "submitted", COUNT(total) as "total", next_turn, j.turn_number as "cj_tn?", sj.label as "cj_l?", j.started_at as "cj_sa?"
 FROM turns t
 INNER JOIN tt ON tt.game_id=t.game_id AND tt.turn_number=t.turn_number AND t.archived != TRUE
 LEFT JOIN nations n ON t.winner=n.nation_id AND t.game_id=n.game_id
 LEFT JOIN player_turns total ON total.turn_number=t.turn_number AND total.archived != TRUE and total.game_id=t.game_id AND total.status IN (0,1,2)
 LEFT JOIN player_turns submitted ON submitted.turn_number=t.turn_number AND submitted.archived != TRUE and submitted.game_id=t.game_id AND submitted.status=2 AND submitted.nation_id=total.nation_id
+LEFT JOIN jobs j ON j.game_id=ANY($1) AND j.finished_at IS NULL
+LEFT JOIN subjobs sj ON sj.job_id=j.job_id AND sj.finished_at IS NULL
+LEFT JOIN games g ON g.id=t.game_id
 WHERE t.game_id = ANY($1)
-GROUP BY t.game_id,t.turn_number,n.name
+GROUP BY t.game_id,t.turn_number, n.name, j.turn_number, sj.label, j.started_at, g.next_turn
 "#, game_ids).fetch_all(db_pool).await.unwrap()
             }
         })
@@ -1370,7 +1374,7 @@ impl NewEmailConfig {
 #[derive(Queryable, Debug, Identifiable)]
 #[table_name = "disciples"]
 pub struct Disciple {
-    id: i32,
+    pub id: i32,
     pub game_id: i32,
     pub nation_id: i32,
     pub is_disciple: i32,

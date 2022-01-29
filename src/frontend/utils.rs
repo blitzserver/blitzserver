@@ -3,10 +3,10 @@ use serde::de::Error;
 pub fn from_str<'de, D, S>(deserializer: D) -> Result<S, D::Error>
 where
     D: serde::Deserializer<'de>,
-    S: std::str::FromStr,
+    S: std::str::FromStr + Default,
 {
     let s = <&str as serde::Deserialize>::deserialize(deserializer)?;
-    S::from_str(&s).map_err(|_| D::Error::custom("could not parse string"))
+    Ok(S::from_str(&s).unwrap_or(S::default()))
 }
 pub fn from_str_seq<'de, D, S>(deserializer: D) -> Result<Vec<S>, D::Error>
 where

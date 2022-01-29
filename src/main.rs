@@ -78,11 +78,6 @@ async fn styles() -> Result<HttpResponse> {
     ))
 }
 
-#[derive(Deserialize)]
-struct StartGame {
-    countdown: u64,
-}
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();

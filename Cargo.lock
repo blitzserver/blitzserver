@@ -722,7 +722,7 @@ dependencies = [
 
 [[package]]
 name = "blitzserver"
-version = "0.8.48"
+version = "0.8.55"
 dependencies = [
  "actix-files",
  "actix-multipart",
@@ -1151,6 +1151,7 @@ source = "git+https://github.com/diesel-rs/diesel#bada4ad305d279049d0f9716ecde47
 dependencies = [
  "bitflags",
  "byteorder",
+ "chrono",
  "diesel_derives",
  "itoa",
  "pq-sys",
@@ -2057,7 +2058,7 @@ checksum = "18794a8ad5b29321f790b55d93dfba91e125cb1a9edbd4f8e3150acc771c1a5e"
 [[package]]
 name = "libvips"
 version = "1.4.3"
-source = "git+https://github.com/blitzserver/libvips-rust-bindings.git?branch=master#98cfb9db221c59b68a79a0e55034370e49d8b647"
+source = "git+https://github.com/blitzserver/libvips-rust-bindings.git#e7b591d76c522ec8477b3332c485b0dfde1bd128"
 dependencies = [
  "num-derive",
  "num-traits",

@@ -12,6 +12,7 @@
 	--col-cyan-pale: #eff9fa;
 	--col-faint: #0003;
 	--col-very-faint: #0001;
+	--col-danger: #b00;
 }
 fieldset {
 	padding: 0;
@@ -31,13 +32,12 @@ a:hover {
 	 text-decoration: underline;
 }
 body {
-	line-height: 1.5;
 	font-family: sans-serif;
 }
 nav {
 	display: flex;
-	line-height: 50px;
 	padding-bottom: 20px;
+  align-items: center;
 }
 .container {
 	margin: auto;
@@ -46,7 +46,7 @@ nav {
 nav.tabs {
 	border-bottom: var(--col-grey) 3px solid;
 	padding-bottom: 0px;
-	line-height: 1.1;
+  line-height: 1;
 }
 nav>*>a,nav>a,.version {
 	padding-left: 10px;
@@ -141,7 +141,7 @@ input {
 	color: white;
 }
 .btn-danger {
-	background: #B00;
+	background: var(--col-danger);
 	color: white;
 	font-weight: 600;
 }
@@ -187,6 +187,10 @@ p {
 	margin-top: -3px;
 	margin-bottom: -3px;
 }
+.host-fail {
+  color: var(--col-danger);
+  font-weight: 600;
+}
 .game-pane.pending {
 	background: var(--col-green-pale);
 }
@@ -210,7 +214,6 @@ p {
   animation: gradient 15s ease infinite;
 }
 .game-pane .sep {
-	margin-top: -6px;
 	width: 100%;
 	border-bottom: var(--col-faint) 1px solid;
 }
@@ -218,6 +221,7 @@ p {
 	padding-left: 10px;
 	font-size: 14px;
 	display: flex;
+  line-height: 1.5;
 }
 .game-pane .header {
 	display: flex;
@@ -251,7 +255,7 @@ h1 {
 	font-weight: 600;
 }
 .unsubmitted {
-	color: #B00;
+	color: var(--col-danger);
 	font-weight: 600;
 }
 .staling {
@@ -355,7 +359,6 @@ p {
   overflow: hidden;
 }
 .game-pane .sep {
-	margin-top: -6px;
 	width: 100%;
 	border-bottom: var(--col-faint) 1px solid;
 }
@@ -394,7 +397,7 @@ h1 {
 	color: green;
 }
 .unsubmitted {
-	color: #B00;
+	color: var(--col-danger);
 }
 .row .tail {
 	margin-left: auto;
@@ -449,7 +452,7 @@ h3 {
 	position: relative;
 }
 .nav>div {
-	margin-top: -80px;
+	margin-top: -81px;
 	padding-top: 86px;
 	height: 18px;
 	pointer-events: none;
@@ -459,7 +462,8 @@ h3 {
 }
 .nav>div>a {
   white-space: nowrap;
-  line-height: 1.4;
+	height: 18px;
+  display: block;
 }
 .nav>div:target>a {
 	background: var(--col-grey);
@@ -502,6 +506,11 @@ h3 {
 }
 .tabsection>* {
 	pointer-events: initial;
+}
+.logs-unhealthy {
+  background: var(--col-danger);
+  color: white;
+
 }
 .css-tab-label label {
 	cursor: pointer;
@@ -707,6 +716,9 @@ fieldset {
 .auth-input>div {
 	height: 1.5rem;
 }
+.auth-input .input-group {
+  height: 18px;
+}
 input.invalid {
 	border: 1px red solid;
 }
@@ -783,6 +795,14 @@ table.log-table .log-args {
 }
 .log-table tr:nth-child(odd) {
 	background: var(--col-very-faint);
+}
+.log-table tr.reaped {
+  background: var(--col-danger);
+  color: white;
+}
+.log-table tr.pending {
+  background: var(--col-cyan-pale);
+  color: black;
 }
 .hidden {
 	display: none;
@@ -970,6 +990,7 @@ label[for="noProvince"] {
   background-position:right 0px top -100px; 
   background-repeat: no-repeat;
   margin-top: -10px;
+  height: 50px;
 }
 .lizard-bg-alt {
   background: url('serpent-lay-back.webp');
@@ -977,6 +998,7 @@ label[for="noProvince"] {
   background-position: right 50px top -100px;
   background-repeat: no-repeat;
   margin-top: -10px;
+  height: 50px;
 }
 .download-turn summary {
   height: 1em;

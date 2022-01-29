@@ -4,3 +4,4 @@ TRUNCATE TABLE subjobs;
 TRUNCATE TABLE jobs;
 DROP TABLE subjobs;
 DROP TABLE jobs;
+ALTER TABLE games ALTER next_turn TYPE timestamp;

@@ -1,8 +1,8 @@
 use super::utils::*;
-use std::io::Write;
 use super::AppData;
 use crate::diesel::prelude::*;
 use std::env;
+use std::io::Write;
 
 use crate::discord::DiscordManager;
 use crate::dom5_turn::Dom5Turn;
@@ -11,7 +11,6 @@ use crate::models::{
     Nation, NewAdminLog, NewGame, NewGameMod, Player, PlayerTurn, Turn,
 };
 use crate::msgbus::{GameScheduleMsg, Msg};
-use crate::StartGame;
 use actix_web::http::header;
 use actix_web::{get, post, web, HttpResponse, Result};
 use askama::Template;
@@ -224,8 +223,19 @@ struct GameDetailsPayload {
     #[serde(flatten)]
     email_form: EmailForm,
     password: Option<String>,
-    log_errors: Option<i32>,
     log_output: Option<i32>,
+}
+pub fn deserialize_option_ignore_error<'de, T, D>(d: D) -> Result<Option<T>, D::Error>
+where
+    T: serde::de::Deserialize<'de>,
+    D: serde::de::Deserializer<'de>,
+{
+    Ok(T::deserialize(d).ok())
+}
+#[derive(Deserialize)]
+struct StartGame {
+    #[serde(default, deserialize_with = "deserialize_option_ignore_error")]
+    countdown: Option<u64>,
 }
 #[derive(Debug, Deserialize)]
 struct CreateGame {
@@ -253,7 +263,7 @@ pub struct RemovePlayerForm {
 #[derive(Debug, Deserialize)]
 pub struct DownloadTurnForm {
     #[serde(default)]
-    password: String
+    password: String,
 }
 
 #[derive(Debug)]
@@ -266,6 +276,26 @@ struct PlayerSummary {
     is_disciple: bool,
     team: i32,
     has_pass: bool,
+}
+#[derive(Debug)]
+struct ActiveJob {
+    turn_number: i32,
+    started_at: chrono::DateTime<chrono::Utc>,
+    label: Option<String>,
+}
+#[derive(Debug)]
+struct GameJobDisplay {
+    job_id: i32,
+    game_logs: Option<String>,
+    turn_number: i32,
+    started_at: chrono::DateTime<chrono::Utc>,
+    finished_at: Option<chrono::DateTime<chrono::Utc>>,
+    reaped: bool,
+}
+impl GameJobDisplay {
+    pub fn started_at_str(&self) -> String {
+        self.started_at.to_rfc2822()
+    }
 }
 #[derive(Template)]
 #[template(path = "games/details.html")]
@@ -284,14 +314,15 @@ struct GameDetailsTemplate<'a> {
     maps: &'a Vec<Map>,
     provinces: &'a Vec<MapProvince>,
     authed: AuthStatus,
-    logs: Vec<GameLogLite>,
-    focused_log: (i32, String, String),
+    logs: Vec<GameJobDisplay>,
     admin_logs: &'a Vec<AdminLog>,
     discord_clientid: Option<String>,
     discord_notifications: Vec<DiscordConfig>,
     discord_manager: Option<&'a DiscordManager>,
     staling_players: Vec<i32>,
     winner_name: Option<String>,
+    active_job: Option<ActiveJob>,
+    unhealthy: bool,
 }
 pub struct PNT<'a> {
     player: &'a Player,
@@ -528,6 +559,52 @@ impl<'a> GameDetailsTemplate<'a> {
                 .collect()
         }
     }
+    pub fn next_turn_string(&self) -> String {
+        if self.game.archived {
+            return "Never".to_owned();
+        }
+        match self.game.next_turn {
+            Some(next_turn) => {
+                let duration = next_turn - chrono::Utc::now();
+                let seconds = duration.num_seconds();
+                let minutes = (duration.num_seconds() / 60) % 60;
+                let hours = (duration.num_seconds() / 60) / 60;
+                format!(
+                    "{}{}{}",
+                    if hours > 0 {
+                        // More than one hour
+                        format!("{} hours, ", hours)
+                    } else {
+                        "".to_string()
+                    },
+                    if minutes > 0 {
+                        // More than one minute within the hour
+                        format!("{} minutes", minutes)
+                    } else {
+                        "".to_string()
+                    },
+                    if seconds < 60 {
+                        format!("{} seconds", seconds)
+                    } else {
+                        "".to_string()
+                    }
+                )
+            }
+            _ => "On submission".to_owned(),
+        }
+    }
+    fn get_fail_count(&self) -> i32 {
+        self.logs.iter().rev().fold(0, |a, i| {
+            println!("a {}", a);
+            if i.reaped {
+                a + 1
+            } else if i.finished_at.is_some() {
+                0
+            } else {
+                a
+            }
+        })
+    }
     fn get_status_string(&self) -> String {
         match (self.game.archived, self.winner_name.as_ref()) {
             (true, None) => "Archived".to_string(),
@@ -544,21 +621,6 @@ impl<'a> GameDetailsTemplate<'a> {
             }
         }
     }
-    fn get_shorthand_description(&self) -> String {
-        format!(
-            "{}\n{}{}",
-            &self.get_status_string(),
-            match self.game.port {
-                Some(p) => format!("{}:{}\n", self.games_address, p),
-                None => "".to_owned(),
-            },
-            match self.game.next_turn {
-                Some(_t) => format!("Next turn in {}\n", self.game.next_turn_string()),
-                None => "".to_owned(),
-            }
-        )
-    }
-
     fn get_current_map(&self) -> Option<&Map> {
         if self.settings.map != 0 {
             self.maps.iter().find(|m| m.id == self.settings.map)
@@ -572,8 +634,47 @@ struct ActiveGame {
     name: String,
     address: String,
     turn_summary: crate::models::TurnSummary,
-    next_turn_string: String,
     map_id: i32,
+    hosting: bool,
+    fail_count: i32,
+}
+impl ActiveGame {
+    pub fn next_turn_string(&self) -> String {
+        match (
+            self.turn_summary.next_turn,
+            self.turn_summary.cj_tn,
+            self.turn_summary.cj_l.as_deref(),
+            self.turn_summary.cj_sa,
+        ) {
+            (_, Some(turn), label, Some(started_at)) => {
+                if turn == 0 {
+                    let duration = chrono::Utc::now() - started_at;
+                    let seconds = duration.num_seconds() % 60;
+                    let minutes = (duration.num_seconds() / 60) % 60;
+                    let hours = (duration.num_seconds() / 60) / 60;
+                    format!("Starting {}:{}:{}", hours, minutes, seconds,)
+                } else {
+                    let duration = chrono::Utc::now() - started_at;
+                    let seconds = duration.num_seconds() % 60;
+                    let minutes = (duration.num_seconds() / 60) % 60;
+                    let hours = (duration.num_seconds() / 60) / 60;
+                    format!("Hosting turn {}: {}:{}:{}", turn, hours, minutes, seconds,)
+                }
+            }
+            (Some(nt), _, _, _) => {
+                let duration = nt - chrono::Utc::now();
+                let minutes = (duration.num_seconds() / 60) % 60;
+                let hours = (duration.num_seconds() / 60) / 60;
+                let seconds = duration.num_seconds();
+                if seconds < 60 {
+                    format!("Next turn {} seconds", seconds)
+                } else {
+                    format!("Next turn {} hours, {} minutes", hours, minutes)
+                }
+            }
+            (None, _, _, _) => "Next turn when all orders are submitted".to_owned(),
+        }
+    }
 }
 struct PendingGame {
     id: i32,
@@ -581,6 +682,8 @@ struct PendingGame {
     address: String,
     players: i32,
     map_id: i32,
+    hosting: bool,
+    fail_count: i32,
 }
 struct AbandonedGame {
     id: i32,
@@ -630,7 +733,13 @@ async fn postpone(
     };
     sqlx::query!(
         r#"UPDATE games set next_turn=COALESCE(next_turn,NOW()) + interval '1 minute' * $2
-        WHERE id=$1"#, game.id, timer_form.timer as f64).execute(&app_data.sqlx_pool).await.unwrap();
+        WHERE id=$1"#,
+        game.id,
+        timer_form.timer as f64
+    )
+    .execute(&app_data.sqlx_pool)
+    .await
+    .unwrap();
     NewAdminLog {
         game_id: path_id,
         datetime: std::time::SystemTime::now(),
@@ -648,15 +757,7 @@ async fn forcehost(
 ) -> Result<HttpResponse> {
     let db = app_data.pool.get().expect("Unable to connect to database");
     let game = Game::get(path_id, &db).unwrap();
-    game.schedule_turn(std::time::SystemTime::now(), &db)
-        .unwrap();
-    app_data
-        .msgbus_sender
-        .send(Msg::GameSchedule(GameScheduleMsg {
-            game_id: game.id,
-            schedule: std::time::SystemTime::now(),
-        }))
-        .unwrap();
+    game.schedule_turn(chrono::Utc::now(), &db).unwrap();
     NewAdminLog {
         game_id: path_id,
         datetime: std::time::SystemTime::now(),
@@ -679,8 +780,7 @@ async fn timer(
     let db = app_data.pool.get().expect("Unable to connect to database");
     use crate::schema::games::dsl as games_dsl;
     use crate::schema::turns::dsl as turns_dsl;
-    let sched = std::time::SystemTime::now()
-        .add(std::time::Duration::from_secs(60 * timer_form.timer as u64));
+    let sched = chrono::Utc::now().add(chrono::Duration::seconds(60 * timer_form.timer as i64));
     let game: Game = games_dsl::games
         .filter(games_dsl::id.eq(path_id))
         .get_result::<Game>(&db)
@@ -707,13 +807,6 @@ async fn timer(
             .execute(&db)
             .unwrap();
     }
-    app_data
-        .msgbus_sender
-        .send(Msg::GameSchedule(GameScheduleMsg {
-            game_id: game.id,
-            schedule: sched,
-        }))
-        .unwrap();
     NewAdminLog {
         game_id: path_id,
         datetime: std::time::SystemTime::now(),
@@ -743,6 +836,7 @@ async fn details(
     let game_settings = &payload.game_settings;
     let email_form = &payload.email_form;
     let db = app_data.pool.get().expect("Unable to connect to database");
+    let sqlx_db = app_data.sqlx_pool.clone();
     let game = if let Ok(id_i32) = path_id.parse::<i32>() {
         use crate::schema::games::dsl::*;
         games
@@ -776,7 +870,17 @@ async fn details(
         .unwrap_or(AuthStatus::Unauthed);
     let players = Player::get_players(game.id, &db).unwrap();
     let nations = Nation::get_all(game.id, &db).unwrap();
-    let disciples = Disciple::get_all(game.id, &db).unwrap();
+    let disciples = sqlx::query_as!(Disciple,
+                                    "
+                                    WITH top as (SELECT game_id, MAX(turn_number) as top FROM turns where archived is not true group by game_id)
+                                    SELECT d.id, d.game_id, d.nation_id, d.is_disciple, d.team 
+                                    FROM disciples d 
+                                    LEFT JOIN players p 
+                                    ON p.nationid=d.nation_id AND p.game_id=d.game_id
+                                    LEFT JOIN top 
+                                    ON top.game_id=d.game_id
+                                    WHERE d.game_id=$1 AND (p.id IS NOT NULL OR top.top is null)
+                                    ", game.id).fetch_all(&sqlx_db).await.unwrap();
     let player_turn_map = crate::models::PlayerTurn::get_player_turns(game.id, &db);
     let turns = Turn::get_all(game.id, &db).unwrap();
     let settings: GameSettings = if let Some(_) = game_settings.loaded {
@@ -806,22 +910,14 @@ async fn details(
         )
         .get_results(&db)
         .unwrap();
-    let logs = GameLogLite::get_all(game.id, &db).unwrap();
-    let logs_detail = if let Some(output_id) = payload.log_output {
-        logs.iter()
-            .find(|l| l.id == output_id)
-            .unwrap()
-            .get_output(&db)
-            .unwrap()
-    } else if let Some(errors_id) = payload.log_errors {
-        logs.iter()
-            .find(|l| l.id == errors_id)
-            .unwrap()
-            .get_errors(&db)
-            .unwrap()
-    } else {
-        (0, String::new(), String::new())
-    };
+    let logs = sqlx::query_as!(GameJobDisplay, r#"
+    WITH _insert as (INSERT INTO admin_logs (game_id, datetime, action) 
+    SELECT $1 as "game_id", NOW() as "datetime", concat('Viewed turn logs for turn ', j.turn_number) as "action"
+    FROM jobs j WHERE j.job_id=$2)
+    SELECT j.job_id, j.turn_number, j.started_at, j.finished_at, j.reaped, sj.logs as "game_logs?"
+    FROM jobs j
+    LEFT JOIN subjobs sj  ON sj.job_id=j.job_id AND j.job_id=$2 AND $2 IS NOT NULL AND sj.label='dom5 processing turn'
+    WHERE j.game_id=$1 ORDER BY j.started_at DESC"#, game.id, payload.log_output).fetch_all(&sqlx_db).await.unwrap();
     let map = maps.iter().find(|m| m.id == game.map_id).unwrap();
     let mut provinces = map.get_provinces(&db).unwrap_or(vec![]);
     if provinces.len() == 0 {
@@ -864,18 +960,30 @@ async fn details(
             ) >= g.max_stales, FALSE)"#,
         game.id
     )
-    .fetch_all(&app_data.sqlx_pool)
+    .fetch_all(&sqlx_db)
     .await
     .unwrap()
     .into_iter()
     .map(|r| r.nation_id)
     .collect();
     let admin_logs = AdminLog::get_all(game.id, &db).unwrap();
+    let current_jobs: Vec<ActiveJob> = sqlx::query_as!(
+        ActiveJob,
+        r#"
+    SELECT j.turn_number, j.started_at, sj.label as "label?"
+    FROM jobs j 
+    LEFT JOIN subjobs sj ON sj.job_id=j.job_id AND sj.finished_at IS NULL
+    WHERE j.game_id=$1 AND j.finished_at IS NULL AND reaped!=TRUE"#,
+        game.id
+    )
+    .fetch_all(&app_data.sqlx_pool)
+    .await
+    .unwrap();
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (GameDetailsTemplate {
-            logs: GameLogLite::get_all(game.id, &db).unwrap(),
+            active_job: current_jobs.into_iter().next(),
+            logs,
             staling_players,
-            focused_log: logs_detail,
             settings,
             authed,
             provinces: &provinces,
@@ -904,6 +1012,8 @@ async fn details(
                 .and_then(|d| Some(d.client_id.clone())),
             discord_notifications: DiscordConfig::get_notifications(game.id, &db).unwrap(),
             discord_manager: app_data.discord_manager.as_ref(),
+            unhealthy: sqlx::query!(r#"WITH top as (select MAX(job_id) as last FROM jobs where finished_at is not null and game_id=$1)
+            SELECT reaped as "reaped" FROM jobs INNER JOIN top ON top.last=jobs.job_id"#,game.id).fetch_all(&sqlx_db).await.unwrap().into_iter().next().map_or(false, |t| t.reaped.unwrap()),
             game,
         })
         .render()
@@ -912,15 +1022,17 @@ async fn details(
 }
 #[post("/game/{id}/launch")]
 async fn launch(
-    (app_data, web::Path(path_id), form): (
-        web::Data<AppData>,
-        web::Path<i32>,
-        web::Form<StartGame>,
-    ),
+    (app_data, web::Path(path_id), mut body): (web::Data<AppData>, web::Path<i32>, web::Payload),
 ) -> Result<HttpResponse> {
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = body.next().await {
+        bytes.extend_from_slice(&item?);
+    }
+    let config = serde_qs::Config::new(10, false);
+    let form: StartGame = config.deserialize_bytes(&*bytes).unwrap();
     let db = app_data.pool.get().expect("Unable to connect to database");
     use crate::schema::games::dsl::*;
-    let sched = std::time::SystemTime::now().add(std::time::Duration::from_secs(form.countdown));
+    let sched = chrono::Utc::now().add(chrono::Duration::hours(form.countdown.unwrap_or(0) as i64));
     let game = games
         .filter(id.eq(path_id))
         .get_result::<Game>(&*db)
@@ -931,18 +1043,10 @@ async fn launch(
         .set(next_turn.eq(sched))
         .execute(&db)
         .unwrap();
-
-    app_data
-        .msgbus_sender
-        .send(Msg::GameSchedule(GameScheduleMsg {
-            game_id: game.id,
-            schedule: sched,
-        }))
-        .unwrap();
     NewAdminLog {
         game_id: path_id,
         datetime: std::time::SystemTime::now(),
-        action: format!("Set game to start in {} seconds", form.countdown),
+        action: format!("Set game to start in {} hours", form.countdown.unwrap_or(0)),
     }
     .insert(&db)
     .unwrap();
@@ -1022,7 +1126,15 @@ async fn list(
     let sqlx_db = app_data.sqlx_pool.clone();
 
     // Create game
-    let mut results = Game::get_public(&db).unwrap();
+    let mut results = sqlx::query!(r#"
+        WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id)
+        SELECT g.*,COUNT(j.*) as fail_count, MAX(cj.job_id) as "current_job?" 
+        FROM games g 
+        LEFT JOIN last_success ls ON ls.game_id=g.id 
+        LEFT JOIN jobs j ON j.job_id>ls.job_id AND j.game_id=g.id AND j.reaped IS TRUE
+        LEFT JOIN jobs cj ON cj.game_id=g.id AND cj.finished_at IS NULL
+        WHERE g.private!=TRUE
+        GROUP BY g.id "#).fetch_all(&sqlx_db).await.unwrap();
     let player_counts = crate::models::Game::get_player_count(
         results.iter().map(|g| g.id).collect::<Vec<i32>>(),
         &db,
@@ -1037,10 +1149,7 @@ async fn list(
         .collect();
     let abandoned_games: Vec<AbandonedGame> = results
         .drain_filter(|g| {
-            std::time::SystemTime::now()
-                .duration_since(g.last_activity)
-                .unwrap()
-                > std::time::Duration::from_secs(60 * 60 * 24 * 7)
+            chrono::Utc::now().signed_duration_since(g.last_activity) > chrono::Duration::days(7)
         })
         .map(|g| AbandonedGame {
             id: g.id,
@@ -1054,11 +1163,11 @@ async fn list(
             auto_archive_in: {
                 let duration = g
                     .last_activity
-                    .add(std::time::Duration::from_secs(60 * 60 * 24 * 7 * 2))
-                    .duration_since(std::time::SystemTime::now())
-                    .unwrap_or(std::time::Duration::from_secs(0));
-                let hours = duration.as_secs() / 60 / 60 % 24;
-                let days = duration.as_secs() / 60 / 60 / 24;
+                    .checked_add_signed(chrono::Duration::days(14))
+                    .map(|d| d.signed_duration_since(chrono::Utc::now()))
+                    .unwrap();
+                let hours = duration.num_seconds() / 60 / 60 % 24;
+                let days = duration.num_seconds() / 60 / 60 / 24;
                 if days > 0 {
                     format!("{} days", days)
                 } else {
@@ -1070,9 +1179,10 @@ async fn list(
     let active_games: Vec<ActiveGame> = results
         .drain_filter(|g| turn_summaries.iter().find(|t| t.game_id == g.id).is_some())
         .map(|g| ActiveGame {
-            next_turn_string: g.next_turn_string(),
             id: g.id,
+            fail_count: g.fail_count.unwrap_or(0) as i32,
             map_id: g.map_id,
+            hosting: g.current_job.is_some(),
             turn_summary: turn_summaries
                 .iter()
                 .find(|t| t.game_id == g.id)
@@ -1090,6 +1200,7 @@ async fn list(
         .iter()
         .map(|g| PendingGame {
             id: g.id,
+            fail_count: g.fail_count.unwrap_or(0) as i32,
             map_id: g.map_id,
             players: match player_counts.contains_key(&g.id) {
                 true => player_counts[&g.id],
@@ -1101,6 +1212,7 @@ async fn list(
                 g.port.unwrap_or(0)
             ),
             name: g.name.clone(),
+            hosting: g.current_job.is_some(),
         })
         .collect();
     Ok(HttpResponse::Ok().content_type("text/html").body(
@@ -1131,6 +1243,7 @@ async fn settings_post(
         bytes.extend_from_slice(&item?);
     }
     let config = serde_qs::Config::new(10, false);
+    log::debug!("Game settings {:?}", bytes);
     let body: GameSettings = config.deserialize_bytes(&*bytes).unwrap();
     if session
         .get(&format!("auth_{}", path_id))
@@ -1216,7 +1329,19 @@ async fn settings_post(
             db_pool: app_data.sqlx_pool.clone(),
             game_id: game.id,
         };
-        dom5_proc.update_nations();
+        dom5_proc
+            .update_nations()
+            .expect("Failed to refresh nations after mod change");
+    }
+    if game.map_id != old_game.map_id || (game.select_start == 0 && old_game.select_start != 0) {
+        sqlx::query!(
+            "WITH res as (UPDATE players SET startprov=NULL WHERE game_id=$1)
+            UPDATE games SET modified_mapcrc=NULL WHERE id=$1",
+            game.id
+        )
+        .execute(&app_data.sqlx_pool)
+        .await
+        .unwrap();
     }
     Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#settings", game.id))
@@ -1594,20 +1719,30 @@ pub async fn download_turn(
     }
     let mut bytes: Vec<u8> = vec![];
     let mut zip = zip::ZipWriter::new(std::io::Cursor::new(&mut bytes));
-    zip
-        .start_file(&format!("{}.trn", files[0].trnfilename), zip::write::FileOptions::default())
-        .unwrap();
+    zip.start_file(
+        &format!("{}.trn", files[0].trnfilename),
+        zip::write::FileOptions::default(),
+    )
+    .unwrap();
     zip.write_all(&files[0].trnfilebinary).unwrap();
-    if let (Some(twohfn), Some(twohfb)) = (files[0].twohfilename.as_ref(), files[0].twohfilebinary.as_ref()) {
-        zip
-            .start_file(twohfn, zip::write::FileOptions::default())
+    if let (Some(twohfn), Some(twohfb)) = (
+        files[0].twohfilename.as_ref(),
+        files[0].twohfilebinary.as_ref(),
+    ) {
+        zip.start_file(twohfn, zip::write::FileOptions::default())
             .unwrap();
         zip.write_all(twohfb).unwrap();
     }
     zip.finish().unwrap();
     drop(zip);
     return Ok(HttpResponse::Ok()
-              .set_header("content-disposition", format!(r#"attachment; filename="{} {} turn {}.zip""#, files[0].game_name, files[0].nation_name, turn))
-              .content_type("application/zip")
-              .body(bytes))
+        .set_header(
+            "content-disposition",
+            format!(
+                r#"attachment; filename="{} {} turn {}.zip""#,
+                files[0].game_name, files[0].nation_name, turn
+            ),
+        )
+        .content_type("application/zip")
+        .body(bytes));
 }

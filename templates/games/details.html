@@ -2,7 +2,6 @@
 {% block title %}{{game.name}}{% endblock %}
 {% block meta %}
 <meta property="og:image" content="{{format!("/images/maps/{}_1000-0.jpg", self.game.map_id)}}" />
-<meta name="description" content="{{self.get_shorthand_description()}}" />
 {% endblock %}
 {% block body %}
 <div class="tabset">
@@ -153,8 +152,8 @@
                 {% if self.turn_number == 0 %}
                 <form method="post" action="/game/{{game.id}}/launch">
                   <div class="input-row">
-                    <input required placeholder="60" name="countdown" type="number" />
-                    <input type="submit" class="btn btn-block" value="Begin Countdown (Secs)"/>
+                    <input name="countdown" type="number" placeholder="Delay (hours)" />
+                    <input type="submit" class="btn btn-block" value="Start Game" />
                   </div>
                 </form>
                 {% else %}
@@ -257,7 +256,7 @@
     <!-- Admin Only -->
     {% if self.authed == AuthStatus::AuthSuccess %}
     <div id="logs">
-      <a href="#logs">logs</a>
+      <a href="#logs" {% if self.unhealthy %} class="logs-unhealthy" {% endif %}>logs</a>
       <section class="tabsection">
         {% if self.authed == AuthStatus::AuthSuccess %}
         {% include "logs.html" %}

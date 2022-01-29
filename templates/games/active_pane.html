@@ -9,8 +9,12 @@
 			<section>Turn {{ game.turn_summary.turn_number }}</section>
       {% match game.turn_summary.winner_name %}
       {% when None %}
-        <section>{{ game.turn_summary.submitted.as_ref().unwrap_or(0) }}/{{ game.turn_summary.total.as_ref().unwrap_or(0) }}</section>
-        <section>{{ game.next_turn_string }}</section>
+      <section>{{ game.turn_summary.submitted.as_ref().unwrap_or(0) }}/{{ game.turn_summary.total.as_ref().unwrap_or(0) }}</section>
+      {% if game.hosting %}
+      <section>Hosting{% if game.fail_count> 0 %} (<span class="host-fail">Attempt #{{ game.fail_count + 1}}</span>){% endif %}</section>
+      {% else %}
+        <section>{{ game.next_turn_string() }}</section>
+      {% endif %}
       {% when Some with (w) %}
         <section>Game won by {{ w }}</section>
       {% endmatch %}
