@@ -7,10 +7,9 @@ use std::io::Write;
 use crate::discord::DiscordManager;
 use crate::dom5_turn::Dom5Turn;
 use crate::models::{
-    AdminLog, Disciple, DiscordConfig, EmailConfig, Game, GameLogLite, Map, MapProvince, Mod,
-    Nation, NewAdminLog, NewGame, NewGameMod, Player, PlayerTurn, Turn,
+    AdminLog, Disciple, DiscordConfig, EmailConfig, Game, Map, MapProvince, Mod, Nation,
+    NewAdminLog, NewGame, NewGameMod, Player, PlayerTurn, Turn,
 };
-use crate::msgbus::{GameScheduleMsg, Msg};
 use actix_web::http::header;
 use actix_web::{get, post, web, HttpResponse, Result};
 use askama::Template;
@@ -193,6 +192,10 @@ pub struct MotdForm {
     motd: Option<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WatchForm {
+    player_id: i32,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StartLocForm {
     province_start: i32,
     #[serde(default)]
@@ -269,6 +272,7 @@ pub struct DownloadTurnForm {
 #[derive(Debug)]
 struct PlayerSummary {
     name: String,
+    player_id: i32,
     epithet: String,
     pretender_name: String,
     id: i32,
@@ -276,6 +280,21 @@ struct PlayerSummary {
     is_disciple: bool,
     team: i32,
     has_pass: bool,
+    pub playing: bool,
+    pub unsubmitted: bool,
+}
+#[derive(Debug)]
+struct GameDetailsPlayer {
+    pub id: i32,
+    pub nationid: i32,
+    pub game_id: i32,
+    pub file_id: i32,
+    pub name: String,
+    pub password: Option<String>,
+    pub startprov: Option<i32>,
+    pub cdkey: Option<i64>,
+    pub playing: Option<bool>,
+    pub turn_status: Option<i32>,
 }
 #[derive(Debug)]
 struct ActiveJob {
@@ -307,7 +326,7 @@ struct GameDetailsTemplate<'a> {
     turn_number: i32,
     turns: HashMap<i32, Vec<PlayerTurn>>,
     games_address: String,
-    players: &'a Vec<Player>,
+    players: &'a Vec<GameDetailsPlayer>,
     disciples: &'a Vec<Disciple>,
     nations: &'a Vec<Nation>,
     mods: &'a Vec<Mod>,
@@ -325,7 +344,7 @@ struct GameDetailsTemplate<'a> {
     unhealthy: bool,
 }
 pub struct PNT<'a> {
-    player: &'a Player,
+    player: &'a GameDetailsPlayer,
     nation: &'a Nation,
 }
 impl<'a> GameDetailsTemplate<'a> {
@@ -459,6 +478,9 @@ impl<'a> GameDetailsTemplate<'a> {
                         epithet: n.epithet.clone(),
                         pretender_name: p.name.clone(),
                         id: n.nation_id,
+                        player_id: p.id,
+                        playing: p.playing.unwrap_or(false),
+                        unsubmitted: p.turn_status.unwrap_or(2) < 2,
                         team,
                         status: self
                             .turns
@@ -472,6 +494,9 @@ impl<'a> GameDetailsTemplate<'a> {
                         epithet: n.epithet.clone(),
                         pretender_name: "Nation has not joined".to_string(),
                         id: n.nation_id,
+                        player_id: 0,
+                        playing: false,
+                        unsubmitted: false,
                         status: -1,
                         team,
                         is_disciple,
@@ -483,6 +508,9 @@ impl<'a> GameDetailsTemplate<'a> {
                 name: "Not Selected".to_string(),
                 epithet: "".to_string(),
                 pretender_name: "Nation has not joined".to_string(),
+                player_id: 0,
+                playing: false,
+                unsubmitted: false,
                 id: 0,
                 team,
                 status: -1,
@@ -637,8 +665,16 @@ struct ActiveGame {
     map_id: i32,
     hosting: bool,
     fail_count: i32,
+    turn_status: Option<i32>,
 }
 impl ActiveGame {
+    pub fn pane_class(&self) -> String {
+        match self.turn_status.unwrap_or(3) {
+            2 => "playing ".to_owned(),
+            0 | 1 => "unsubmitted ".to_owned(),
+            _ => "".to_owned()
+        }
+    }
     pub fn next_turn_string(&self) -> String {
         match (
             self.turn_summary.next_turn,
@@ -684,6 +720,7 @@ struct PendingGame {
     map_id: i32,
     hosting: bool,
     fail_count: i32,
+    joined: bool,
 }
 struct AbandonedGame {
     id: i32,
@@ -868,7 +905,25 @@ async fn details(
         .get(&format!("auth_{}", game.id))
         .unwrap_or(Some(AuthStatus::Unauthed))
         .unwrap_or(AuthStatus::Unauthed);
-    let players = Player::get_players(game.id, &db).unwrap();
+    let watch_player_ids: std::collections::HashSet<i32> = session
+        .get("watches")
+        .unwrap()
+        .unwrap_or(std::collections::HashSet::new());
+    let players = sqlx::query_as!(
+        GameDetailsPlayer,
+        r#"
+        WITH topturn as (select MAX(id) as id,nation_id,game_id FROM player_turns WHERE archived IS NOT TRUE GROUP BY nation_id, game_id)
+        SELECT p.*,p.id=ANY($2) as "playing", pt.status as "turn_status?"
+        FROM players p
+        LEFT JOIN topturn tt ON tt.game_id=$1 AND tt.nation_id=p.nationid
+        LEFT JOIN player_turns pt ON pt.id=tt.id
+        WHERE p.game_id=$1"#,
+        game.id,
+        &watch_player_ids.into_iter().collect::<Vec<i32>>()[..]
+    )
+    .fetch_all(&sqlx_db)
+    .await
+    .unwrap();
     let nations = Nation::get_all(game.id, &db).unwrap();
     let disciples = sqlx::query_as!(Disciple,
                                     "
@@ -1120,21 +1175,31 @@ async fn create_post(
 #[get("/games")]
 async fn list(
     app_data: web::Data<AppData>,
+    session: actix_session::Session,
     query: serde_qs::actix::QsQuery<GamesListPayload>,
 ) -> Result<HttpResponse> {
     let db = app_data.pool.get().expect("Unable to connect to database");
     let sqlx_db = app_data.sqlx_pool.clone();
 
+    let watch_player_ids: std::collections::HashSet<i32> = session
+        .get("watches")
+        .unwrap()
+        .unwrap_or(std::collections::HashSet::new());
+
     // Create game
     let mut results = sqlx::query!(r#"
-        WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id)
-        SELECT g.*,COUNT(j.*) as fail_count, MAX(cj.job_id) as "current_job?" 
+        WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),
+        topturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)
+        SELECT g.*,COUNT(j.*) as fail_count, MAX(cj.job_id) as "current_job?", MAX(p.nationid) AS "playing?", MIN(pt.status) as "turn_status?"
         FROM games g 
+        LEFT JOIN topturn tt ON tt.game_id=g.id
+        LEFT JOIN players p ON p.id=ANY($1) AND p.game_id=g.id
+        LEFT JOIN player_turns pt ON pt.nation_id=p.nationid AND pt.game_id=g.id AND pt.turn_number=tt.max AND pt.archived IS NOT TRUE
         LEFT JOIN last_success ls ON ls.game_id=g.id 
         LEFT JOIN jobs j ON j.job_id>ls.job_id AND j.game_id=g.id AND j.reaped IS TRUE
         LEFT JOIN jobs cj ON cj.game_id=g.id AND cj.finished_at IS NULL
         WHERE g.private!=TRUE
-        GROUP BY g.id "#).fetch_all(&sqlx_db).await.unwrap();
+        GROUP BY g.id "#, &watch_player_ids.into_iter().collect::<Vec<i32>>()[..]).fetch_all(&sqlx_db).await.unwrap();
     let player_counts = crate::models::Game::get_player_count(
         results.iter().map(|g| g.id).collect::<Vec<i32>>(),
         &db,
@@ -1182,6 +1247,7 @@ async fn list(
             id: g.id,
             fail_count: g.fail_count.unwrap_or(0) as i32,
             map_id: g.map_id,
+            turn_status: g.turn_status,
             hosting: g.current_job.is_some(),
             turn_summary: turn_summaries
                 .iter()
@@ -1202,6 +1268,7 @@ async fn list(
             id: g.id,
             fail_count: g.fail_count.unwrap_or(0) as i32,
             map_id: g.map_id,
+            joined: g.playing.is_some(),
             players: match player_counts.contains_key(&g.id) {
                 true => player_counts[&g.id],
                 false => 0,
@@ -1626,6 +1693,32 @@ pub async fn motd(
         .unwrap();
     return Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#schedule", path_id))
+        .finish());
+}
+#[post("/game/{id}/watch")]
+pub async fn watch(
+    (web::Path(path_id), session, form): (
+        web::Path<i32>,
+        actix_session::Session,
+        web::Form<WatchForm>,
+    ),
+) -> Result<HttpResponse> {
+    let mut watches: std::collections::HashSet<i32> = session
+        .get("watches")
+        .unwrap()
+        .unwrap_or(std::collections::HashSet::new());
+    match watches.get(&form.player_id) {
+        Some(_) => {
+            watches.remove(&form.player_id);
+        }
+        None => {
+            watches.insert(form.player_id);
+        }
+    }
+    session.set("watches", watches).unwrap();
+
+    return Ok(HttpResponse::Found()
+        .header(header::LOCATION, format!("/game/{}#status", path_id))
         .finish());
 }
 #[post("/game/{id}/startloc/{nationid}")]

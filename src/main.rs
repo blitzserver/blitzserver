@@ -1,5 +1,5 @@
 #![feature(duration_constants)]
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 #![feature(try_blocks)]
 #![feature(drain_filter)]
 #![feature(async_closure)]
@@ -11,27 +11,27 @@
 extern crate num_enum;
 #[macro_use]
 extern crate diesel;
+extern crate async_std;
 extern crate base64;
 extern crate byteorder;
+extern crate chrono;
 extern crate crc;
 extern crate crossbeam_channel;
+extern crate derive_more;
+extern crate encoding;
 extern crate fletcher;
 extern crate image;
+extern crate libvips;
 extern crate num_derive;
 extern crate num_traits;
 extern crate reqwest;
 extern crate serde_json;
+extern crate smol;
+extern crate sqlx;
 extern crate thiserror;
 extern crate tungstenite;
 extern crate url;
 extern crate zip;
-extern crate sqlx;
-extern crate smol;
-extern crate async_std;
-extern crate derive_more;
-extern crate chrono;
-extern crate libvips;
-extern crate encoding;
 
 use actix_web::http::header;
 use actix_web::{get, middleware, App, HttpResponse, HttpServer, Result};
@@ -42,19 +42,19 @@ use serde::Deserialize;
 use std::env;
 
 pub mod discord;
+pub mod dom5_conn;
+pub mod dom5_gateway;
+pub mod dom5_scheduler;
+pub mod dom5_turn;
 pub mod email_manager;
-pub mod frontend;
 pub mod files;
+pub mod frontend;
 pub mod models;
 pub mod msgbus;
 pub mod packets;
 pub mod schema;
 pub mod statusdump;
 pub mod util;
-pub mod dom5_gateway;
-pub mod dom5_conn;
-pub mod dom5_scheduler;
-pub mod dom5_turn;
 
 use frontend::AppData;
 
@@ -68,14 +68,17 @@ async fn index() -> Result<HttpResponse> {
 #[get("/styles.css")]
 async fn styles() -> Result<HttpResponse> {
     Ok(HttpResponse::Ok()
-       .set(header::CacheControl(vec![header::CacheDirective::MaxAge(86400u32)]))
-       .content_type("text/css").body(
-        &concat!(
-            include_str!("../content/map-list.css"),
-            include_str!("../content/mod-list.css"),
-            include_str!("../content/styles.css")
-        )[..],
-    ))
+        .set(header::CacheControl(vec![header::CacheDirective::MaxAge(
+            86400u32,
+        )]))
+        .content_type("text/css")
+        .body(
+            &concat!(
+                include_str!("../content/map-list.css"),
+                include_str!("../content/mod-list.css"),
+                include_str!("../content/styles.css")
+            )[..],
+        ))
 }
 
 #[actix_web::main]
@@ -92,10 +95,16 @@ async fn main() -> std::io::Result<()> {
 
     let sqlx_pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(20)
-        .connect(&env::var("DATABASE_URL").expect("DATABASE_URL must be set")).await.unwrap();
-    let gateway = dom5_gateway::Gateway { pool: sqlx_pool.clone() };
+        .connect(&env::var("DATABASE_URL").expect("DATABASE_URL must be set"))
+        .await
+        .unwrap();
+    let gateway = dom5_gateway::Gateway {
+        pool: sqlx_pool.clone(),
+    };
     gateway.run();
-    let scheduler = dom5_scheduler::Scheduler{ db_pool: sqlx_pool.clone() };
+    let scheduler = dom5_scheduler::Scheduler {
+        db_pool: sqlx_pool.clone(),
+    };
     scheduler.run();
 
     let discord_manager = match discord::DiscordManager::new(bus.sender.clone(), pool.clone()) {
@@ -145,10 +154,6 @@ async fn main() -> std::io::Result<()> {
     }
     .monitor(bus.new_recv());
 
-    std::thread::spawn(move || {
-        // manager.start();
-    });
-
     HttpServer::new(move || {
         // TODO: Hack here, we create the map thumbnail dir VERY ahead of time since the file
         // watcher needs it to be there otherwise it wont discover new files
@@ -162,8 +167,12 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Compress::default())
             .data(app_data.clone())
             .wrap(
-                actix_session::CookieSession::signed(&[0; 32]) // <- create cookie based session middleware
-                    .secure(false),
+                actix_session::CookieSession::private(
+                    env::var("COOKIE_KEY")
+                        .expect("Missing COOKIE_KEY phrase, needed for signed cookies!")
+                        .as_bytes(),
+                )
+                .secure(false),
             )
             .app_data(
                 serde_qs::actix::QsQueryConfig::default()
@@ -181,6 +190,7 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::maps::list)
             .service(frontend::maps::download)
             .service(frontend::games::motd)
+            .service(frontend::games::watch)
             .service(frontend::games::timer)
             .service(frontend::games::postpone)
             .service(frontend::games::forcehost)
@@ -205,9 +215,7 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::mods::download)
             .service(frontend::mods::image)
             .service(frontend::help::help)
-            .service(
-                actix_files::Files::new("/", "./content")
-            )
+            .service(actix_files::Files::new("/", "./content"))
     })
     .bind("0.0.0.0:8080")?
     .run()

@@ -1,5 +1,15 @@
 <tr
-		class=" {% if nation.status==-1 %} unjoined {% endif %} {% if nation.is_disciple == true %} disciple {% else %} pretender {% endif %}">
+    class="{% if nation.playing %}playing{% endif %} {% if nation.unsubmitted %}unsubmitted{% endif %}{% if nation.status==-1 %} unjoined {% endif %} {% if nation.is_disciple == true %} disciple {% else %} pretender {% endif %}">
+  <td>
+    {% if nation.player_id > 0 %}
+    <form method="POST" action="/game/{{game.id}}/watch">
+      <input name="player_id" type="hidden" value="{{nation.player_id}}"/>
+      <button class="watch-player" type="sumbit">
+        <div class="eye"></div>
+      </button>
+    </form>
+    {% endif %}
+  </td>
   <td class="nation-name wide-column">
 		{% if self.turn_number == 0 && self.authed == AuthStatus::AuthSuccess && nation.is_disciple == false %}
 		<form action="{{game.id}}/assign-team" method="POST">

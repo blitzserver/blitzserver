@@ -1,4 +1,4 @@
-<div class="game-pane active {% if game.turn_summary.winner_name.is_some() %} won {% endif %}">
+<div class="game-pane active {{ game.pane_class() }}{% if game.turn_summary.winner_name.is_some() %} won {% endif %}">
 	<div class="left">
 		<div class="header">
 			<a class="title" href={{format!("game/{}#status", game.id)}}>{{ game.name }}</a> <br>

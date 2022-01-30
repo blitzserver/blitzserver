@@ -175,6 +175,14 @@ p {
 	display: flex;
 	flex-direction: row;
 }
+.game-pane.playing {
+  border-left: 2px solid blue;
+  margin-left: 8px;
+}
+.game-pane.unsubmitted {
+  border-left: 2px solid red;
+  margin-left: 8px;
+}
 .game-pane .left {
 	flex-grow: 99;
   min-width: 0px;
@@ -254,7 +262,7 @@ h1 {
 	color: green;
 	font-weight: 600;
 }
-.unsubmitted {
+tr .unsubmitted {
 	color: var(--col-danger);
 	font-weight: 600;
 }
@@ -395,9 +403,6 @@ h1 {
 }
 .submitted {
 	color: green;
-}
-.unsubmitted {
-	color: var(--col-danger);
 }
 .row .tail {
 	margin-left: auto;
@@ -764,11 +769,17 @@ input.invalid {
 	right: 0%;
 	width: 80%;
 }
+.players tr {
+  border-left: 2px solid #0000;
+}
 .unjoined .nation-name section {
 	color: grey;
 }
-.disciple td:nth-child(1) {
-	padding-left: 30px;
+.players tr.playing {
+  border-left: 2px solid blue;
+}
+.players tr.playing.unsubmitted {
+  border-left: 2px solid red;
 }
 .pretender .nation-name select:nth-child(1), .pretender .nation-name section:nth-child(1) {
 	font-weight: bold;
@@ -1140,4 +1151,57 @@ label[for="noProvince"] {
 .dialog .message>:first-child {
   padding-top: 5px;
   display: block;
+}
+.watch-player {
+  outline: none;
+  background: none;
+  border: none;
+  padding: 0px 0px;
+  cursor: pointer;
+}
+.eye {
+  margin: 10px;
+  width: 13px;
+  height: 13px;
+  border: solid 1px #0000;
+  border-radius:  75% 15%;
+  position: relative;
+  transform: rotate(45deg);
+}
+tr:hover .eye {
+  border: solid 1px var(--col-cyan);
+}
+tr:hover .eye:before {
+  border: solid 1px var(--col-cyan);
+}
+.playing .eye {
+  border: solid 1px var(--col-grey)
+
+}
+.playing .eye:before {
+  border: solid 1px var(--col-grey)
+}
+button:hover .eye {
+  border: solid 1px var(--col-green);
+}
+button:hover .eye:before {
+  border: solid 1px var(--col-green);
+}
+.playing button:hover .eye {
+  border: solid 1px red;
+}
+.playing button:hover .eye:before {
+  border: solid 1px red;
+}
+.eye:before {
+  content: '';
+  display: block;
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border: solid 1px #0000;
+  border-radius: 50%;
+  left: 3px;
+  top: 3px;
+  cursor: pointer;
 }
