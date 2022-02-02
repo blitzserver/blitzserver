@@ -805,10 +805,7 @@ pub struct TurnSummary {
     pub turn_number: i32,
     pub submitted: Option<i64>,
     pub total: Option<i64>,
-    pub winner_name: Option<String>,
-    pub cj_tn: Option<i32>,
-    pub cj_l: Option<String>,
-    pub cj_sa: Option<chrono::DateTime<chrono::Utc>>
+    pub winner_name: Option<String>
 }
 
 #[derive(Debug, Error)]
@@ -920,17 +917,15 @@ impl Turn {
             } else {
                 sqlx::query_as!(TurnSummary, r#"
 WITH tt as (SELECT game_id,MAX(turn_number) as "turn_number" FROM turns WHERE ARCHIVED != true GROUP BY game_id)
-SELECT t.game_id, t.turn_number, n.name as "winner_name?", COUNT(submitted) as "submitted", COUNT(total) as "total", next_turn, j.turn_number as "cj_tn?", sj.label as "cj_l?", j.started_at as "cj_sa?"
+SELECT t.game_id, t.turn_number, n.name as "winner_name?", COUNT(submitted) as "submitted", COUNT(total) as "total", next_turn
 FROM turns t
 INNER JOIN tt ON tt.game_id=t.game_id AND tt.turn_number=t.turn_number AND t.archived != TRUE
 LEFT JOIN nations n ON t.winner=n.nation_id AND t.game_id=n.game_id
 LEFT JOIN player_turns total ON total.turn_number=t.turn_number AND total.archived != TRUE and total.game_id=t.game_id AND total.status IN (0,1,2)
 LEFT JOIN player_turns submitted ON submitted.turn_number=t.turn_number AND submitted.archived != TRUE and submitted.game_id=t.game_id AND submitted.status=2 AND submitted.nation_id=total.nation_id
-LEFT JOIN jobs j ON j.game_id=ANY($1) AND j.finished_at IS NULL
-LEFT JOIN subjobs sj ON sj.job_id=j.job_id AND sj.finished_at IS NULL
 LEFT JOIN games g ON g.id=t.game_id
 WHERE t.game_id = ANY($1)
-GROUP BY t.game_id,t.turn_number, n.name, j.turn_number, sj.label, j.started_at, g.next_turn
+GROUP BY t.game_id,t.turn_number, n.name, g.next_turn
 "#, game_ids).fetch_all(db_pool).await.unwrap()
             }
         })

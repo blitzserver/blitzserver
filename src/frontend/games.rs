@@ -672,32 +672,12 @@ impl ActiveGame {
         match self.turn_status.unwrap_or(3) {
             2 => "playing ".to_owned(),
             0 | 1 => "unsubmitted ".to_owned(),
-            _ => "".to_owned()
+            _ => "".to_owned(),
         }
     }
     pub fn next_turn_string(&self) -> String {
-        match (
-            self.turn_summary.next_turn,
-            self.turn_summary.cj_tn,
-            self.turn_summary.cj_l.as_deref(),
-            self.turn_summary.cj_sa,
-        ) {
-            (_, Some(turn), label, Some(started_at)) => {
-                if turn == 0 {
-                    let duration = chrono::Utc::now() - started_at;
-                    let seconds = duration.num_seconds() % 60;
-                    let minutes = (duration.num_seconds() / 60) % 60;
-                    let hours = (duration.num_seconds() / 60) / 60;
-                    format!("Starting {}:{}:{}", hours, minutes, seconds,)
-                } else {
-                    let duration = chrono::Utc::now() - started_at;
-                    let seconds = duration.num_seconds() % 60;
-                    let minutes = (duration.num_seconds() / 60) % 60;
-                    let hours = (duration.num_seconds() / 60) / 60;
-                    format!("Hosting turn {}: {}:{}:{}", turn, hours, minutes, seconds,)
-                }
-            }
-            (Some(nt), _, _, _) => {
+        match self.turn_summary.next_turn {
+            Some(nt) => {
                 let duration = nt - chrono::Utc::now();
                 let minutes = (duration.num_seconds() / 60) % 60;
                 let hours = (duration.num_seconds() / 60) / 60;
@@ -708,7 +688,7 @@ impl ActiveGame {
                     format!("Next turn {} hours, {} minutes", hours, minutes)
                 }
             }
-            (None, _, _, _) => "Next turn when all orders are submitted".to_owned(),
+            None => "Next turn when all orders are submitted".to_owned(),
         }
     }
 }
