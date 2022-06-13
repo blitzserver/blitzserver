@@ -722,7 +722,7 @@ dependencies = [
 
 [[package]]
 name = "blitzserver"
-version = "0.9.2"
+version = "0.9.4"
 dependencies = [
  "actix-files",
  "actix-multipart",
@@ -754,7 +754,7 @@ dependencies = [
  "num_enum",
  "r2d2",
  "r2d2_postgres",
- "rand 0.8.3",
+ "rand 0.7.3",
  "regex",
  "reqwest",
  "serde",
