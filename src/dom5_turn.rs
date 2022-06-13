@@ -592,6 +592,8 @@ impl Dom5Turn {
                 game.richness.to_string(),
                 "--resources".to_string(),
                 game.resources.to_string(),
+                "--recruitment".to_string(),
+                game.recruitment.to_string(),
                 "--supplies".to_string(),
                 game.supplies.to_string(),
                 "--startprov".to_string(),
