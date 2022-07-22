@@ -119,6 +119,9 @@ struct GameSettings {
     select_start: i32,
     cataclysm: Option<i32>,
     max_stales: Option<i32>,
+    #[serde(default)]
+    #[serde(deserialize_with = "from_str")]
+    conq_all: i32,
     // Marker to tell whether the form is on its first load
     loaded: Option<String>,
 }
@@ -161,6 +164,7 @@ impl From<(&Game, &[Mod])> for GameSettings {
             private: game.private as i32,
             cataclysm: game.cataclysm,
             max_stales: game.max_stales,
+            conq_all: game.conq_all as i32
         }
     }
 }
@@ -1342,6 +1346,7 @@ async fn settings_post(
                         select_start.eq(body.select_start),
                         cataclysm.eq(body.cataclysm),
                         max_stales.eq(body.max_stales),
+                        conq_all.eq(body.conq_all > 0)
                     ))
                     .get_result(&db)?
             };

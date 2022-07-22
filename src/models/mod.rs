@@ -65,7 +65,8 @@ pub struct Game {
     pub modified_mapcrc: Option<i32>,
     pub cataclysm: Option<i32>,
     pub max_stales: Option<i32>,
-    pub motd: Option<String>
+    pub motd: Option<String>,
+    pub conq_all: bool,
 }
 
 #[derive(derive_more::From, derive_more::Into)]
@@ -446,7 +447,7 @@ impl Default for NewGame {
             hof_size: 10,
             global_size: 5,
             indepstr: 5,
-            magicsites: 55,
+            magicsites: 60,
             eventrarity: 1,
             richness: 100,
             resources: 100,

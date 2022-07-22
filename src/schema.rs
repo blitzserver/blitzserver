@@ -126,6 +126,7 @@ table! {
         cataclysm -> Nullable<Int4>,
         max_stales -> Nullable<Int4>,
         motd -> Nullable<Varchar>,
+        conq_all -> Bool,
     }
 }
 

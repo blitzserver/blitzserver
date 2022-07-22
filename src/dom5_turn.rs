@@ -568,16 +568,12 @@ impl Dom5Turn {
                 game.thrones_t1.to_string(),
                 game.thrones_t2.to_string(),
                 game.thrones_t3.to_string(),
+                if game.conq_all { "--conqall" } else { "" }.to_string(),
                 "--requiredap".to_string(),
                 game.throne_points_required.to_string(),
                 "--research".to_string(),
                 game.research_diff.to_string(),
-                if game.research_rand {
-                    ""
-                } else {
-                    "--norandres"
-                }
-                .to_string(),
+                if game.research_rand { "" } else { "--norandres" }.to_string(),
                 "--hofsize".to_string(),
                 game.hof_size.to_string(),
                 "--globals".to_string(),

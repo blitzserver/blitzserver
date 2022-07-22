@@ -134,6 +134,13 @@
 				<label for="cataclysm">Cataclysm</label>
         <input id="cataclysm" name="cataclysm" value="{{self.cataclysm_str()}}" type="number" />
 			</div>
+			<div class="input-group">
+				<label for="conq_all">Conquer All</label>
+				<select name="conq_all">
+					<option {% if settings.conq_all == 0 %} selected {% endif %} value="0">Disabled</option>
+					<option {% if settings.conq_all == 1 %} selected {% endif %} value="1">Enabled</option>
+				</select>
+			</div>
 		</div>
 	</div>
 	<div>

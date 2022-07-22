@@ -12,9 +12,10 @@
     <link rel="preload" as="image" href="/serpent-lay-front.webp">
     <link rel="preload" as="image" href="/serpent-lay-back.webp">
     <link rel="preload" as="image" href="/serpent-dancer.webp">
+    <link rel="preload" as="image" href="/serpent-croc.webp">
 	</head>
 	<body>
-		<div class="container">
+    <div class="container {% block containerclass %}{% endblock %}">
       {% if crate::frontend::utils::rand_bool() %}
         <nav class="lizard-bg-alt">
       {% else %}
