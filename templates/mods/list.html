@@ -28,7 +28,8 @@
 			<h3>Mods</h3>
 			<div class="striped-table">
 				{% for cmod in mods %}
-				<div class="bg-selector" style="background-image: url('/images/mods/{{cmod.id}}.jpg')">
+				<div class="bg-selector">
+          <img loading="lazy" src="/images/mods/{{cmod.id}}.jpg" />
 					<a href="/mod/{{cmod.id}}">{{cmod.name}}</a>
 					<a download="{{cmod.name}}.zip" class="btn" href="/mod/{{cmod.id}}/download">Download</a>
 				</div>

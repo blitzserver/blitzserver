@@ -220,9 +220,7 @@ p {
   }
 }
 .game-pane.active.won {
-  background: linear-gradient(-45deg, var(--col-green-pale), var(--col-cyan-pale), var(--col-green-pale));
-  background-size: 400% 400%;
-  animation: gradient 15s ease infinite;
+  background: #f6ebd1;
 }
 .game-pane .sep {
 	width: 100%;
@@ -585,6 +583,7 @@ th.rotate > div > span {
 	display: grid;
 }
 .bg-selector {
+  position: relative;
 	width: 100%;
 	transition: line-height 0.2s, height 0.2s, min-height 0.2s;
 	color: white;
@@ -593,15 +592,13 @@ th.rotate > div > span {
 	min-height: 1.5rem;
 	line-height: 1.5rem;
 	text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
-	background-position: center center; 
-	background-size: cover;
 	box-sizing: border-box;
 	border: 1px solid black;
 	display: flex;
 	flex-direction: row;
 	overflow: hidden;
 }
-.bg-selector :first-child {
+.bg-selector :nth-child(2) {
 	flex-grow: 2;
 	cursor: pointer;
 	padding-left: 10px;
@@ -610,10 +607,17 @@ th.rotate > div > span {
 	flex-direction: column;
 	font-weight: bold;
 }
+.bg-selector img {
+  position: absolute;
+  object-fit: cover;
+  height: 100%;
+  width: 100%;
+}
+.bg-selector :not(img) { position: relative; }
 input[type="checkbox"].bg-selector,input[type="radio"].bg-selector {
 	display: none;
 }
-.bg-selector>:not(:first-child) {
+.bg-selector>:last-child {
 	text-shadow: initial;
 	height: 100%;
 	border-top: 0px;
