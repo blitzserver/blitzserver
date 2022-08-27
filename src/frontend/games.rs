@@ -356,7 +356,7 @@ pub struct PNT<'a> {
 }
 impl<'a> GameDetailsTemplate<'a> {
     pub fn get_duplicate_players_string(&self, nation: &PlayerSummary) -> String {
-        format!("This player is also playing {}", nation.duplicate_cdkey_nationnames.as_ref().map(|n| n.iter().join(", ")).unwrap_or(String::new()))
+        format!("This cdkey is also playing {}", nation.duplicate_cdkey_nationnames.as_ref().map(|n| n.iter().join(", ")).unwrap_or(String::new()))
     }
     pub fn turn_color_class(turn_status: &i32) -> String {
         match turn_status {
