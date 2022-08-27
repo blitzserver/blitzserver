@@ -49,3 +49,4 @@ async-std = "*"
 derive_more = "*"
 libvips = { git = "https://github.com/blitzserver/libvips-rust-bindings.git", commit = "e7b591d" }
 encoding = "*"
+itertools = "*"

@@ -1,4 +1,5 @@
 use super::utils::*;
+use itertools::Itertools;
 use super::AppData;
 use crate::diesel::prelude::*;
 use std::env;
@@ -286,6 +287,7 @@ struct PlayerSummary {
     has_pass: bool,
     pub playing: bool,
     pub unsubmitted: bool,
+    pub duplicate_cdkey_nationnames: Option<Vec<String>>
 }
 #[derive(Debug)]
 struct GameDetailsPlayer {
@@ -299,6 +301,7 @@ struct GameDetailsPlayer {
     pub cdkey: Option<i64>,
     pub playing: Option<bool>,
     pub turn_status: Option<i32>,
+    pub duplicate_cdkey_nationnames: Option<Vec<String>>
 }
 #[derive(Debug)]
 struct ActiveJob {
@@ -352,6 +355,9 @@ pub struct PNT<'a> {
     nation: &'a Nation,
 }
 impl<'a> GameDetailsTemplate<'a> {
+    pub fn get_duplicate_players_string(&self, nation: &PlayerSummary) -> String {
+        format!("This player is also playing {}", nation.duplicate_cdkey_nationnames.as_ref().map(|n| n.iter().join(", ")).unwrap_or(String::new()))
+    }
     pub fn turn_color_class(turn_status: &i32) -> String {
         match turn_status {
             0 => "bg-unsubmitted".to_owned(),
@@ -485,6 +491,7 @@ impl<'a> GameDetailsTemplate<'a> {
                         player_id: p.id,
                         playing: p.playing.unwrap_or(false),
                         unsubmitted: p.turn_status.unwrap_or(2) < 2,
+                        duplicate_cdkey_nationnames: p.duplicate_cdkey_nationnames.clone(),
                         team,
                         status: self
                             .turns
@@ -501,6 +508,7 @@ impl<'a> GameDetailsTemplate<'a> {
                         player_id: 0,
                         playing: false,
                         unsubmitted: false,
+                        duplicate_cdkey_nationnames: None,
                         status: -1,
                         team,
                         is_disciple,
@@ -515,6 +523,7 @@ impl<'a> GameDetailsTemplate<'a> {
                 player_id: 0,
                 playing: false,
                 unsubmitted: false,
+                duplicate_cdkey_nationnames: None,
                 id: 0,
                 team,
                 status: -1,
@@ -897,7 +906,11 @@ async fn details(
         GameDetailsPlayer,
         r#"
         WITH topturn as (select MAX(id) as id,nation_id,game_id FROM player_turns WHERE archived IS NOT TRUE GROUP BY nation_id, game_id)
-        SELECT p.*,p.id=ANY($2) as "playing", pt.status as "turn_status?"
+        SELECT 
+            (SELECT array_agg(name) FROM players pd WHERE pd.cdkey=p.cdkey AND pd.game_id=p.game_ID AND pd.id!=p.id) duplicate_cdkey_nationnames,
+            p.*,
+            p.id=ANY($2) as "playing", 
+            pt.status as "turn_status?"
         FROM players p
         LEFT JOIN topturn tt ON tt.game_id=$1 AND tt.nation_id=p.nationid
         LEFT JOIN player_turns pt ON pt.id=tt.id

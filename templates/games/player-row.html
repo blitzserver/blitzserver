@@ -30,7 +30,7 @@
 		</form>
 		{% else %}
     <section><b>{{ nation.name }}</b><span class="epithet">, {{ nation.epithet }}</span></section>
-		<section>{{ nation.pretender_name }}</section>
+    <section{% if nation.duplicate_cdkey_nationnames.is_some() %} class="duplicate-nation" title="{{self.get_duplicate_players_string(nation)}}", ")}}{% endif %}>{{ nation.pretender_name }}</section>
 		{% endif %}
 	</td>
 	{% if self.turn_number > 0 %}

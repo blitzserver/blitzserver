@@ -1233,3 +1233,7 @@ button:hover .eye:before {
   top: 3px;
   cursor: pointer;
 }
+.duplicate-nation {
+  color: var(--col-danger);
+  cursor: help;
+}
