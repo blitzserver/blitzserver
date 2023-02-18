@@ -1183,7 +1183,6 @@ async fn list(
         .unwrap()
         .unwrap_or(std::collections::HashSet::new());
 
-    // Create game
     let mut results = sqlx::query!(r#"
         WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),
         topturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)
@@ -1196,7 +1195,9 @@ async fn list(
         LEFT JOIN jobs j ON j.job_id>ls.job_id AND j.game_id=g.id AND j.reaped IS TRUE
         LEFT JOIN jobs cj ON cj.game_id=g.id AND cj.finished_at IS NULL
         WHERE g.private!=TRUE
-        GROUP BY g.id "#, &watch_player_ids.into_iter().collect::<Vec<i32>>()[..]).fetch_all(&sqlx_db).await.unwrap();
+        GROUP BY g.id
+        ORDER BY MIN(pt.status), MAX(p.nationid), g.id
+        "#, &watch_player_ids.into_iter().collect::<Vec<i32>>()[..]).fetch_all(&sqlx_db).await.unwrap();
     let player_counts = crate::models::Game::get_player_count(
         results.iter().map(|g| g.id).collect::<Vec<i32>>(),
         &db,
