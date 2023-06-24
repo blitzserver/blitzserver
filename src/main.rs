@@ -172,7 +172,8 @@ async fn main() -> std::io::Result<()> {
                         .expect("Missing COOKIE_KEY phrase, needed for signed cookies!")
                         .as_bytes(),
                 )
-                .secure(false),
+                .secure(true)
+                .max_age(999_999_999_999)
             )
             .app_data(
                 serde_qs::actix::QsQueryConfig::default()
