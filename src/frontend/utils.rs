@@ -1,5 +1,16 @@
 use serde::de::Error;
 
+pub fn from_str_opt<'de, D, S>(deserializer: D) -> Result<Option<S>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    S: std::str::FromStr + Default,
+{
+    let s = <&str as serde::Deserialize>::deserialize(deserializer)?;
+    Ok(match S::from_str(&s) {
+        Ok(s) => Some(s),
+        Err(_) => None
+    })
+}
 pub fn from_str<'de, D, S>(deserializer: D) -> Result<S, D::Error>
 where
     D: serde::Deserializer<'de>,

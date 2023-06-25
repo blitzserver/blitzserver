@@ -1,7 +1,7 @@
 use super::utils::*;
-use itertools::Itertools;
 use super::AppData;
 use crate::diesel::prelude::*;
+use itertools::Itertools;
 use std::env;
 use std::io::Write;
 
@@ -24,107 +24,47 @@ use std::ops::Add;
 struct GamesListPayload {
     antibot_failed: Option<i32>,
 }
+#[cfg_attr(rustfmt, rustfmt_skip)]
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 struct GameSettings {
-    #[serde(default = "default_one")]
-    #[serde(deserialize_with = "from_str")]
-    era: i32,
-    #[serde(default = "default_five")]
-    #[serde(deserialize_with = "from_str")]
-    thrones_t1: i32,
-    #[serde(default)]
-    #[serde(deserialize_with = "from_str")]
-    thrones_t2: i32,
-    #[serde(default)]
-    #[serde(deserialize_with = "from_str")]
-    thrones_t3: i32,
-    #[serde(default = "default_five")]
-    #[serde(deserialize_with = "from_str")]
-    throne_points_required: i32,
-    #[serde(default = "default_two")]
-    #[serde(deserialize_with = "from_str")]
-    research_diff: i32,
-    #[serde(default = "default_one")]
-    #[serde(deserialize_with = "from_str")]
-    research_rand: i32,
-    #[serde(default = "default_ten")]
-    #[serde(deserialize_with = "from_str")]
-    hof_size: i32,
-    #[serde(default = "default_five")]
-    #[serde(deserialize_with = "from_str")]
-    global_size: i32,
-    #[serde(default = "default_five")]
-    #[serde(deserialize_with = "from_str")]
-    indepstr: i32,
-    #[serde(default = "default_forty")]
-    #[serde(deserialize_with = "from_str")]
-    magicsites: i32,
-    #[serde(default = "default_two")]
-    #[serde(deserialize_with = "from_str")]
-    eventrarity: i32,
-    #[serde(default = "default_hundred")]
-    #[serde(deserialize_with = "from_str")]
-    richness: i32,
-    #[serde(default = "default_hundred")]
-    #[serde(deserialize_with = "from_str")]
-    resources: i32,
-    #[serde(default = "default_hundred")]
-    #[serde(deserialize_with = "from_str")]
-    recruitment: i32,
-    #[serde(default = "default_hundred")]
-    #[serde(deserialize_with = "from_str")]
-    supplies: i32,
-    #[serde(default = "default_one")]
-    #[serde(deserialize_with = "from_str")]
-    startprov: i32,
-    #[serde(default)]
-    #[serde(deserialize_with = "from_str")]
-    renaming: i32,
-    #[serde(default = "default_one")]
-    #[serde(deserialize_with = "from_str")]
-    scoregraphs: i32,
-    #[serde(default = "default_one")]
-    #[serde(deserialize_with = "from_str")]
-    nationinfo: i32,
-    #[serde(default = "default_one")]
-    #[serde(deserialize_with = "from_str")]
-    artrest: i32,
-    #[serde(default)]
-    #[serde(deserialize_with = "from_str")]
-    teamgame: i32,
-    #[serde(default)]
-    #[serde(deserialize_with = "from_str")]
-    clustered: i32,
-    #[serde(default = "default_one")]
-    #[serde(deserialize_with = "from_str")]
-    storyevents: i32,
-    #[serde(default = "default_two")]
-    #[serde(deserialize_with = "from_str")]
-    newailvl: i32,
-    #[serde(deserialize_with = "from_str")]
-    #[serde(default = "default_one")]
-    map: i32,
-    #[serde(default)]
-    mapfilter: String,
-    #[serde(default)]
-    #[serde(deserialize_with = "from_str_seq")]
-    cmods: Vec<i32>,
-    #[serde(default)]
-    modfilter: String,
-    masterpass: Option<String>,
-    #[serde(default)]
-    private: i32,
-    #[serde(default)]
-    require_password: i32,
-    #[serde(default)]
-    select_start: i32,
-    cataclysm: Option<i32>,
-    max_stales: Option<i32>,
-    #[serde(default)]
-    #[serde(deserialize_with = "from_str")]
-    conq_all: i32,
-    // Marker to tell whether the form is on its first load
-    loaded: Option<String>,
+    #[serde(default="default_one",     deserialize_with ="from_str")     ] era:                    i32,
+    #[serde(default="default_five",    deserialize_with ="from_str")     ] thrones_t1:             i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] thrones_t2:             i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] thrones_t3:             i32,
+    #[serde(default="default_five",    deserialize_with ="from_str")     ] throne_points_required: i32,
+    #[serde(default="default_two",     deserialize_with ="from_str")     ] research_diff:          i32,
+    #[serde(default="default_one",     deserialize_with ="from_str")     ] research_rand:          i32,
+    #[serde(default="default_ten",     deserialize_with ="from_str")     ] hof_size:               i32,
+    #[serde(default="default_five",    deserialize_with ="from_str")     ] global_size:            i32,
+    #[serde(default="default_five",    deserialize_with ="from_str")     ] indepstr:               i32,
+    #[serde(default="default_forty",   deserialize_with ="from_str")     ] magicsites:             i32,
+    #[serde(default="default_two",     deserialize_with ="from_str")     ] eventrarity:            i32,
+    #[serde(default="default_hundred", deserialize_with ="from_str")     ] richness:               i32,
+    #[serde(default="default_hundred", deserialize_with ="from_str")     ] resources:              i32,
+    #[serde(default="default_hundred", deserialize_with ="from_str")     ] recruitment:            i32,
+    #[serde(default="default_hundred", deserialize_with ="from_str")     ] supplies:               i32,
+    #[serde(default="default_one",     deserialize_with ="from_str")     ] startprov:              i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] renaming:               i32,
+    #[serde(default="default_one",     deserialize_with ="from_str")     ] scoregraphs:            i32,
+    #[serde(default="default_one",     deserialize_with ="from_str")     ] nationinfo:             i32,
+    #[serde(default="default_one",     deserialize_with ="from_str")     ] artrest:                i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] teamgame:               i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] clustered:              i32,
+    #[serde(default="default_one",     deserialize_with ="from_str")     ] storyevents:            i32,
+    #[serde(default="default_two",     deserialize_with ="from_str")     ] newailvl:               i32,
+    #[serde(default="default_one",     deserialize_with ="from_str")     ] map:                    i32,
+    #[serde(default)                                                     ] mapfilter:              String,
+    #[serde(default,                   deserialize_with ="from_str_seq") ] cmods:                  Vec<i32>,
+    #[serde(default)                                                     ] modfilter:              String,
+    #[serde(default)                                                     ] masterpass:             Option<String>,
+    #[serde(default,                   deserialize_with ="from_str")     ] private:                i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] require_password:       i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] select_start:           i32,
+    #[serde(default,                   deserialize_with ="from_str_opt") ] cataclysm:              Option<i32>,
+    #[serde(default,                   deserialize_with ="from_str_opt") ] max_stales:             Option<i32>,
+    #[serde(default,                   deserialize_with ="from_str")     ] conq_all:               i32,
+//Markertotellwhethertheformisonitsfirstload
+    #[serde(default)]loaded:Option<String>,
 }
 impl From<(&Game, &[Mod])> for GameSettings {
     fn from((game, mods): (&Game, &[Mod])) -> GameSettings {
@@ -165,26 +105,19 @@ impl From<(&Game, &[Mod])> for GameSettings {
             private: game.private as i32,
             cataclysm: game.cataclysm,
             max_stales: game.max_stales,
-            conq_all: game.conq_all as i32
+            conq_all: game.conq_all as i32,
         }
     }
 }
+#[cfg_attr(rustfmt, rustfmt_skip)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EmailForm {
-    #[serde(default)]
-    email_address: String,
-    #[serde(default)]
-    #[serde(deserialize_with = "from_str")]
-    nation: i32,
-    #[serde(default)]
-    subject: String,
-    #[serde(default)]
-    body: String,
-    #[serde(default)]
-    #[serde(deserialize_with = "from_str")]
-    hours_remaining: i32,
-    #[serde(default)]
-    is_reminder: bool,
+    #[serde(default)                               ] email_address:   String,
+    #[serde(default, deserialize_with ="from_str") ] nation:          i32,
+    #[serde(default)                               ] subject:         String,
+    #[serde(default)                               ] body:            String,
+    #[serde(default, deserialize_with ="from_str") ] hours_remaining: i32,
+    #[serde(default, deserialize_with ="from_str") ] is_reminder:     bool,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TeamForm {
@@ -287,7 +220,7 @@ struct PlayerSummary {
     has_pass: bool,
     pub playing: bool,
     pub unsubmitted: bool,
-    pub duplicate_cdkey_nationnames: Option<Vec<String>>
+    pub duplicate_cdkey_nationnames: Option<Vec<String>>,
 }
 #[derive(Debug)]
 struct GameDetailsPlayer {
@@ -301,7 +234,7 @@ struct GameDetailsPlayer {
     pub cdkey: Option<i64>,
     pub playing: Option<bool>,
     pub turn_status: Option<i32>,
-    pub duplicate_cdkey_nationnames: Option<Vec<String>>
+    pub duplicate_cdkey_nationnames: Option<Vec<String>>,
 }
 #[derive(Debug)]
 struct ActiveJob {
@@ -356,7 +289,14 @@ pub struct PNT<'a> {
 }
 impl<'a> GameDetailsTemplate<'a> {
     pub fn get_duplicate_players_string(&self, nation: &PlayerSummary) -> String {
-        format!("This cdkey is also playing {}", nation.duplicate_cdkey_nationnames.as_ref().map(|n| n.iter().join(", ")).unwrap_or(String::new()))
+        format!(
+            "This cdkey is also playing {}",
+            nation
+                .duplicate_cdkey_nationnames
+                .as_ref()
+                .map(|n| n.iter().join(", "))
+                .unwrap_or(String::new())
+        )
     }
     pub fn turn_color_class(turn_status: &i32) -> String {
         match turn_status {
@@ -940,19 +880,70 @@ async fn details(
     } else {
         (&game, &game.get_mods(&db).unwrap()[..]).into()
     };
-    let (maps, mods): (Vec<Map>, Vec<Mod>) = (
-        { Map::get_available_maps(game.id, authed == AuthStatus::AuthSuccess, &db).unwrap() },
-        {
-            if authed == AuthStatus::AuthSuccess {
-                use crate::schema::mods::dsl::*;
-                mods.filter(name.ilike(&format!("%{}%", game_settings.modfilter)))
-                    .get_results(&db)
-                    .unwrap()
-            } else {
-                game.get_mods(&db).unwrap()
-            }
-        },
-    );
+    let (maps, mods): (Vec<Map>, Vec<Mod>) = if authed == AuthStatus::AuthSuccess {
+        (
+            sqlx::query_as!(
+                Map,
+                "SELECT * 
+                    FROM maps m 
+                    WHERE 
+                        m.name ILIKE $1 OR 
+                        EXISTS (SELECT g.* FROM games g WHERE g.id=$2 AND g.map_id=m.id)
+                    ORDER BY (SELECT COUNT(*) FROM games g WHERE g.map_id=m.id) DESC",
+                format!("%{}%", game_settings.mapfilter),
+                game.id
+            )
+            .fetch_all(&sqlx_db)
+            .await
+            .unwrap(),
+            sqlx::query_as!(
+                Mod,
+                "SELECT * 
+                    FROM mods m 
+                    WHERE 
+                        m.name ILIKE $1 OR 
+                        EXISTS (
+                            SELECT m.* FROM mods mi 
+                            INNER JOIN game_mods gm ON 
+                                gm.mod_id=mi.id AND gm.game_id=$2 AND 
+                                m.id=mi.id
+                        )
+                    ORDER BY (SELECT COUNT(*) FROM game_mods gmo WHERE gmo.mod_id=m.id) DESC",
+                format!("%{}%", game_settings.modfilter),
+                game.id
+            )
+            .fetch_all(&sqlx_db)
+            .await
+            .unwrap(),
+        )
+    } else {
+        (
+            sqlx::query_as!(
+                Map,
+                "SELECT m.* 
+                FROM maps m
+                INNER JOIN games g ON
+                    g.map_id=m.id AND
+                    g.id=$1",
+                game.id
+            )
+            .fetch_all(&sqlx_db)
+            .await
+            .unwrap(),
+            sqlx::query_as!(
+                Mod,
+                "SELECT m.* 
+                FROM mods m 
+                INNER JOIN game_mods gm ON 
+                    gm.mod_id=m.id AND 
+                    gm.game_id=$1",
+                game.id
+            )
+            .fetch_all(&sqlx_db)
+            .await
+            .unwrap(),
+        )
+    };
     use crate::schema::email_configs::dsl as email_dsl;
     let email_configs: Vec<EmailConfig> = email_dsl::email_configs
         .filter(
@@ -1360,7 +1351,7 @@ async fn settings_post(
                         select_start.eq(body.select_start),
                         cataclysm.eq(body.cataclysm),
                         max_stales.eq(body.max_stales),
-                        conq_all.eq(body.conq_all > 0)
+                        conq_all.eq(body.conq_all > 0),
                     ))
                     .get_result(&db)?
             };
