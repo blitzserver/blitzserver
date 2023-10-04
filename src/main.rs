@@ -1,11 +1,10 @@
 #![feature(duration_constants)]
 #![recursion_limit = "256"]
 #![feature(try_blocks)]
-#![feature(drain_filter)]
+#![feature(extract_if)]
 #![feature(async_closure)]
 #![feature(type_alias_impl_trait)]
 #![feature(get_mut_unchecked)]
-#![feature(hash_drain_filter)]
 #![feature(never_type)]
 #[macro_use]
 extern crate num_enum;

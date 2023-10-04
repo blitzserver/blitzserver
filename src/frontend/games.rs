@@ -1198,11 +1198,11 @@ async fn list(
         &sqlx_db,
     );
     let archived_games: Vec<ArchivedGame> = results
-        .drain_filter(|g| g.archived)
+        .extract_if(|g| g.archived)
         .map(|g| ArchivedGame { id: g.id })
         .collect();
     let abandoned_games: Vec<AbandonedGame> = results
-        .drain_filter(|g| {
+        .extract_if(|g| {
             chrono::Utc::now().signed_duration_since(g.last_activity) > chrono::Duration::days(7)
         })
         .map(|g| AbandonedGame {
@@ -1231,7 +1231,7 @@ async fn list(
         })
         .collect();
     let active_games: Vec<ActiveGame> = results
-        .drain_filter(|g| turn_summaries.iter().find(|t| t.game_id == g.id).is_some())
+        .extract_if(|g| turn_summaries.iter().find(|t| t.game_id == g.id).is_some())
         .map(|g| ActiveGame {
             id: g.id,
             fail_count: g.fail_count.unwrap_or(0) as i32,
