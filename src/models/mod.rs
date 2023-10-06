@@ -1,17 +1,9 @@
 pub mod player;
 
 use std::env;
-use super::schema::{
-    admin_logs, disciples, discord_configs, email_configs, files, game_logs, game_mods, games,
-    map_provinces, maps, mods, nations, player_turns, turns,
-};
-use crate::diesel::OptionalExtension;
-use crate::diesel::{
-    BoolExpressionMethods, ExpressionMethods, NullableExpressionMethods, QueryDsl,
-};
-use crate::diesel::{JoinOnDsl, RunQueryDsl};
+use chrono::NaiveDateTime;
 pub use player::{NewPlayer, Player};
-use serde::Deserialize;
+use sqlx::Postgres;
 use thiserror::Error;
 
 pub struct Era;
@@ -21,8 +13,7 @@ impl Era {
     pub const LATE: i32 = 3;
 }
 
-#[derive(QueryableByName, derive_more::Into, derive_more::From, Identifiable, Debug, Queryable)]
-#[table_name = "games"]
+#[derive(Clone, derive_more::Into, derive_more::From, Debug)]
 pub struct Game {
     pub id: i32,
     pub name: String,
@@ -67,6 +58,7 @@ pub struct Game {
     pub max_stales: Option<i32>,
     pub motd: Option<String>,
     pub conq_all: bool,
+    pub binary_id: Option<i32>
 }
 
 #[derive(derive_more::From, derive_more::Into)]
@@ -111,103 +103,105 @@ pub struct SqlxGame {
     pub select_start: i32,
 }
 
-#[derive(QueryableByName)]
 struct GameNationCount {
-    #[sql_type = "diesel::sql_types::Integer"]
     pub game_id: i32,
-    #[sql_type = "diesel::sql_types::BigInt"]
     pub count: i64,
 }
 
 impl Game {
-    pub fn get_player<D>(&self, nation_id: i32, db: &D) -> Result<Player, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::players::dsl as pdsl;
-        pdsl::players
-            .filter(pdsl::game_id.eq(self.id).and(pdsl::nationid.eq(nation_id)))
-            .get_result(db)
+    pub async fn update<'q, D>(&self, mod_ids: &[i32], db: D) -> Result<Game, sqlx::error::Error> 
+        where D: sqlx::Executor<'q, Database = Postgres> {
+        sqlx::query_as!(Game, "
+        WITH 
+            removed_mods AS (DELETE FROM game_mods WHERE game_id=$34 AND mod_id != ANY($35)),
+            updated_mods AS (INSERT INTO game_mods (game_id, mod_id) VALUES($34, UNNEST($35::integer[])) ON CONFLICT (game_id, mod_id) DO NOTHING)
+        UPDATE games SET 
+            era                    = $1,
+            thrones_t1             = $2,
+            thrones_t2             = $3,
+            thrones_t3             = $4,
+            throne_points_required = $5,
+            research_diff          = $6,
+            research_rand          = $7,
+            hof_size               = $8,
+            global_size            = $9,
+            indepstr               = $10,
+            magicsites             = $11,
+            eventrarity            = $12,
+            richness               = $13,
+            resources              = $14,
+            recruitment            = $15,
+            supplies               = $16,
+            startprov              = $17,
+            renaming               = $18,
+            scoregraphs            = $19,
+            nationinfo             = $20,
+            artrest                = $21,
+            teamgame               = $22,
+            clustered              = $23,
+            storyevents            = $24,
+            newailvl               = $25,
+            map_id                 = $26,
+            masterpass             = $27,
+            private                = $28,
+            require_password       = $29,
+            select_start           = $30,
+            cataclysm              = $31,
+            max_stales             = $32,
+            conq_all               = $33
+        WHERE
+            id                     = $34
+        RETURNING *
+        " , 
+                self.era,
+                self.thrones_t1,
+                self.thrones_t2,
+                self.thrones_t3,
+                self.throne_points_required,
+                self.research_diff,
+                self.research_rand,
+                self.hof_size,
+                self.global_size,
+                self.indepstr,
+                self.magicsites,
+                self.eventrarity,
+                self.richness,
+                self.resources,
+                self.recruitment,
+                self.supplies,
+                self.startprov,
+                self.renaming,
+                self.scoregraphs,
+                self.nationinfo,
+                self.artrest,
+                self.teamgame,
+                self.clustered,
+                self.storyevents,
+                self.newailvl,
+                self.map_id,
+                self.masterpass,
+                self.private,
+                self.require_password,
+                self.select_start,
+                self.cataclysm,
+                self.max_stales,
+                self.conq_all,
+                self.id,
+                mod_ids).fetch_one(db).await
     }
-    pub fn update_last_activity<D>(&self, db: &D) -> Result<(), diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+    pub async fn get_mods<'c, D: sqlx::Executor<'c, Database = Postgres>>(&self, db: D) -> Result<Vec<Mod>, sqlx::error::Error>
     {
-        diesel::sql_query("UPDATE games SET last_activity=NOW() WHERE id=$1")
-            .bind::<diesel::sql_types::Integer, _>(self.id)
-            .execute(db)?;
-        Ok(())
+        sqlx::query_as!(Mod, "SELECT m.* FROM mods m INNER JOIN game_mods gm ON gm.mod_id=m.id AND gm.game_id=$1", self.id).fetch_all(db).await
     }
-    pub fn get_next_wakeup<D>(
-        db: &D,
-    ) -> Result<Option<chrono::DateTime::<chrono::Utc>>, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+    pub async fn get<'c, D: sqlx::Executor<'c , Database = Postgres>>(game_id: i32, db: D) -> Result<Game, sqlx::error::Error>
     {
-        use crate::schema::games::dsl as games_dsl;
-        games_dsl::games
-            .select(games_dsl::next_turn)
-            .filter(
-                diesel::dsl::not(games_dsl::next_turn.is_null()).and(games_dsl::archived.eq(false)),
-            )
-            .order(games_dsl::next_turn.asc())
-            .limit(1)
-            .get_result(db)
-    }
-    pub fn get_due_games<D>(db: &D) -> Result<Vec<Game>, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        diesel::sql_query(
-            "SELECT g.*
-            FROM games g
-            WHERE g.archived = FALSE AND g.next_turn IS NOT NULL AND g.next_turn <= NOW()",
-        )
-        .get_results(db)
-    }
-    pub fn get_by_name<D>(name: &str, db: &D) -> Result<Game, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::games::dsl as games_dsl;
-        games_dsl::games
-            .filter(games_dsl::name.eq(name).and(games_dsl::archived.eq(false)))
-            .get_result(db)
-    }
-    pub fn get_mods<D>(&self, db: &D) -> Result<Vec<Mod>, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::game_mods::dsl as gm_dsl;
-        use crate::schema::mods::dsl as mods_dsl;
-        let gamemods: Vec<(GameMod, Mod)> = gm_dsl::game_mods
-            .filter(gm_dsl::game_id.eq(self.id))
-            .inner_join(mods_dsl::mods.on(mods_dsl::id.eq(gm_dsl::mod_id)))
-            .get_results(db)?;
-        Ok(gamemods.into_iter().map(|(_, m)| m).collect())
-    }
-    pub fn get<D>(game_id: i32, db: &D) -> Result<Game, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::games::dsl as games_dsl;
-        games_dsl::games
-            .filter(games_dsl::id.eq(game_id))
-            .get_result(db)
+        return sqlx::query_as!(Game, "SELECT * FROM games WHERE id=$1", game_id).fetch_one(db).await
     }
 
-    pub fn schedule_turn<D>(
-        &self,
-        next_turn: chrono::DateTime::<chrono::Utc>,
-        db: &D,
-    ) -> Result<Game, crate::diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+    pub async fn schedule_turn<'c, D>( &self, next_turn: chrono::DateTime::<chrono::Utc>, db: D) -> Result<Game, sqlx::error::Error>
+        where D: sqlx::Executor<'c, Database = Postgres>
     {
-        use crate::schema::games::dsl as games_dsl;
-        diesel::update(games_dsl::games.filter(games_dsl::id.eq(self.id)))
-            .set(games_dsl::next_turn.eq(next_turn))
-            .get_result(db)
+        sqlx::query_as!(Game, "UPDATE games SET next_turn=$2 WHERE id=$1 RETURNING *", self.id, next_turn).fetch_one(db).await
     }
     pub fn next_turn_string(&self) -> String {
         if self.archived {
@@ -262,143 +256,102 @@ impl Game {
         }
     }
 
-    pub fn unstart<D>(&self, db: &D) -> Result<(), diesel::result::Error>
+    pub async fn unstart<'a, D>(game_id: i32, db: D) -> Result<(), sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'a, Database = Postgres>
     {
-        use crate::schema::player_turns::dsl as pt_dsl;
-        use crate::schema::turns::dsl as turns_dsl;
-        diesel::update(turns_dsl::turns)
-            .filter(turns_dsl::game_id.eq(self.id))
-            .set(turns_dsl::archived.eq(true))
-            .execute(db)?;
-        diesel::update(pt_dsl::player_turns)
-            .filter(pt_dsl::game_id.eq(self.id))
-            .set(pt_dsl::archived.eq(true))
-            .execute(db)?;
-        NewAdminLog {
-            game_id: self.id,
-            datetime: std::time::SystemTime::now(),
-            action: "Returned game to lobby".to_string(),
-        }
-        .insert(db)?;
+        sqlx::query!("
+        WITH 
+            turns AS (
+                UPDATE turns SET archived=TRUE where game_id=$1
+                RETURNING *
+            ), 
+            plyer_turns AS (
+                UPDATE player_turns SET archived=TRUE WHERE game_id=$1
+                RETURNING *
+            )
+        INSERT INTO admin_logs (game_id, datetime, action) VALUES ($1, NOW(), 'Returned game top lobby') RETURNING *", game_id).fetch_one(db).await;
         Ok(())
     }
 
-    pub fn rollback<D>(&self, db: &D) -> Result<Turn, diesel::result::Error>
+    pub async fn rollback<'a, D>(game_id: i32, db: D) -> Result<(), sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'a, Database = Postgres>
     {
-        use crate::schema::player_turns::dsl as pt_dsl;
-        use crate::schema::turns::dsl as turns_dsl;
-        let turn: Turn = turns_dsl::turns
-            .filter(
-                turns_dsl::game_id
-                    .eq(self.id)
-                    .and(turns_dsl::archived.eq(false)),
-            )
-            .order(turns_dsl::turn_number.desc())
-            .limit(1)
-            .get_result(db)?;
-        if turn.turn_number == 1 {
-            return Ok(turn);
-        }
-        let turn: Turn = diesel::update(turns_dsl::turns)
-            .filter(
-                turns_dsl::game_id
-                    .eq(self.id)
-                    .and(turns_dsl::turn_number.eq(turn.turn_number)),
-            )
-            .set(turns_dsl::archived.eq(true))
-            .get_result(db)?;
-        diesel::update(pt_dsl::player_turns)
-            .filter(
-                pt_dsl::game_id
-                    .eq(self.id)
-                    .and(pt_dsl::turn_number.eq(turn.turn_number)),
-            )
-            .set(pt_dsl::archived.eq(true))
-            .execute(db)?;
-        diesel::update(pt_dsl::player_turns)
-            .filter(
-                pt_dsl::game_id
-                    .eq(self.id)
-                    .and(pt_dsl::status.eq(2))
-                    .and(pt_dsl::turn_number.eq(turn.turn_number - 1)),
-            )
-            .set(pt_dsl::status.eq(1))
-            .execute(db)?;
-        NewAdminLog {
-            game_id: self.id,
-            datetime: std::time::SystemTime::now(),
-            action: format!(
-                "Rolled back turn {}->{}",
-                turn.turn_number,
-                turn.turn_number - 1
-            ),
-        }
-        .insert(db)?;
-        Ok(turn)
+        sqlx::query!("
+            WITH archived_turn AS (
+                    UPDATE turns t
+                    SET archived=TRUE 
+                    WHERE t.game_id=$1 
+                        AND turn_number > 1 
+                        AND turn_number=(SELECT MAX(turn_number) FROM turns t1 WHERE t1.game_id=$1 AND t1.archived != TRUE)
+                    RETURNING *
+                ),
+                archived_player_turns AS (
+                    UPDATE player_turns pt
+                    SET archived=TRUE
+                    WHERE pt.game_id=$1
+                        AND pt.turn_number=(SELECT MAX(turn_number) FROM turns t1 WHERE t1.game_id=$1 AND t1.archived != TRUE)
+                    RETURNING * 
+                ),
+                unfinished_player_turns AS (
+                    UPDATE player_turns pt
+                    SET status = 1
+                    WHERE pt.game_id=$1
+                        AND pt.turn_number=(SELECT MAX(turn_number) FROM turns t1 WHERE t1.game_id=$1 AND t1.archived != TRUE) - 1
+                        AND pt.status = 2
+                    RETURNING * 
+                )
+                INSERT INTO admin_logs (game_id, datetime, action) SELECT $1, NOW(), 'Rolled back turn' FROM archived_turn RETURNING *
+             ", game_id).fetch_one(db).await.unwrap();
+        Ok(())
     }
 
-    pub fn get_player_count<D>(games: Vec<i32>, db: &D) -> std::collections::HashMap<i32, i32>
+    pub async fn get_player_count<'a, D>(game_ids: &[i32], db: D) -> Result<std::collections::HashMap<i32, i32>, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'a, Database = Postgres>
     {
-        diesel::sql_query(
-            "SELECT game_id, COUNT(*) count FROM players WHERE game_id = ANY($1) GROUP BY game_id",
+        Ok(sqlx::query!(
+            "SELECT game_id, COUNT(*) count FROM players WHERE game_id = ANY($1) GROUP BY game_id", game_ids
         )
-        .bind::<diesel::sql_types::Array<diesel::sql_types::Integer>, _>(games)
-        .get_results::<GameNationCount>(db)
-        .unwrap()
+        .fetch_all(db)
+        .await?
         .iter()
-        .fold(std::collections::HashMap::new(), |mut hm, val| {
-            hm.insert(val.game_id, val.count as i32);
+        .fold(std::collections::HashMap::new(), |mut hm, row| {
+            hm.insert(row.game_id, row.count.unwrap_or(0) as i32);
             hm
-        })
+        }))
     }
 
-    pub fn remove_timer<D>(&self, db: &D) -> Result<Self, diesel::result::Error>
+    pub async fn remove_timer<'a, D>(game_id: i32, db: D) -> Result<Self, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'a, Database = Postgres>
     {
-        use crate::schema::games::dsl as games_dsl;
-        diesel::update(games_dsl::games)
-            .filter(games_dsl::id.eq(self.id))
-            .set(games_dsl::next_turn.eq::<Option<chrono::DateTime<chrono::Utc>>>(None))
-            .get_result::<Game>(db)
+        sqlx::query_as!(Game, "UPDATE games SET next_turn = NULL, timer = NULL WHERE id=$1 RETURNING *", game_id).fetch_one(db).await
     }
 
-    pub fn archive<D>(&self, archived: bool, db: &D) -> Result<Self, diesel::result::Error>
+    pub async fn archive<'a, D>(game_id: i32, db: D) -> Result<(), sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'a, Database = Postgres>
     {
-        use crate::schema::games::dsl as games_dsl;
-
+        sqlx::query!("WITH archive AS (
+                UPDATE games SET port=NULL, archived=TRUE,last_activity=NOW() WHERE id=$1 RETURNING *)
+            INSERT INTO admin_logs (game_id, datetime, action) VALUES ($1, NOW(), 'Archived game') RETURNING *", game_id).fetch_one(db).await.unwrap();
+        Ok(())
+    }
+    pub async fn unarchive<'a, D>(game_id: i32, db: D) -> Result<(), sqlx::error::Error>
+    where
+        D: sqlx::Executor<'a, Database = Postgres>
+    {
         let port_var = env::var("PORT_RANGE").expect("PORT_RANGE must be set (ie. '10000,10999')");
         let range: Vec<&str> = port_var.split(",").collect();
-        let port = match archived {
-            false => 
-    Some(diesel::dsl::sql::<diesel::sql_types::Int4>(&format!(
-                    "SELECT num FROM generate_series({}, {}) num LEFT OUTER JOIN games g ON g.port=num WHERE g.id IS NULL ORDER BY num ASC LIMIT 1",
-                    range[0], range[1]
-                ))
-                .get_result(db)
-                .unwrap()),
-            true => None
-        };
-        diesel::update(games_dsl::games.filter(games_dsl::id.eq(self.id)))
-            .set((
-                games_dsl::archived.eq(archived),
-                games_dsl::last_activity.eq(chrono::Utc::now()),
-                games_dsl::port.eq::<Option<i32>>(port),
-            ))
-            .get_result::<Game>(db)
+        sqlx::query!("WITH unarchive AS (
+                     UPDATE games SET port=(SELECT MIN(num) FROM generate_series($2::integer, $3::integer) num LEFT OUTER JOIN games g ON g.port=num), archived=TRUE,last_activity=NOW() WHERE id=$1 RETURNING *)
+            INSERT INTO admin_logs (game_id, datetime, action) VALUES ($1, NOW(), 'Reinstated game') RETURNING *", game_id, range[0].parse::<i32>().unwrap(), range[1].parse::<i32>().unwrap()).fetch_one(db).await.unwrap();
+        Ok(())
     }
 }
 
-#[derive(Insertable)]
-#[table_name = "games"]
 pub struct NewGame {
     pub name: String,
     pub era: i32,
@@ -468,16 +421,55 @@ impl Default for NewGame {
     }
 }
 
-#[derive(Clone, Debug, QueryableByName, Queryable)]
-#[table_name = "files"]
+impl NewGame {
+    pub async fn insert<'q, D>(&self, db: D) -> Result<Game, sqlx::error::Error> 
+        where D: sqlx::Executor<'q, Database = Postgres> 
+    {
+        sqlx::query_as!(Game, "
+        INSERT INTO games ( name, era, map_id, port, thrones_t1, thrones_t2, thrones_t3, throne_points_required, research_diff, research_rand, hof_size, global_size, indepstr, magicsites, eventrarity, richness, resources, recruitment, supplies, startprov, renaming, scoregraphs, nationinfo, artrest, teamgame, clustered, storyevents, newailvl, password, masterpass)
+        VALUES (            $1,   $2,  $3,     $4,   $5,         $6,         $7,         $8,                     $9,            $10,           $11,      $12,         $13,      $14,        $15,         $16,      $17,       $18,         $19,      $20,       $21,      $22,         $23,        $24,     $25,      $26,       $27,         $28,      $29,      $30)
+        RETURNING *
+        " , 
+        self.name,
+        self.era,
+        self.map_id,
+        self.port,
+        self.thrones_t1,
+        self.thrones_t2,
+        self.thrones_t3,
+        self.throne_points_required,
+        self.research_diff,
+        self.research_rand,
+        self.hof_size,
+        self.global_size,
+        self.indepstr,
+        self.magicsites,
+        self.eventrarity,
+        self.richness,
+        self.resources,
+        self.recruitment,
+        self.supplies,
+        self.startprov,
+        self.renaming,
+        self.scoregraphs,
+        self.nationinfo,
+        self.artrest,
+        self.teamgame,
+        self.clustered,
+        self.storyevents,
+        self.newailvl,
+        self.password,
+        self.masterpass).fetch_one(db).await
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct File {
     pub id: i32,
     pub filename: String,
     pub filebinary: Vec<u8>,
 }
 
-#[derive(Insertable)]
-#[table_name = "files"]
 pub struct NewFile<'a> {
     pub filename: &'a str,
     pub filebinary: &'a [u8],
@@ -490,24 +482,19 @@ impl<'a> NewFile<'a> {
             filebinary,
         }
     }
-    pub fn insert<D>(self, db: &D) -> File
+    pub async fn insert<'q, D>(self, db: D) -> Result<File, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use super::diesel::prelude::*;
-        use crate::schema::files::dsl::*;
-        diesel::sql_query(
-            "
+        sqlx::query_as!(File, "
         INSERT INTO files (filename, filebinary)
         VALUES ($1, $2)
         ON CONFLICT (filename,digest(filebinary, 'sha1'::text))
         DO UPDATE SET filename=EXCLUDED.filename
-        RETURNING *",
+        RETURNING *", self.filename, &self.filebinary
         )
-        .bind::<diesel::sql_types::Text, _>(self.filename)
-        .bind::<diesel::sql_types::Bytea, _>(&self.filebinary)
-        .get_result(db)
-        .unwrap()
+        .fetch_one(db)
+        .await
     }
 }
 
@@ -516,11 +503,7 @@ pub struct MapFile(pub File);
 pub struct TgaFile(pub File);
 pub struct WinterFile(pub File);
 
-#[derive(Debug, Clone, Queryable, QueryableByName, Associations)]
-#[belongs_to(parent = "MapFile", foreign_key = "mapfile_id")]
-#[belongs_to(parent = "TgaFile", foreign_key = "tgafile_id")]
-#[belongs_to(parent = "WinterFile", foreign_key = "winterfile_id")]
-#[table_name = "maps"]
+#[derive(Debug, Clone)]
 pub struct Map {
     pub id: i32,
     pub name: String,
@@ -617,100 +600,84 @@ impl Map {
             ))
         })
     }
-    pub fn get_available_maps<D>(
+    pub async fn get_available_maps<'q, D>(
         game_id: i32,
         is_admin: bool,
-        db: &D,
-    ) -> Result<Vec<Map>, diesel::result::Error>
+        db: D,
+    ) -> Result<Vec<Map>, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::maps::dsl::*;
-        diesel::sql_query(
+        sqlx::query_as!(Map,
             "
-        SELECT * 
+        SELECT M.* 
         FROM maps M
         LEFT JOIN games G 
             ON M.id=G.map_id AND G.id = $1
         WHERE (G.id IS NOT NULL OR M.archived IS FALSE)
-            AND (G.id IS NOT NULL OR $2 = TRUE)",
+            AND (G.id IS NOT NULL OR $2 = TRUE)", game_id, is_admin
         )
-        .bind::<diesel::sql_types::Integer, _>(game_id)
-        .bind::<diesel::sql_types::Bool, _>(is_admin)
-        .load(db)
+        .fetch_all(db).await
     }
 
-    pub fn insert_provinces<D>(
+    pub async fn insert_provinces<'q, D>(
         &self,
         provs: Vec<crate::files::maps::ProvinceLocation>,
-        db: &D,
-    ) -> Result<Vec<MapProvince>, diesel::result::Error>
+        db: D,
+    ) -> Result<Vec<MapProvince>, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::map_provinces::dsl as mp_dsl;
-        diesel::insert_into(mp_dsl::map_provinces)
-            .values(
-                provs
-                    .iter()
-                    .enumerate()
-                    .map(|(id, p)| {
-                        return NewMapProvince {
-                            map_id: self.id,
-                            province_id: (id + 1) as i32,
-                            x: p.x as i32,
-                            y: p.y as i32,
-                            unit_x: p.unit_x,
-                            unit_y: p.unit_y,
-                        };
-                    })
-                    .collect::<Vec<NewMapProvince>>(),
-            )
-            .get_results(db)
-    }
-    pub fn get<D>(id: i32, db: &D) -> Result<Self, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::maps::dsl as maps_dsl;
-        maps_dsl::maps.filter(maps_dsl::id.eq(id)).get_result(db)
+        sqlx::query_as!(MapProvince, "
+        INSERT INTO map_provinces (map_id, province_id, x, y, unit_x, unit_y) VALUES ($1, UNNEST($2::integer[]), UNNEST($3::integer[]), UNNEST($4::integer[]), UNNEST($5::float[]), UNNEST($6::float[])) RETURNING *",
+        self.id,
+        &provs.iter().enumerate().map(|(id, _)| id as i32).collect::<Vec<i32>>(),
+        &provs.iter().map(|p| p.x as i32).collect::<Vec<i32>>(),
+        &provs.iter().map(|p| p.y as i32).collect::<Vec<i32>>(),
+        &provs.iter().map(|p| p.unit_x).collect::<Vec<f64>>(),
+        &provs.iter().map(|p| p.unit_y).collect::<Vec<f64>>(),
+        ).fetch_all(db).await
     }
 
-    pub fn get_provinces<D>(&self, db: &D) -> Result<Vec<MapProvince>, diesel::result::Error>
+    pub async fn get_provinces<'q, D>(&self, db: D) -> Result<Vec<MapProvince>, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::map_provinces::dsl as mp_dsl;
-        mp_dsl::map_provinces
-            .filter(mp_dsl::map_id.eq(self.id))
-            .get_results(db)
+        sqlx::query_as!(MapProvince, "SELECT * FROM map_provinces WHERE map_id=$1", self.id).fetch_all(db).await
     }
 
-    pub fn get_files<D>(&self, db: &D) -> Result<(File, File, Option<File>), diesel::result::Error>
+    pub async fn get_files<'q, D>(map_id: i32, db: D) -> Result<(File, File, Option<File>), sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::files::dsl as files_dsl;
-        let ids = match self.winterfile_id {
-            Some(wid) => vec![self.tgafile_id, self.mapfile_id, wid],
-            None => vec![self.tgafile_id, self.mapfile_id],
-        };
-        let files: Vec<File> = files_dsl::files
-            .filter(files_dsl::id.eq_any(&ids))
-            .get_results(db)?;
+        let file_contents = sqlx::query!(r#"
+        SELECT ma.id map_id, ma.filename map_filename, ma.filebinary map_binary, i.id image_id, i.filename image_filename, i.filebinary image_binary, wi.id "winter_id?", wi.filename "wi_filename?", wi.filebinary "winter_binary?"
+        FROM maps m
+        INNER JOIN files i ON i.id=m.tgafile_id
+        INNER JOIN files ma ON ma.id=m.mapfile_id
+        LEFT JOIN files wi ON wi.id=m.winterfile_id
+        WHERE m.id=$1"#, map_id).fetch_one(db).await?;
+
         return Ok((
-            (*files.iter().find(|f| f.id == self.mapfile_id).unwrap()).clone(),
-            (*files.iter().find(|f| f.id == self.tgafile_id).unwrap()).clone(),
-            match self.winterfile_id {
-                None => None,
-                Some(fid) => Some((*files.iter().find(|f| f.id == fid).unwrap()).clone()),
+            File {
+                id: file_contents.map_id,
+                filename: file_contents.map_filename,
+                filebinary: file_contents.map_binary
             },
+            File {
+                id: file_contents.image_id,
+                filename: file_contents.image_filename,
+                filebinary: file_contents.image_binary,
+            },
+            match (file_contents.winter_id, file_contents.wi_filename, file_contents.winter_binary) {
+                (Some(id), Some(filename), Some(filebinary)) => Some(File { id, filename, filebinary}),
+                _ => None
+            }
         ));
     }
 }
 
-#[derive(Debug, Insertable)]
-#[table_name = "maps"]
+#[derive(Debug)]
 pub struct NewMap {
     pub name: String,
     pub mapfile_id: i32,
@@ -720,8 +687,22 @@ pub struct NewMap {
     pub uw_count: i32,
 }
 
-#[derive(Debug, Identifiable, Queryable)]
-#[table_name = "nations"]
+impl NewMap {
+    pub async fn insert<'q, D>(&self, db: D) -> Result<Map, sqlx::error::Error> 
+        where D: sqlx::Executor<'q, Database = Postgres>
+    {
+        sqlx::query_as!(Map, "INSERT INTO maps (name, mapfile_id, tgafile_id, winterfile_id, province_count, uw_count) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+        self.name,
+        self.mapfile_id,
+        self.tgafile_id,
+        self.winterfile_id,
+        self.province_count,
+        self.uw_count
+        ).fetch_one(db).await
+    }
+}
+
+#[derive(Debug)]
 pub struct Nation {
     pub id: i32,
     pub game_id: i32,
@@ -732,68 +713,27 @@ pub struct Nation {
 }
 
 impl Nation {
-    pub fn get<D>(game_id: i32, nation_id: i32, db: &D) -> Result<Nation, diesel::result::Error>
+    pub async fn get<'q, D>(game_id: i32, nation_id: i32, db: D) -> Result<Nation, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::nations::dsl as nations_dsl;
-        nations_dsl::nations
-            .filter(
-                nations_dsl::game_id
-                    .eq(game_id)
-                    .and(nations_dsl::nation_id.eq(nation_id)),
-            )
-            .get_result(db)
+        sqlx::query_as!(Nation, "SELECT * FROM nations WHERE nation_id=$1 AND game_id=$2", nation_id, game_id).fetch_one(db).await
     }
-    pub fn get_all<D>(game_id: i32, db: &D) -> Result<Vec<Nation>, diesel::result::Error>
+    pub async fn get_all<'q, D>(game_id: i32, db: D) -> Result<Vec<Nation>, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::nations::dsl as nations_dsl;
-        nations_dsl::nations
-            .filter(nations_dsl::game_id.eq(game_id))
-            .get_results(db)
+        sqlx::query_as!(Nation, "SELECT * FROM nations WHERE game_id=$1", game_id).fetch_all(db).await
     }
 }
 
-#[derive(Debug, Insertable)]
-#[table_name = "nations"]
-pub struct NewNation {
-    pub game_id: i32,
-    pub name: String,
-    pub nation_id: i32,
-    pub epithet: String,
-    pub filename: String,
-}
-
-impl NewNation {
-    pub fn insert<D>(&self, db: &D) -> Result<Nation, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::nations::dsl as nations_dsl;
-        diesel::insert_into(nations_dsl::nations)
-            .values(self)
-            .on_conflict((nations_dsl::game_id, nations_dsl::nation_id))
-            .do_update()
-            .set((
-                (nations_dsl::name.eq(&self.name)),
-                (nations_dsl::epithet.eq(&self.epithet)),
-                (nations_dsl::filename.eq(&self.filename)),
-            ))
-            .get_result(db)
-    }
-}
-
-#[derive(Debug, Associations, Identifiable, Queryable, QueryableByName)]
-#[belongs_to(parent = "Game", foreign_key = "game_id")]
-#[table_name = "turns"]
+#[derive(Debug)]
 pub struct Turn {
-    id: i32,
+    pub id: i32,
     pub game_id: i32,
     pub turn_number: i32,
     pub file_id: i32,
-    pub created_at: std::time::SystemTime,
+    pub created_at: NaiveDateTime,
     pub archived: bool,
     pub turnkey: Option<i32>,
     pub winner: Option<i32>
@@ -850,65 +790,23 @@ impl Turn {
             })
         })
     }
-    pub fn get_player_turns<D>(&self, db: &D) -> Result<Vec<PlayerTurn>, diesel::result::Error>
+    pub async fn get_all<'q,D>(game_id: i32, db: D) -> Result<Vec<Turn>, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::player_turns::dsl as pt_dsl;
-        pt_dsl::player_turns
-            .filter(
-                pt_dsl::game_id
-                    .eq(self.game_id)
-                    .and(pt_dsl::archived.eq(false))
-                    .and(pt_dsl::turn_number.eq(self.turn_number)),
-            )
-            .get_results(db)
+        sqlx::query_as!(Turn, "SELECT * FROM turns WHERE game_id=$1 AND archived=FALSE ORDER BY turn_number ASC", game_id).fetch_all(db).await
     }
-    pub fn get_ftherlnd<D>(&self, db: &D) -> Result<File, diesel::result::Error>
+    pub async fn current_turn<'q, D>(game_ids: &[i32], db: D) -> Result<Vec<Turn>, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::files::dsl as files_dsl;
-        files_dsl::files
-            .filter(files_dsl::id.eq(self.file_id))
-            .get_result(db)
-    }
-    pub fn get_all<D>(game_id: i32, db: &D) -> Result<Vec<Turn>, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::turns::dsl as turns_dsl;
-        turns_dsl::turns
-            .filter(
-                turns_dsl::game_id
-                    .eq(game_id)
-                    .and(turns_dsl::archived.eq(false)),
-            )
-            .order(turns_dsl::turn_number.asc())
-            .get_results(db)
-    }
-    pub fn get<D>(game_id: i32, db: &D) -> Result<Turn, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::turns::dsl as turns_dsl;
-        turns_dsl::turns
-            .filter(
-                turns_dsl::game_id
-                    .eq(game_id)
-                    .and(turns_dsl::archived.eq(false)),
-            )
-            .order(turns_dsl::turn_number.desc())
-            .limit(1)
-            .get_result(db)
-    }
-    pub fn current_turn<D>(game_ids: &[i32], db: &D) -> Vec<Turn>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        diesel::sql_query(
-            format!("SELECT * FROM turns t INNER JOIN (SELECT game_id,MAX(turn_number) as turn_number FROM turns WHERE game_id IN ({}) AND archived = false GROUP BY game_id ) as mt ON mt.turn_number = t.turn_number AND mt.game_id = t.game_id", game_ids.iter().map(|i| i.to_string()).collect::<Vec<String>>().join(",")),
-        ).get_results(db).unwrap()
+        sqlx::query_as!(Turn, r#"
+        SELECT DISTINCT ON(game_id) *
+        FROM turns t
+        WHERE archived=false AND game_id=ANY($1)
+        ORDER BY game_id, turn_number DESC
+        "#, game_ids)
+        .fetch_all(db).await
     }
         
     pub fn turn_summary(game_ids: &[i32], db_pool: &sqlx::postgres::PgPool) -> Vec<TurnSummary> {
@@ -933,42 +831,7 @@ GROUP BY t.game_id,t.turn_number, n.name, g.next_turn
     }
 }
 
-#[derive(Insertable)]
-#[table_name = "turns"]
-pub struct NewTurn {
-    pub game_id: i32,
-    pub turn_number: i32,
-    pub file_id: i32,
-}
-
-impl NewTurn {
-    pub fn insert<D>(&self, db: &D) -> Result<bool, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::turns::dsl as turns_dsl;
-        let existing_turn = turns_dsl::turns
-            .filter(
-                turns_dsl::game_id
-                    .eq(self.game_id)
-                    .and(turns_dsl::turn_number.eq(self.turn_number))
-                    .and(turns_dsl::archived.eq(false)),
-            )
-            .get_result::<Turn>(db);
-        if !existing_turn.is_ok() || existing_turn.as_ref().unwrap().file_id != self.file_id {
-            log::info!("Game {}: Creating turn {}", self.game_id, self.turn_number);
-            diesel::sql_query(format!("INSERT INTO turns (game_id, turn_number, file_id) VALUES({}, {}, {}) ON CONFLICT (game_id, turn_number) WHERE archived IS false DO UPDATE SET file_id={}", self.game_id, self.turn_number, self.file_id, self.file_id))
-            .execute(db).unwrap();
-            return Ok(true);
-        } else {
-            return Ok(false);
-        }
-    }
-}
-
-#[derive(Debug, Identifiable, QueryableByName, Queryable, Associations)]
-#[table_name = "player_turns"]
-#[belongs_to(parent = "File", foreign_key = "trnfile_id")]
+#[derive(Debug)]
 pub struct PlayerTurn {
     id: i32,
     pub turn_number: i32,
@@ -982,84 +845,16 @@ pub struct PlayerTurn {
 }
 
 impl PlayerTurn {
-    pub fn get_2h<D>(&self, db: &D) -> Result<File, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::files::dsl as files_dsl;
-        match self.twohfile_id {
-            Some(thfid) => files_dsl::files
-                .filter(files_dsl::id.eq(thfid))
-                .get_result(db),
-            None => Err(diesel::result::Error::NotFound),
-        }
-    }
-    pub fn get_trn<D>(&self, db: &D) -> Result<File, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        match self.trnfile_id {
-            Some(trnid) => {
-                use crate::schema::files::dsl as files_dsl;
-                files_dsl::files
-                    .filter(files_dsl::id.eq(trnid))
-                    .get_result(db)
-            }
-            None => Err(diesel::NotFound),
-        }
-    }
-    pub fn save_2h<D>(
-        &self,
-        twoh: NewFile,
-        status: i32,
-        db: &D,
-    ) -> Result<PlayerTurn, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        let file = twoh.insert(db);
-        use crate::schema::player_turns::dsl as pt_dsl;
-        diesel::update(pt_dsl::player_turns)
-            .filter(pt_dsl::id.eq(self.id))
-            .set((pt_dsl::status.eq(status), pt_dsl::twohfile_id.eq(file.id)))
-            .get_result(db)
-    }
-    pub fn get<D>(
+    pub async fn get_player_turns<'q, D>(
         game_id: i32,
-        nation_id: i32,
-        db: &D,
-    ) -> Result<(PlayerTurn, Option<File>), diesel::result::Error>
+        db: D,
+    ) -> Result<std::collections::HashMap<i32, Vec<PlayerTurn>>, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::files::dsl as files_dsl;
-        use crate::schema::player_turns::dsl as pt_dsl;
-        pt_dsl::player_turns
-            .filter(
-                pt_dsl::game_id
-                    .eq(game_id)
-                    .and(pt_dsl::nation_id.eq(nation_id))
-                    .and(pt_dsl::archived.eq(false)),
-            )
-            .order(pt_dsl::turn_number.desc())
-            .limit(1)
-            .left_join(files_dsl::files.on(files_dsl::id.nullable().eq(pt_dsl::trnfile_id)))
-            .get_result(db)
-    }
-    pub fn get_player_turns<D>(
-        game_id: i32,
-        db: &D,
-    ) -> std::collections::HashMap<i32, Vec<PlayerTurn>>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::player_turns::dsl as pt_dsl;
-        let player_turns = pt_dsl::player_turns
-            .filter(pt_dsl::game_id.eq(game_id).and(pt_dsl::archived.eq(false)))
-            .order(pt_dsl::turn_number)
-            .get_results(db)
-            .unwrap();
-        player_turns.into_iter().fold(
+        let player_turns = sqlx::query_as!(PlayerTurn, "
+        SELECT * FROM player_turns WHERE game_id=$1 AND archived=false ORDER BY turn_number", game_id).fetch_all(db).await?;
+        Ok(player_turns.into_iter().fold(
             std::collections::HashMap::new(),
             |mut hm: std::collections::HashMap<i32, Vec<PlayerTurn>>, pt: PlayerTurn| {
                 if !hm.contains_key(&pt.nation_id) {
@@ -1068,37 +863,10 @@ impl PlayerTurn {
                 hm.get_mut(&pt.nation_id).unwrap().push(pt);
                 hm
             },
-        )
+        ))
     }
 }
 
-#[derive(Insertable)]
-#[table_name = "player_turns"]
-pub struct NewPlayerTurn {
-    pub turn_number: i32,
-    pub nation_id: i32,
-    pub game_id: i32,
-    pub trnfile_id: Option<i32>,
-    pub status: i32,
-}
-
-impl NewPlayerTurn {
-    pub fn insert<D>(&self, db: &D) -> Result<PlayerTurn, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        diesel::sql_query("INSERT INTO player_turns (turn_number, nation_id, game_id, trnfile_id, status) VALUES($1, $2, $3, $4, $5) ON CONFLICT (game_id, turn_number, nation_id) WHERE archived IS false DO UPDATE SET trnfile_id=$4 RETURNING *")
-            .bind::<diesel::sql_types::Integer, _>(self.turn_number)
-            .bind::<diesel::sql_types::Integer, _>(self.nation_id)
-            .bind::<diesel::sql_types::Integer, _>(self.game_id)
-            .bind::<diesel::sql_types::Nullable<diesel::sql_types::Integer>, _>(self.trnfile_id)
-            .bind::<diesel::sql_types::Integer, _>(self.status)
-            .get_result(db)
-    }
-}
-
-#[derive(Insertable)]
-#[table_name = "mods"]
 pub struct NewMod<'a> {
     pub dm_filename: &'a str,
     pub name: &'a str,
@@ -1106,7 +874,7 @@ pub struct NewMod<'a> {
     pub icon_file_id: Option<i32>,
 }
 
-#[derive(Clone, Identifiable, Queryable, Associations)]
+#[derive(Clone)]
 pub struct Mod {
     pub id: i32,
     pub dm_filename: String,
@@ -1123,16 +891,6 @@ pub enum ModError {
 }
 
 impl Mod {
-    pub fn get_archive<D>(&self, db: &D) -> Result<File, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::files::dsl as files_dsl;
-        files_dsl::files
-            .filter(files_dsl::id.eq(self.file_id))
-            .get_result(db)
-    }
-
     pub fn get_crcs(
         game_id: i32,
         db_pool: &sqlx::postgres::PgPool,
@@ -1200,28 +958,23 @@ pub struct ModDefinition {
     pub name: String,
 }
 
-#[derive(Insertable)]
-#[table_name = "game_mods"]
 pub struct NewGameMod {
     pub game_id: i32,
     pub mod_id: i32,
 }
 
-#[derive(Identifiable, Queryable, Associations)]
 pub struct GameMod {
     id: i32,
     pub game_id: i32,
     pub mod_id: i32,
 }
 
-#[derive(QueryableByName, Debug)]
+#[derive(Debug)]
 pub struct Wakeup {
-    #[sql_type = "diesel::sql_types::Timestamp"]
     pub timestamp: std::time::SystemTime,
 }
 
-#[derive(QueryableByName, Debug, Identifiable, Queryable)]
-#[table_name = "email_configs"]
+#[derive(Debug)]
 pub struct EmailConfig {
     pub id: i32,
     pub nation_id: i32,
@@ -1235,52 +988,27 @@ pub struct EmailConfig {
 }
 
 impl EmailConfig {
-    pub fn get_reminder_wakeup<D>(
-        db: &D,
-    ) -> Result<Option<std::time::SystemTime>, diesel::result::Error>
+    pub async fn delete<'q, D>(email_id: i32, email_address: &str, db: D) -> Result<EmailConfig, sqlx::error::Error> 
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres> 
     {
-        Ok(diesel::sql_query(
-            r#"
-SELECT g.next_turn - interval '1' hour * ec.hours_before_host as timestamp
-FROM email_configs ec
-LEFT JOIN (SELECT game_id,MAX(turn_number) as turn_number FROM turns WHERE archived = false GROUP BY game_id) t
-    ON t.game_id=ec.game_id
-INNER JOIN games g ON g.id=t.game_id AND g.archived = FALSE
-LEFT OUTER JOIN (SELECT nation_id, game_id, MAX(turn_number) as turn_number FROM player_turns pt WHERE archived = false AND twohfile_id IS NOT NULL GROUP BY game_id,nation_id) pt
-    ON pt.game_id=ec.game_id AND pt.turn_number = t.turn_number AND pt.nation_id = ec.nation_id
-WHERE
-    (ec.last_turn_notified IS NULL OR t.turn_number != ec.last_turn_notified)
-    AND g.next_turn IS NOT NULL
-    AND ec.is_reminder IS TRUE
-    AND t.turn_number IS NOT NULL
-ORDER BY timestamp DESC
-LIMIT 1
-        "#,
-        )
-        .get_result::<Wakeup>(db)
-        .optional()?
-        .and_then(|w| Some(w.timestamp)))
+        sqlx::query_as!(EmailConfig, "DELETE FROM email_configs WHERE id=$1 AND email_address=$2 RETURNING *", email_id, email_address).fetch_one(db).await
     }
-    pub fn mark_sent<D>(&self, turn: i32, db: &D) -> Result<EmailConfig, diesel::result::Error>
+    pub async fn mark_sent<'q, D>(&self, turn: i32, db: D) -> Result<EmailConfig, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::email_configs::dsl as email_dsl;
-        diesel::update(email_dsl::email_configs.filter(email_dsl::id.eq(self.id)))
-            .set(email_dsl::last_turn_notified.eq(turn))
-            .get_result(db)
+        sqlx::query_as!(EmailConfig, "UPDATE email_configs SET last_turn_notified=$1 WHERE id=$2 RETURNING *", turn, self.id).fetch_one(db).await
     }
-    pub fn get_due_reminders<D>(db: &D) -> Result<Vec<EmailConfig>, diesel::result::Error>
+    pub async fn get_due_reminders<'q, D>(db: D) -> Result<Vec<EmailConfig>, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
         // Fetch all email_configs which are reminder types attached to games which have at least
         // one turn, whose attached nation has not submitted orders for the current turn and the
         // timer has come to pass
-        diesel::sql_query(r#"
-SELECT ec.*
+        sqlx::query_as!(EmailConfig, r#"
+SELECT ec.id "id!", ec.nation_id "nation_id!", ec.game_id "game_id!", ec.hours_before_host "hours_before_host!", ec.email_address "email_address!", ec.last_turn_notified, ec.subject "subject!", ec.body "body!", ec.is_reminder "is_reminder!"
 FROM email_configs ec
 LEFT JOIN (SELECT game_id,MAX(turn_number) as turn_number FROM turns WHERE archived = false GROUP BY game_id) t
     ON t.game_id=ec.game_id
@@ -1293,41 +1021,14 @@ WHERE
     AND g.next_turn - interval '1' hour * ec.hours_before_host < NOW()
     AND ec.is_reminder IS TRUE
     AND t.turn_number IS NOT NULL
-    "#).load(db)
+    "#).fetch_all(db).await
     }
-
-    pub fn delete<D>(id: i32, email_address: String, db: &D) -> Result<usize, diesel::result::Error>
+    pub async fn get_due_notifications<'q, D>(db: D) -> Result<Vec<EmailConfig>, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::email_configs::dsl as emails_dsl;
-        diesel::delete(emails_dsl::email_configs)
-            .filter(
-                emails_dsl::email_address
-                    .eq(email_address)
-                    .and(emails_dsl::id.eq(id)),
-            )
-            .execute(db)
-    }
-
-    pub fn get_notifications<D>(
-        game_id: i32,
-        db: &D,
-    ) -> Result<Vec<EmailConfig>, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::email_configs::dsl as emails_dsl;
-        emails_dsl::email_configs
-            .filter(emails_dsl::game_id.eq(game_id))
-            .get_results(db)
-    }
-    pub fn get_due_notifications<D>(db: &D) -> Result<Vec<EmailConfig>, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        diesel::sql_query("\
-SELECT ec.*
+        sqlx::query_as!(EmailConfig, r#"
+SELECT ec.id "id!", ec.nation_id "nation_id!", ec.game_id "game_id!", ec.hours_before_host "hours_before_host!", ec.email_address "email_address!", ec.last_turn_notified, ec.subject "subject!", ec.body "body!", ec.is_reminder "is_reminder!"
 FROM email_configs ec
 LEFT JOIN (SELECT game_id,MAX(turn_number) as turn_number FROM turns WHERE archived = false GROUP BY game_id) t
     ON t.game_id=ec.game_id
@@ -1339,12 +1040,10 @@ WHERE
     AND t.turn_number IS NOT NULL 
     AND ec.is_reminder = FALSE
     AND (ec.last_turn_notified IS NULL OR ec.last_turn_notified != t.turn_number)
-    ").load(db)
+    "#).fetch_all(db).await
     }
 }
 
-#[derive(Insertable)]
-#[table_name = "email_configs"]
 pub struct NewEmailConfig {
     pub nation_id: i32,
     pub game_id: i32,
@@ -1356,19 +1055,15 @@ pub struct NewEmailConfig {
 }
 
 impl NewEmailConfig {
-    pub fn insert<D>(self, db: &D) -> Result<EmailConfig, diesel::result::Error>
+    pub async fn insert<'q, D>(self, db: D) -> Result<EmailConfig, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::models::email_configs::dsl as emails_dsl;
-        diesel::insert_into(emails_dsl::email_configs)
-            .values(self)
-            .get_result(db)
+        sqlx::query_as!(EmailConfig, "INSERT INTO email_configs (nation_id, game_id, hours_before_host, email_address, subject, body, is_reminder) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING *", self.nation_id, self.game_id, self.hours_before_host, self.email_address, self.subject, self.body, self.is_reminder).fetch_one(db).await
     }
 }
 
-#[derive(Queryable, Debug, Identifiable)]
-#[table_name = "disciples"]
+#[derive(Debug)]
 pub struct Disciple {
     pub id: i32,
     pub game_id: i32,
@@ -1378,151 +1073,46 @@ pub struct Disciple {
 }
 
 impl Disciple {
-    pub fn get<D>(game_id: i32, nation_id: i32, db: &D) -> Result<Disciple, diesel::result::Error>
+    pub async fn get<'q, D>(game_id: i32, nation_id: i32, db: D) -> Result<Disciple, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use disciples::dsl as d_dsl;
-        match d_dsl::disciples
-            .filter(
-                d_dsl::game_id
-                    .eq(game_id)
-                    .and(d_dsl::nation_id.eq(nation_id)),
-            )
-            .get_result(db)
-        {
-            Ok(d) => Ok(d),
-            Err(diesel::result::Error::NotFound) => Ok(NewDisciple {
-                game_id,
-                nation_id,
-                is_disciple: 0,
-                team: None,
-            }
-            .insert(db)?),
-            Err(e) => Err(e),
-        }
+        sqlx::query_as!(Disciple, "
+        INSERT INTO disciples (game_id, nation_id, is_disciple) VALUES($1, $2, 0) ON CONFLICT (game_id, nation_id) DO UPDATE SET nation_id=EXCLUDED.nation_id RETURNING *
+        ", game_id, nation_id).fetch_one(db).await
     }
-    pub fn get_all<D>(game_id: i32, db: &D) -> Result<Vec<Disciple>, diesel::result::Error>
+    pub async fn remove<'q, D>(&self, db: D) -> Result<Disciple, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use disciples::dsl as d_dsl;
-        d_dsl::disciples
-            .filter(d_dsl::game_id.eq(game_id))
-            .get_results(db)
+        sqlx::query_as!(Disciple, "DELETE FROM disciples WHERE game_id=$1 AND nation_id=$2 RETURNING *", self.game_id, self.nation_id).fetch_one(db).await
     }
 
-    pub fn remove<D>(&self, db: &D) -> Result<usize, diesel::result::Error>
+    pub async fn set_team<'q, D>(&self, team: Option<i32>, db: D) -> Result<Disciple, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use disciples::dsl as d_dsl;
-        diesel::delete(
-            d_dsl::disciples.filter(
-                d_dsl::nation_id
-                    .eq(self.nation_id)
-                    .and(d_dsl::game_id.eq(self.game_id)),
-            ),
-        )
-        .execute(db)
+        sqlx::query_as!(Disciple, "
+        INSERT INTO disciples (game_id, nation_id, is_disciple, team)
+        SELECT $1, $2, $4, COALESCE($3, (SELECT MAX(team) + 1 FROM disciples WHERE game_id=$1))
+        ON CONFLICT (game_id, nation_id) DO UPDATE SET team=EXCLUDED.team, is_disciple=EXCLUDED.is_disciple
+        RETURNING *
+        ", self.game_id, self.nation_id, team, self.is_disciple).fetch_one(db).await
     }
-
-    pub fn create_team<D>(&self, db: &D) -> Result<Disciple, diesel::result::Error>
+    pub async fn unset_team<'q, D>(&self, db: D) -> Result<Disciple, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use disciples::dsl as d_dsl;
-        let new_team = match d_dsl::disciples
-            .filter(
-                d_dsl::game_id
-                    .eq(self.game_id)
-                    .and(diesel::dsl::not(d_dsl::team.is_null())),
-            )
-            .order(d_dsl::team.desc())
-            .limit(1)
-            .get_result::<Disciple>(db)
-        {
-            Err(_) => 1,
-            Ok(biggest) => biggest.team.unwrap_or(0) + 1,
-        };
-        self.set_team(new_team, db)?.set_disc(0, db)
+        sqlx::query_as!(Disciple, "UPDATE disciples SET team=NULL WHERE game_id=$1 AND nation_id=$2 RETURNING *", self.game_id, self.nation_id).fetch_one(db).await
     }
-
-    pub fn set_team<D>(&self, team: i32, db: &D) -> Result<Disciple, diesel::result::Error>
+    pub async fn set_disc<'q, D>(&self, is_disc: i32, db: D) -> Result<Disciple, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use disciples::dsl as d_dsl;
-        let make_disc = if d_dsl::disciples
-            .filter(
-                d_dsl::game_id
-                    .eq(self.game_id)
-                    .and(d_dsl::team.eq(team))
-                    .and(d_dsl::is_disciple.eq(0)),
-            )
-            .get_results::<Disciple>(db)?
-            .len()
-            > 0
-        {
-            1
-        } else {
-            self.is_disciple
-        };
-        diesel::update(
-            d_dsl::disciples.filter(
-                d_dsl::game_id
-                    .eq(self.game_id)
-                    .and(d_dsl::nation_id.eq(self.nation_id)),
-            ),
-        )
-        .set((d_dsl::team.eq(team), d_dsl::is_disciple.eq(make_disc)))
-        .get_result(db)
-    }
-    pub fn unset_team<D>(&self, db: &D) -> Result<Disciple, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use disciples::dsl as d_dsl;
-        diesel::update(
-            d_dsl::disciples.filter(
-                d_dsl::game_id
-                    .eq(self.game_id)
-                    .and(d_dsl::nation_id.eq(self.nation_id)),
-            ),
-        )
-        .set(d_dsl::team.eq::<Option<i32>>(None))
-        .get_result(db)
-    }
-    pub fn set_disc<D>(&self, is_disc: i32, db: &D) -> Result<Disciple, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use disciples::dsl as d_dsl;
-        if is_disc == 0 && self.team.is_some() {
-            diesel::update(
-                d_dsl::disciples.filter(
-                    d_dsl::game_id
-                        .eq(self.game_id)
-                        .and(d_dsl::team.eq(self.team.unwrap())),
-                ),
-            )
-            .set(d_dsl::is_disciple.eq(1))
-            .execute(db)?;
-        }
-        diesel::update(
-            d_dsl::disciples.filter(
-                d_dsl::game_id
-                    .eq(self.game_id)
-                    .and(d_dsl::nation_id.eq(self.nation_id)),
-            ),
-        )
-        .set(d_dsl::is_disciple.eq(is_disc))
-        .get_result(db)
+        sqlx::query_as!(Disciple, "UPDATE disciples SET is_disciple=$3 WHERE game_id=$1 AND nation_id=$2 RETURNING *", self.game_id, self.nation_id, is_disc).fetch_one(db).await
     }
 }
 
-#[derive(Insertable)]
-#[table_name = "disciples"]
 pub struct NewDisciple {
     game_id: i32,
     nation_id: i32,
@@ -1531,182 +1121,49 @@ pub struct NewDisciple {
 }
 
 impl NewDisciple {
-    pub fn insert<D>(&self, db: &D) -> Result<Disciple, diesel::result::Error>
+    pub async fn insert<'q, D>(&self, db: D) -> Result<Disciple, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use disciples::dsl as d_dsl;
-        diesel::insert_into(d_dsl::disciples)
-            .values(self)
-            .get_result(db)
+        sqlx::query_as!(Disciple, "INSERT INTO disciples (game_id, nation_id, is_disciple, team) VALUES ($1, $2, $3, $4) RETURNING *", self.game_id, self.nation_id, self.is_disciple, self.team).fetch_one(db).await
     }
 }
 
-#[derive(Queryable, Debug, Identifiable)]
-#[table_name = "game_logs"]
-pub struct GameLog {
-    id: i32,
-    game_id: i32,
-    datetime: std::time::SystemTime,
-    turn_number: i32,
-    output: String,
-    error: String,
-    log_command: String,
-}
-
-impl GameLog {
-    pub fn update_logs<D>(
-        &self,
-        output: &str,
-        error: &str,
-        db: &D,
-    ) -> Result<(), diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        diesel::sql_query(
-            r#"
-        UPDATE game_logs SET 
-            output=concat(output,$2),
-            error=concat(error,$3)
-        WHERE id=$1
-        "#,
-        )
-        .bind::<diesel::sql_types::Int4, _>(self.id)
-        .bind::<diesel::sql_types::VarChar, _>(output)
-        .bind::<diesel::sql_types::VarChar, _>(error)
-        .execute(db)?;
-        Ok(())
-    }
-}
-
-#[derive(Queryable, Debug, Identifiable, QueryableByName)]
-#[table_name = "game_logs"]
-pub struct GameLogLite {
-    pub id: i32,
-    pub game_id: i32,
-    pub datetime: std::time::SystemTime,
-    pub turn_number: i32,
-}
-
-impl GameLogLite {
-    pub fn datetime_string(&self) -> String {
-        chrono::DateTime::<chrono::Utc>::from(self.datetime).to_rfc2822()
-    }
-    pub fn get_all<D>(game_id: i32, db: &D) -> Result<Vec<GameLogLite>, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::game_logs::dsl as gl_dsl;
-        gl_dsl::game_logs
-            .select((
-                gl_dsl::id,
-                gl_dsl::game_id,
-                gl_dsl::datetime,
-                gl_dsl::turn_number,
-            ))
-            .filter(gl_dsl::game_id.eq(game_id))
-            .order(gl_dsl::datetime.desc())
-            .get_results(db)
-    }
-
-    pub fn get_output<D>(&self, db: &D) -> Result<(i32, String, String), diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        NewAdminLog {
-            game_id: self.game_id,
-            datetime: std::time::SystemTime::now(),
-            action: format!("Viewed turn logs for turn {}", self.turn_number),
-        }
-        .insert(db)?;
-        use crate::schema::game_logs::dsl as gl_dsl;
-        gl_dsl::game_logs
-            .select((gl_dsl::id, gl_dsl::log_command, gl_dsl::output))
-            .filter(gl_dsl::id.eq(self.id))
-            .get_result(db)
-    }
-    pub fn get_errors<D>(&self, db: &D) -> Result<(i32, String, String), diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::game_logs::dsl as gl_dsl;
-        gl_dsl::game_logs
-            .select((gl_dsl::id, gl_dsl::log_command, gl_dsl::error))
-            .filter(gl_dsl::id.eq(self.id))
-            .get_result(db)
-    }
-}
-
-#[derive(Insertable)]
-#[table_name = "game_logs"]
-pub struct NewGameLog<'a> {
-    pub game_id: i32,
-    pub datetime: std::time::SystemTime,
-    pub turn_number: i32,
-    pub output: &'a str,
-    pub error: &'a str,
-    pub log_command: &'a str,
-}
-
-impl<'a> NewGameLog<'a> {
-    pub fn insert<D>(&self, db: &D) -> Result<GameLog, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::game_logs::dsl as gl_dsl;
-        diesel::insert_into(gl_dsl::game_logs)
-            .values(self)
-            .get_result(db)
-    }
-}
-
-#[derive(Queryable, Debug, Identifiable)]
-#[table_name = "admin_logs"]
+#[derive(Debug)]
 pub struct AdminLog {
     id: i32,
     pub game_id: i32,
-    pub datetime: std::time::SystemTime,
+    pub datetime: NaiveDateTime,
     pub action: String,
 }
 
 impl AdminLog {
-    pub fn get_all<D>(game_id: i32, db: &D) -> Result<Vec<AdminLog>, diesel::result::Error>
+    pub async fn get_all<'q, D>(game_id: i32, db: D) -> Result<Vec<AdminLog>, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::admin_logs::dsl as al_dsl;
-        al_dsl::admin_logs
-            .filter(al_dsl::game_id.eq(game_id))
-            .order(al_dsl::datetime.desc())
-            .get_results(db)
+        sqlx::query_as!(AdminLog, "SELECT * FROM admin_logs WHERE game_id=$1 ORDER BY datetime DESC", game_id).fetch_all(db).await
     }
     pub fn datetime_string(&self) -> String {
-        chrono::DateTime::<chrono::Utc>::from(self.datetime).to_rfc2822()
+        self.datetime.to_string()
     }
 }
 
-#[derive(Insertable)]
-#[table_name = "admin_logs"]
 pub struct NewAdminLog {
     pub game_id: i32,
-    pub datetime: std::time::SystemTime,
+    pub datetime: NaiveDateTime,
     pub action: String,
 }
 impl NewAdminLog {
-    pub fn insert<D>(&self, db: &D) -> Result<usize, diesel::result::Error>
+    pub async fn insert<'q, D>(&self, db: D) -> Result<AdminLog, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::admin_logs::dsl as al_dsl;
-        diesel::insert_into(al_dsl::admin_logs)
-            .values(self)
-            .execute(db)
+        sqlx::query_as!(AdminLog, "INSERT INTO admin_logs (game_id, datetime, action) VALUES ($1, $2, $3) RETURNING *", self.game_id, self.datetime, self.action).fetch_one(db).await
     }
 }
 
-#[derive(QueryableByName, Queryable, Debug, Identifiable)]
-#[table_name = "discord_configs"]
+#[derive(Debug)]
 pub struct DiscordConfig {
     pub id: i32,
     pub game_id: i32,
@@ -1718,137 +1175,18 @@ pub struct DiscordConfig {
 }
 
 impl DiscordConfig {
-    pub fn get_due_reminders<D>(db: &D) -> Result<Vec<DiscordConfig>, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        diesel::sql_query(r#"
-SELECT dc.*
-FROM discord_configs dc
-LEFT JOIN (SELECT game_id,MAX(turn_number) as turn_number FROM turns WHERE archived = false GROUP BY game_id) t
-    ON t.game_id=dc.game_id
-INNER JOIN games g ON g.id=t.game_id AND g.archived = FALSE
-WHERE
-    (dc.last_turn_notified IS NULL OR t.turn_number != dc.last_turn_notified)
-    AND g.next_turn IS NOT NULL
-    AND g.next_turn - interval '1' hour * dc.hours_remaining < NOW()
-    AND dc.hours_remaining IS NOT NULL
-    AND t.turn_number IS NOT NULL
-    "#).load(db)
-    }
-    pub fn get_due_notifications<D>(db: &D) -> Result<Vec<DiscordConfig>, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        diesel::sql_query(r#"
-SELECT dc.*
-FROM discord_configs dc
-LEFT JOIN (SELECT game_id,MAX(turn_number) as turn_number FROM turns WHERE archived = false GROUP BY game_id) t
-    ON t.game_id=dc.game_id
-INNER JOIN games g ON g.id=t.game_id AND g.archived = FALSE
-WHERE
-    (dc.last_turn_notified IS NULL OR t.turn_number != dc.last_turn_notified)
-    AND dc.hours_remaining IS NULL
-    AND t.turn_number IS NOT NULL
-"#).get_results(db)
-    }
-    pub fn get_reminders_wakeup<D>(
-        db: &D,
-    ) -> Result<Option<std::time::SystemTime>, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        Ok(diesel::sql_query(
-            r#"
-SELECT g.next_turn - interval '1' hour * dc.hours_remaining as timestamp
-FROM discord_configs dc
-LEFT JOIN (SELECT game_id,MAX(turn_number) as turn_number FROM turns WHERE archived = false GROUP BY game_id) t
-    ON t.game_id=dc.game_id
-INNER JOIN games g ON g.id=t.game_id AND g.archived = FALSE
-WHERE
-    (dc.last_turn_notified IS NULL OR t.turn_number != dc.last_turn_notified)
-    AND g.next_turn IS NOT NULL
-    AND dc.hours_remaining IS NOT NULL
-    AND t.turn_number IS NOT NULL
-ORDER BY timestamp DESC
-LIMIT 1
-"#).get_result::<Wakeup>(db).optional()?
-        .and_then(|w| Some(w.timestamp)))
-    }
-    pub fn get_notifications<D>(
+    pub async fn get_notifications<'q, D>(
         game_id: i32,
-        db: &D,
-    ) -> Result<Vec<DiscordConfig>, diesel::result::Error>
+        db: D,
+    ) -> Result<Vec<DiscordConfig>, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::discord_configs::dsl as d_dsl;
-        d_dsl::discord_configs
-            .filter(d_dsl::game_id.eq(game_id))
-            .get_results(db)
-    }
-
-    pub fn mark_sent<D>(&self, db: &D) -> Result<DiscordConfig, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        diesel::sql_query(
-            r#"
-UPDATE discord_configs dc
-SET last_turn_notified=(SELECT MAX(turn_number) FROM turns t WHERE t.game_id=dc.game_id AND t.archived=FALSE)
-WHERE id = $1
-RETURNING *"#,
-        )
-        .bind::<diesel::sql_types::Integer, _>(self.id)
-        .get_result(db)
+        sqlx::query_as!(DiscordConfig, "SELECT * FROM discord_configs WHERE game_id=$1", game_id).fetch_all(db).await
     }
 }
 
-#[derive(Insertable)]
-#[table_name = "discord_configs"]
-pub struct NewDiscordReminder<'a> {
-    pub game_id: i32,
-    pub discord_guildid: &'a str,
-    pub discord_channelid: &'a str,
-    pub message: &'a str,
-    pub hours_remaining: i32,
-}
-
-#[derive(Insertable)]
-#[table_name = "discord_configs"]
-pub struct NewDiscordNotification<'a> {
-    pub game_id: i32,
-    pub discord_guildid: &'a str,
-    pub discord_channelid: &'a str,
-    pub message: &'a str,
-}
-
-impl<'a> NewDiscordNotification<'a> {
-    pub fn insert<D>(&self, db: &D) -> Result<DiscordConfig, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::discord_configs::dsl as d_dsl;
-        diesel::insert_into(d_dsl::discord_configs)
-            .values(self)
-            .get_result(db)
-    }
-}
-
-impl<'a> NewDiscordReminder<'a> {
-    pub fn insert<D>(&self, db: &D) -> Result<DiscordConfig, diesel::result::Error>
-    where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
-    {
-        use crate::schema::discord_configs::dsl as d_dsl;
-        diesel::insert_into(d_dsl::discord_configs)
-            .values(self)
-            .get_result(db)
-    }
-}
-
-#[derive(Queryable, Debug, Identifiable)]
-#[table_name = "map_provinces"]
+#[derive( Debug)]
 pub struct MapProvince {
     pub id: i32,
     pub map_id: i32,
@@ -1859,8 +1197,6 @@ pub struct MapProvince {
     pub unit_y: f64,
 }
 
-#[derive(Insertable)]
-#[table_name = "map_provinces"]
 pub struct NewMapProvince {
     pub map_id: i32,
     pub province_id: i32,

@@ -335,6 +335,7 @@ impl Dom5Turn {
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped())
                 .env("DOM5_CONF", &data_dir)
+                .env("DOM6_CONF", &data_dir)
                 .args(arguments)
                 .spawn()
                 .map_err(Dom5TurnErr::ProcessError)?,
@@ -650,6 +651,14 @@ impl Dom5Turn {
                 ))
                 .env(
                     "DOM5_CONF",
+                    std::env::current_dir()
+                        .unwrap()
+                        .join("tmp")
+                        .join("games")
+                        .join(self.game_id.to_string()),
+                )
+                .env(
+                    "DOM6_CONF",
                     std::env::current_dir()
                         .unwrap()
                         .join("tmp")

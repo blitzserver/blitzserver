@@ -5,7 +5,6 @@ use actix_multipart::Multipart;
 use actix_web::http::header;
 use actix_web::{get, post, web, HttpResponse, Result};
 use askama::Template;
-use diesel::RunQueryDsl;
 use futures::{StreamExt, TryStreamExt};
 use libvips::ops;
 use std::convert::TryFrom;
@@ -22,10 +21,10 @@ pub struct MapDetailsTemplate<'a> {
 pub async fn details(
     (app_data, web::Path(path_id)): (web::Data<AppData>, web::Path<i32>),
 ) -> Result<HttpResponse> {
-    let db = app_data.pool.get().unwrap();
-    let map = crate::schema::maps::dsl::maps
-        .filter(crate::schema::maps::dsl::id.eq(path_id))
-        .get_result::<Map>(&db)
+    let sqlx_pool = app_data.sqlx_pool.clone();
+    let map = sqlx::query_as!(Map, "SELECT * FROM maps WHERE id=$1", path_id)
+        .fetch_one(&sqlx_pool)
+        .await
         .unwrap();
     Ok(HttpResponse::Ok()
         .content_type("text/html")
@@ -36,35 +35,17 @@ pub async fn details(
 pub async fn image(
     (app_data, web::Path(path_id)): (web::Data<AppData>, web::Path<i32>),
 ) -> Result<HttpResponse> {
-    let db = app_data.pool.get().unwrap();
-    let (map, file): (Map, File) = crate::schema::maps::dsl::maps
-        .filter(crate::schema::maps::dsl::id.eq(path_id))
-        .inner_join(
-            crate::schema::files::dsl::files
-                .on(crate::schema::files::dsl::id.eq(crate::schema::maps::dsl::tgafile_id)),
-        )
-        .get_result::<(Map, File)>(&db)
-        .unwrap();
+    let db = app_data.sqlx_pool.clone();
+    let (_, image, _) = Map::get_files(path_id, &db).await.unwrap();
+    let mut jpg_bytes: Vec<u8> = Vec::new();
     let reader = crate::image::io::Reader::with_format(
-        std::io::Cursor::new(file.filebinary),
+        std::io::Cursor::new(image.filebinary),
         crate::image::ImageFormat::Tga,
     )
     .decode()
     .unwrap();
-    let maps_dir = std::path::PathBuf::from("./images/maps");
-    if !maps_dir.exists() {
-        std::fs::create_dir_all(&maps_dir).unwrap();
-    }
-    let mut file = std::fs::File::create(maps_dir.join(format!("{}.jpg", map.id))).unwrap();
     reader
-        .write_to(&mut file, crate::image::ImageFormat::Jpeg)
-        .unwrap();
-    let mut jpg_bytes: Vec<u8> = Vec::new();
-    reader
-        .write_to(
-            &mut std::io::Cursor::new(&mut jpg_bytes),
-            crate::image::ImageFormat::Jpeg,
-        )
+        .write_to(&mut jpg_bytes, crate::image::ImageFormat::Jpeg)
         .unwrap();
     Ok(HttpResponse::Ok()
         .content_type("application/jpg")
@@ -95,18 +76,8 @@ async fn download((app_data, mapid): (web::Data<AppData>, web::Path<i32>)) -> Re
     let mut bytes: Vec<u8> = vec![];
     let mut map_archive = zip::ZipWriter::new(std::io::Cursor::new(&mut bytes));
 
-    let db = app_data.pool.get().expect("Unable to connect to database");
-    use crate::schema::files::dsl as files_dsl;
-    use crate::schema::maps::dsl as maps_dsl;
-    let map: Map = maps_dsl::maps
-        .filter(maps_dsl::id.eq(mapid.0))
-        .get_result(&db)
-        .unwrap();
-
-    let mapfile: File = files_dsl::files
-        .filter(files_dsl::id.eq(map.mapfile_id))
-        .get_result(&db)
-        .unwrap();
+    let db = app_data.sqlx_pool.clone();
+    let (mapfile, tgafile, winterfile) = Map::get_files(*mapid, &db).await.unwrap();
     map_archive
         .start_file(
             mapfile.filename,
@@ -116,10 +87,6 @@ async fn download((app_data, mapid): (web::Data<AppData>, web::Path<i32>)) -> Re
         )
         .unwrap();
     map_archive.write_all(&mapfile.filebinary).unwrap();
-    let tgafile: File = files_dsl::files
-        .filter(files_dsl::id.eq(map.tgafile_id))
-        .get_result(&db)
-        .unwrap();
     map_archive
         .start_file(
             tgafile.filename,
@@ -129,11 +96,7 @@ async fn download((app_data, mapid): (web::Data<AppData>, web::Path<i32>)) -> Re
         )
         .unwrap();
     map_archive.write_all(&tgafile.filebinary).unwrap();
-    if let Some(winterfile_id) = map.winterfile_id {
-        let winterfile: File = files_dsl::files
-            .filter(files_dsl::id.eq(winterfile_id))
-            .get_result(&db)
-            .unwrap();
+    if let Some(winterfile) = winterfile {
         map_archive
             .start_file(
                 &winterfile.filename,
@@ -157,32 +120,8 @@ async fn download((app_data, mapid): (web::Data<AppData>, web::Path<i32>)) -> Re
 
 #[get("/maps")]
 async fn list(app_data: web::Data<AppData>) -> Result<HttpResponse> {
-    let db = app_data.pool.get().expect("Unable to connect to database");
-    use crate::schema::files::dsl as files_dsl;
-    use crate::schema::maps::dsl as maps_dsl;
-    let result_maps = Map::get_available_maps(0, true, &db)
-        .unwrap()
-        .iter()
-        .map(|m| {
-            if m.province_count == 0 && m.uw_count == 0 {
-                let map_file: File = files_dsl::files
-                    .filter(files_dsl::id.eq(m.mapfile_id))
-                    .get_result(&db)
-                    .unwrap();
-                let map_definition =
-                    crate::files::MapFile::try_from(&map_file.filebinary[..]).unwrap();
-                diesel::update(maps_dsl::maps.filter(maps_dsl::id.eq(m.id)))
-                    .set((
-                        maps_dsl::province_count.eq(map_definition.prov_count),
-                        maps_dsl::uw_count.eq(map_definition.uwprov_count),
-                    ))
-                    .get_result::<Map>(&db)
-                    .unwrap()
-            } else {
-                m.clone()
-            }
-        })
-        .collect::<Vec<Map>>();
+    let sqlx_db = app_data.sqlx_pool.clone();
+    let result_maps = Map::get_available_maps(0, true, &sqlx_db).await.unwrap();
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (ListMapsTemplate {
             errors: &vec![],
@@ -204,7 +143,7 @@ async fn upload_post(
         province_count: 0,
         uw_count: 0,
     };
-    let db = app_data.pool.get().expect("Unable to connect to database");
+    let sqlx_db = app_data.sqlx_pool.clone();
     let mut tga_name: Option<String> = None;
     let mut winter_name: Option<String> = None;
     let mut map_file_data: Option<crate::files::MapFile> = None;
@@ -249,7 +188,7 @@ async fn upload_post(
                         }
                     }
                     // == DONE
-                    let file: File = new_file.insert(&db);
+                    let file: File = new_file.insert(&sqlx_db).await.unwrap();
                     new_map.mapfile_id = file.id;
                 }
                 Some("tga") => {
@@ -287,7 +226,7 @@ async fn upload_post(
                     });
                     provinces = Some(crate::files::MapFile::load_provinces(&img).unwrap());
                     let new_file = NewFile::new(content_type.get_filename().unwrap(), &contents);
-                    let file: File = new_file.insert(&db);
+                    let file: File = new_file.insert(&sqlx_db).await.unwrap();
                     new_map.tgafile_id = file.id;
                 }
                 Some("tga_winter") => {
@@ -316,7 +255,7 @@ async fn upload_post(
                             },
                         }
                         let new_file = NewFile::new(filename, &contents);
-                        let file: File = new_file.insert(&db);
+                        let file: File = new_file.insert(&sqlx_db).await.unwrap();
                         new_map.winterfile_id = Some(file.id);
                     }
                 }
@@ -348,9 +287,7 @@ async fn upload_post(
     }
 
     if errors.len() > 0 {
-        let db = app_data.pool.get().expect("Unable to connect to database");
-        use crate::schema::maps::dsl::*;
-        let result_maps = maps.load::<Map>(&db).expect("Error loading games");
+        let result_maps = Map::get_available_maps(0, true, &sqlx_db).await.unwrap();
         return Ok(HttpResponse::Ok().content_type("text/html").body(
             (ListMapsTemplate {
                 errors: &errors,
@@ -360,24 +297,9 @@ async fn upload_post(
             .unwrap(),
         ));
     } else {
-        use crate::schema::maps::dsl as maps_dsl;
-        let map = diesel::insert_into(maps_dsl::maps)
-            .values(&new_map)
-            .on_conflict((
-                maps_dsl::mapfile_id,
-                maps_dsl::tgafile_id,
-                maps_dsl::winterfile_id,
-            ))
-            .do_update()
-            .set((
-                maps_dsl::mapfile_id.eq(new_map.mapfile_id),
-                maps_dsl::tgafile_id.eq(new_map.tgafile_id),
-                maps_dsl::winterfile_id.eq(new_map.winterfile_id),
-            ))
-            .get_result::<Map>(&db)
-            .expect("Error saving file");
+        let map = new_map.insert(&sqlx_db).await.unwrap();
         if let Some(provinces) = provinces {
-            map.insert_provinces(provinces, &db).unwrap();
+            map.insert_provinces(provinces, &sqlx_db).await.unwrap();
         }
         let address = std::env::var("ADDRESS").expect("ADDRESS env var not specified");
         return Ok(HttpResponse::Found()

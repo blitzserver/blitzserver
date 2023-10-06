@@ -10,6 +10,7 @@ pub mod maps;
 pub mod games;
 pub mod utils;
 pub mod help;
+pub mod binaries;
 
 #[derive(Clone)]
 pub struct AppData {

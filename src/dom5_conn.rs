@@ -1,10 +1,10 @@
 use crate::models::{Player, Mod};
 use std::io::Read;
-use crate::files::saves::SaveFile;
 use crate::packets::{ MapImageFileResp, ModFileResp, TwoHResp, DmFileResp, MapWinterFileResp,  Submit2hResp, AstralPacketResp, MapFileResp, TrnResp, MapResp, TwoHCrcResp, BodyContents, PasswordsResp, PAResp, DisconnectResp, GameInfoResp, LoadingMessageResp, Packet };
 use std::io::BufReader;
 use std::net::TcpStream;
 use thiserror::Error;
+use serde_dom5::{Body, SaveFile};
 
 #[derive(Error, Debug)]
 pub enum UploadPretenderErr {
@@ -59,8 +59,7 @@ impl Dom5Conn {
         req: crate::packets::UploadPretenderReq,
         ) -> Result<(), UploadPretenderErr> {
         smol::block_on(async {
-            let twoh =
-                SaveFile::read_contents(std::io::Cursor::new(&req.pretender_contents[..])).unwrap();
+            let twoh: SaveFile = bincode::deserialize(&req.pretender_contents[..]).unwrap();
             // Make sure pretender is new enough
             let required_version = std::env::var("MIN_VERSION").ok()
                 .or_else(|| {
@@ -105,8 +104,8 @@ impl Dom5Conn {
             "#,
             self.game_id,
             twoh.header.nationid,
-            if let crate::files::saves::SaveBody::TwoHContents(o) = twoh.body {
-                o.pretender_name
+            if let Body::NewlordContents(nl) = twoh.body {
+                nl.get_name().to_owned()
             } else {
                 "".to_string()
             },

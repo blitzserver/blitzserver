@@ -8,6 +8,13 @@ table! {
 }
 
 table! {
+    binaries (binary_id) {
+        binary_id -> Int4,
+        name -> Text,
+    }
+}
+
+table! {
     connections (id) {
         id -> Int4,
         connected -> Timestamp,
@@ -127,6 +134,7 @@ table! {
         max_stales -> Nullable<Int4>,
         motd -> Nullable<Varchar>,
         conq_all -> Bool,
+        binary_id -> Nullable<Int4>,
     }
 }
 
@@ -243,9 +251,11 @@ table! {
     }
 }
 
+joinable!(binaries -> files (binary_id));
 joinable!(connections -> games (game_id));
 joinable!(email_configs -> games (game_id));
 joinable!(game_mods -> mods (mod_id));
+joinable!(games -> binaries (binary_id));
 joinable!(games -> maps (map_id));
 joinable!(players -> files (file_id));
 joinable!(subjobs -> jobs (job_id));
@@ -253,6 +263,7 @@ joinable!(turns -> files (file_id));
 
 allow_tables_to_appear_in_same_query!(
     admin_logs,
+    binaries,
     connections,
     disciples,
     discord_configs,

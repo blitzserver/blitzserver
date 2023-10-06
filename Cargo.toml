@@ -50,3 +50,5 @@ derive_more = "*"
 libvips = { git = "https://github.com/blitzserver/libvips-rust-bindings.git", commit = "e7b591d" }
 encoding = "*"
 itertools = "*"
+serde_dom5 = { git = "https://github.com/blitzserver/serde_dom5", version = "0.1.0" }
+bincode = "1.3.3"

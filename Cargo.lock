@@ -87,7 +87,7 @@ dependencies = [
  "http",
  "httparse",
  "indexmap",
- "itoa",
+ "itoa 0.4.7",
  "language-tags",
  "lazy_static",
  "log",
@@ -703,6 +703,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
+name = "bincode"
+version = "1.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "bitflags"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -731,6 +740,7 @@ dependencies = [
  "askama",
  "async-std",
  "base64",
+ "bincode",
  "byteorder",
  "chrono",
  "crc",
@@ -759,6 +769,7 @@ dependencies = [
  "regex",
  "reqwest",
  "serde",
+ "serde_dom5",
  "serde_json",
  "serde_qs",
  "smol",
@@ -1747,7 +1758,7 @@ checksum = "527e8c9ac747e28542699a951517aa9a6945af506cd1f2e1b53a576c17b6cc11"
 dependencies = [
  "bytes 1.0.1",
  "fnv",
- "itoa",
+ "itoa 0.4.7",
 ]
 
 [[package]]
@@ -1800,7 +1811,7 @@ dependencies = [
  "http-body",
  "httparse",
  "httpdate",
- "itoa",
+ "itoa 0.4.7",
  "pin-project 1.0.7",
  "socket2 0.4.0",
  "tokio 1.12.0",
@@ -1957,6 +1968,12 @@ name = "itoa"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd25036021b0de88a0aff6b850051563c6516d0bf53f8638938edbb9de732736"
+
+[[package]]
+name = "itoa"
+version = "1.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af150ab688ff2122fcef229be89cb50dd66af9e01a4ff320cc137eecc9bacc38"
 
 [[package]]
 name = "jpeg-decoder"
@@ -3075,6 +3092,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde-big-array"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11fc7cc2c76d73e0f27ee52abbd64eec84d46f370c88371120433196934e4b7f"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "serde_derive"
 version = "1.0.125"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3086,13 +3112,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_dom5"
+version = "0.1.0"
+source = "git+https://github.com/blitzserver/serde_dom5#56743ce1a4527974879822be276d121f492e37f0"
+dependencies = [
+ "bincode",
+ "derive_more",
+ "log",
+ "num-traits",
+ "serde",
+ "serde-big-array",
+ "serde_derive",
+ "serde_path_to_error",
+]
+
+[[package]]
 name = "serde_json"
 version = "1.0.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "799e97dc9fdae36a5c8b8f2cae9ce2ee9fdce2058c57a93e6099d919fd982f79"
 dependencies = [
- "itoa",
+ "itoa 0.4.7",
  "ryu",
+ "serde",
+]
+
+[[package]]
+name = "serde_path_to_error"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b1b6471d7496b051e03f1958802a73f88b947866f5146f329e47e36554f4e55"
+dependencies = [
+ "itoa 1.0.9",
  "serde",
 ]
 
@@ -3116,7 +3167,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edfa57a7f8d9c1d260a549e7224100f6c43d43f9103e06dd8b4095a9b2b43ce9"
 dependencies = [
  "form_urlencoded",
- "itoa",
+ "itoa 0.4.7",
  "ryu",
  "serde",
 ]
@@ -3276,7 +3327,7 @@ dependencies = [
  "hashlink",
  "hex",
  "hmac",
- "itoa",
+ "itoa 0.4.7",
  "libc",
  "log",
  "md-5",

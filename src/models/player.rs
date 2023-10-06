@@ -1,8 +1,7 @@
-use super::{File, Game, Nation, NewAdminLog};
-use crate::diesel::RunQueryDsl;
-use crate::diesel::{ExpressionMethods, QueryDsl};
+use super::{File, Game};
 use crate::files::saves::{DomSaveReadError, SaveFile};
 use crate::schema::players;
+use sqlx::Postgres;
 use thiserror::Error;
 #[derive(Identifiable, Queryable, Associations, PartialEq, Debug)]
 #[belongs_to(Game)]
@@ -27,44 +26,31 @@ pub enum PlayerErr {
 }
 
 impl Player {
-    pub fn set_start<D>(&self, province: i32, db: &D) -> Result<Player, diesel::result::Error>
+    pub async fn set_start<'q,D>(&self, province: i32, db: D) -> Result<Player, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::players::dsl as pdsl;
-        diesel::update(pdsl::players.filter(pdsl::id.eq(self.id)))
-            .set(pdsl::startprov.eq(province))
-            .get_result(db)
+        sqlx::query_as!(Player, "UPDATE players SET startprov=$2 WHERE id=$1 RETURNING *", self.id, province).fetch_one(db).await
     }
-    pub fn get_players<D>(game_id: i32, db: &D) -> Result<Vec<Player>, diesel::result::Error>
+    pub async fn get_players<'q, D>(game_id: i32, db: D) -> Result<Vec<Player>, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::players::dsl as players_dsl;
-        players_dsl::players
-            .filter(players_dsl::game_id.eq(game_id))
-            .get_results(db)
+        sqlx::query_as!(Player, "SELECT * FROM players WHERE game_id=$1", game_id).fetch_all(db).await
     }
 
-    pub fn get_newlord<D>(&self, db: &D) -> Result<File, diesel::result::Error>
+    pub async fn get_newlord<'q, D>(&self, db: D) -> Result<File, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::files::dsl as files_dsl;
-        files_dsl::files
-            .filter(files_dsl::id.eq(self.file_id))
-            .get_result(db)
+        sqlx::query_as!(File, "SELECT * FROM files WHERE id=$1", self.file_id).fetch_one(db).await
     }
 
-    pub fn remove<D>(&self, db: &D) -> Result<(), diesel::result::Error>
+    pub async fn remove<'q, D>(&self, db: D) -> Result<Player, sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::players::dsl as p_dsl;
-        diesel::delete(p_dsl::players)
-            .filter(p_dsl::id.eq(self.id))
-            .execute(db)?;
-        Ok(())
+        sqlx::query_as!(Player, "DELETE FROM players WHERE id=$1 RETURNING *", self.id).fetch_one(db).await
     }
 
     pub fn get_cdkey(
@@ -120,20 +106,10 @@ pub struct NewPlayer {
 }
 
 impl NewPlayer {
-    pub fn insert<D>(&self, db: &D) -> Result<Player, crate::diesel::result::Error>
+    pub async fn insert<'q, D>(&self, db: D) -> Result<Player, crate::sqlx::error::Error>
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres>
     {
-        use crate::schema::players::dsl as pdsl;
-        diesel::insert_into(pdsl::players)
-            .values(self)
-            .on_conflict((pdsl::game_id, pdsl::nationid))
-            .do_update()
-            .set((
-                pdsl::file_id.eq(self.file_id),
-                pdsl::name.eq(&self.name),
-                pdsl::password.eq(&self.password),
-            ))
-            .get_result(db)
+        sqlx::query_as!(Player, "INSERT INTO players (nationid, game_id, file_id, name, password) VALUES ($1, $2, $3, $4, $5) RETURNING *", self.nationid, self.game_id, self.file_id, self.name, self.password).fetch_one(db).await
     }
 }

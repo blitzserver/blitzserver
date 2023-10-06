@@ -1,33 +1,33 @@
-use crate::diesel::prelude::*;
 use crate::models::{EmailConfig, Game, NewEmailConfig, Turn};
-use crate::msgbus::{EmailConfigCreatedMsg, EmailConfigDeletedMsg, Msg, MsgBusRx, MsgBusTx};
+use crate::msgbus::{EmailConfigCreatedMsg, EmailConfigDeletedMsg, Msg, MsgBusTx};
 use diesel::r2d2::ConnectionManager;
 use diesel::PgConnection;
 use lettre::{transport::smtp::authentication::Credentials, Transport};
+use sqlx::{Pool, Postgres};
 use std::env;
 
 #[derive(Clone)]
 pub struct EmailManager {
-    pub db_pool: r2d2::Pool<ConnectionManager<PgConnection>>,
     pub smtp_user: String,
     pub smtp_pass: String,
     pub smtp_server: String,
     pub hostname: String,
     pub msgbus_tx: MsgBusTx,
+    pub sqlx_pool: Pool<Postgres>,
 }
 
 impl EmailManager {
-    pub fn delete_config(&self, email_id: i32, email_address: String) {
-        let db = self.db_pool.get().unwrap();
-        if EmailConfig::delete(email_id, email_address, &db).unwrap() == 1 {
-            self.msgbus_tx
-                .send(Msg::EmailConfigDeleted(EmailConfigDeletedMsg {
-                    id: email_id,
-                }))
-                .unwrap();
-        }
+    pub async fn delete_config(&self, email_id: i32, email_address: String) {
+        EmailConfig::delete(email_id, &email_address, &self.sqlx_pool)
+            .await
+            .unwrap();
+        self.msgbus_tx
+            .send(Msg::EmailConfigDeleted(EmailConfigDeletedMsg {
+                id: email_id,
+            }))
+            .unwrap();
     }
-    pub fn create_config(
+    pub async fn create_config(
         &self,
         game_id: i32,
         address: String,
@@ -37,7 +37,6 @@ impl EmailManager {
         hours_remaining: i32,
         is_reminder: bool,
     ) {
-        let db = self.db_pool.get().unwrap();
         let email_config = NewEmailConfig {
             nation_id: nation,
             game_id,
@@ -47,7 +46,8 @@ impl EmailManager {
             subject,
             is_reminder,
         }
-        .insert(&db)
+        .insert(&self.sqlx_pool)
+        .await
         .unwrap();
         self.msgbus_tx
             .send(Msg::EmailConfigCreated(EmailConfigCreatedMsg {
@@ -56,28 +56,13 @@ impl EmailManager {
             .unwrap();
     }
 
-    fn send_notice_email<D>(email_config: &EmailConfig, db: &D)
+    async fn send_notice_email<'q, D>(email_config: &EmailConfig, db: D)
     where
-        D: diesel::Connection<Backend = diesel::pg::Pg>,
+        D: sqlx::Executor<'q, Database = Postgres> + std::marker::Copy,
     {
-        use crate::schema::games::dsl as games_dsl;
-        use crate::schema::turns::dsl as turns_dsl;
-
         let hostname = env::var("HOSTNAME").expect("HOSTNAME must be set to accessible address");
-        let game: Game = games_dsl::games
-            .filter(games_dsl::id.eq(email_config.game_id))
-            .get_result(db)
-            .unwrap();
-        let turn: Turn = turns_dsl::turns
-            .filter(
-                turns_dsl::game_id
-                    .eq(email_config.game_id)
-                    .and(turns_dsl::archived.eq(false)),
-            )
-            .order(turns_dsl::turn_number.desc())
-            .limit(1)
-            .get_result(db)
-            .unwrap();
+        let game = Game::get(email_config.game_id, db).await.unwrap();
+        let turn = sqlx::query_as!(Turn, "SELECT * FROM turns WHERE game_id=$1 AND archived=FALSE ORDER BY turn_number DESC LIMIT 1", email_config.game_id).fetch_one(db).await.unwrap();
         let subject = email_config
             .subject
             .replace("%TURNNUMBER%", &turn.turn_number.to_string())
@@ -85,10 +70,7 @@ impl EmailManager {
                 "%GAMEIP%",
                 &format!("{}:{}", hostname, game.port.unwrap_or(0)),
             )
-            .replace(
-                "%GAMEURL%",
-                &format!("{}/game/{}", hostname, game.id),
-            )
+            .replace("%GAMEURL%", &format!("{}/game/{}", hostname, game.id))
             .replace("%GAMENAME%", &game.name)
             .replace("%HOURSREMAINING%", &game.next_turn_string());
         let body = email_config
@@ -98,10 +80,7 @@ impl EmailManager {
                 "%GAMEIP%",
                 &format!("{}:{}", hostname, game.port.unwrap_or(0)),
             )
-            .replace(
-                "%GAMEURL%",
-                &format!("{}/game/{}", hostname, game.id),
-            )
+            .replace("%GAMEURL%", &format!("{}/game/{}", hostname, game.id))
             .replace("%GAMENAME%", &game.name)
             .replace("%HOURSREMAINING%", &game.next_turn_string());
         let email = lettre::Message::builder()
@@ -121,18 +100,18 @@ impl EmailManager {
         .build()
         .send(&email)
         .unwrap();
-        email_config.mark_sent(turn.turn_number, db).unwrap();
+        email_config.mark_sent(turn.turn_number, db).await.unwrap();
     }
 
-    pub fn monitor(self, msgbus_rx: MsgBusRx) {
-        std::thread::spawn(move || loop {
+    pub async fn monitor(self) {
+        let pool = self.sqlx_pool.clone();
+        actix_web::rt::spawn(async move {
             {
-                let db = self.db_pool.get().unwrap();
-                for notification in EmailConfig::get_due_reminders(&db).unwrap() {
-                    Self::send_notice_email(&notification, &db);
+                for notification in EmailConfig::get_due_reminders(&pool).await.unwrap() {
+                    Self::send_notice_email(&notification, &pool).await;
                 }
-                for notification in EmailConfig::get_due_notifications(&db).unwrap() {
-                    Self::send_notice_email(&notification, &db);
+                for notification in EmailConfig::get_due_notifications(&pool).await.unwrap() {
+                    Self::send_notice_email(&notification, &pool).await;
                 }
             }
             std::thread::sleep(std::time::Duration::from_secs(5));

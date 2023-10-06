@@ -37,7 +37,6 @@ use actix_web::{get, middleware, App, HttpResponse, HttpServer, Result};
 use diesel::r2d2::ConnectionManager;
 use diesel::PgConnection;
 use dotenv::dotenv;
-use serde::Deserialize;
 use std::env;
 
 pub mod discord;
@@ -135,7 +134,7 @@ async fn main() -> std::io::Result<()> {
         discord_manager,
         email_manager: crate::email_manager::EmailManager {
             msgbus_tx: bus.sender.clone(),
-            db_pool: pool.clone(),
+            sqlx_pool: sqlx_pool.clone(),
             smtp_user: env::var("SMTP_USER").expect("SMTP_USER must be said to the SMTP user"),
             smtp_pass: env::var("SMTP_PASS").expect("SMTP_PASS must be said to the SMTP password"),
             smtp_server: env::var("SMTP_SERVER")
@@ -145,13 +144,13 @@ async fn main() -> std::io::Result<()> {
     };
     crate::email_manager::EmailManager {
         msgbus_tx: bus.sender.clone(),
-        db_pool: pool.clone(),
+        sqlx_pool: sqlx_pool.clone(),
         smtp_user: env::var("SMTP_USER").expect("SMTP_USER must be said to the SMTP user"),
         smtp_pass: env::var("SMTP_PASS").expect("SMTP_PASS must be said to the SMTP password"),
         smtp_server: env::var("SMTP_SERVER").expect("SMTP_SERVER must be said to the SMTP server"),
         hostname: env::var("HOSTNAME").expect("HOSTNAME must be set to accessible address"),
     }
-    .monitor(bus.new_recv());
+    .monitor().await;
 
     HttpServer::new(move || {
         // TODO: Hack here, we create the map thumbnail dir VERY ahead of time since the file
@@ -215,6 +214,7 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::mods::download)
             .service(frontend::mods::image)
             .service(frontend::help::help)
+            .service(frontend::binaries::list)
             .service(actix_files::Files::new("/", "./content"))
     })
     .bind("0.0.0.0:8080")?

@@ -1,6 +1,6 @@
 use super::utils::*;
 use super::AppData;
-use crate::diesel::prelude::*;
+use chrono::Utc;
 use itertools::Itertools;
 use std::env;
 use std::io::Write;
@@ -9,7 +9,7 @@ use crate::discord::DiscordManager;
 use crate::dom5_turn::Dom5Turn;
 use crate::models::{
     AdminLog, Disciple, DiscordConfig, EmailConfig, Game, Map, MapProvince, Mod, Nation,
-    NewAdminLog, NewGame, NewGameMod, Player, PlayerTurn, Turn,
+    NewAdminLog, NewGame, PlayerTurn, Turn, Player
 };
 use actix_web::http::header;
 use actix_web::{get, post, web, HttpResponse, Result};
@@ -693,18 +693,11 @@ async fn postpone(
         web::Form<SetTimer>,
     ),
 ) -> Result<HttpResponse> {
-    let db = app_data.pool.get().expect("Unable to connect to database");
-    let game: Game = {
-        use crate::schema::games::dsl::*;
-        games
-            .filter(id.eq(path_id))
-            .get_result::<Game>(&db)
-            .unwrap()
-    };
+    let db = app_data.sqlx_pool.clone();
     sqlx::query!(
         r#"UPDATE games set next_turn=COALESCE(next_turn,NOW()) + interval '1 minute' * $2
         WHERE id=$1"#,
-        game.id,
+        path_id,
         timer_form.timer as f64
     )
     .execute(&app_data.sqlx_pool)
@@ -712,28 +705,33 @@ async fn postpone(
     .unwrap();
     NewAdminLog {
         game_id: path_id,
-        datetime: std::time::SystemTime::now(),
+        datetime: Utc::now().naive_utc(),
         action: format!("Postponed timer to {} minutes", timer_form.timer),
     }
     .insert(&db)
+    .await
     .unwrap();
     Ok(HttpResponse::Found()
-        .header(header::LOCATION, format!("/game/{}#schedule", game.id))
+        .header(header::LOCATION, format!("/game/{}#schedule", path_id))
         .finish())
 }
 #[post("/game/{id}/forcehost")]
 async fn forcehost(
     (app_data, web::Path(path_id)): (web::Data<AppData>, web::Path<i32>),
 ) -> Result<HttpResponse> {
-    let db = app_data.pool.get().expect("Unable to connect to database");
-    let game = Game::get(path_id, &db).unwrap();
-    game.schedule_turn(chrono::Utc::now(), &db).unwrap();
+    let db = app_data.sqlx_pool.clone();
+    let sqlx_db = app_data.sqlx_pool.clone();
+    let game = Game::get(path_id, &sqlx_db).await.unwrap();
+    game.schedule_turn(chrono::Utc::now(), &sqlx_db)
+        .await
+        .unwrap();
     NewAdminLog {
         game_id: path_id,
-        datetime: std::time::SystemTime::now(),
+        datetime: Utc::now().naive_utc(),
         action: "Forcehosted".to_string(),
     }
     .insert(&db)
+    .await
     .unwrap();
     Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#schedule", game.id))
@@ -747,45 +745,21 @@ async fn timer(
         web::Form<SetTimer>,
     ),
 ) -> Result<HttpResponse> {
-    let db = app_data.pool.get().expect("Unable to connect to database");
-    use crate::schema::games::dsl as games_dsl;
-    use crate::schema::turns::dsl as turns_dsl;
-    let sched = chrono::Utc::now().add(chrono::Duration::seconds(60 * timer_form.timer as i64));
-    let game: Game = games_dsl::games
-        .filter(games_dsl::id.eq(path_id))
-        .get_result::<Game>(&db)
-        .unwrap();
-    let turns: Vec<Turn> = turns_dsl::turns
-        .filter(
-            turns_dsl::game_id
-                .eq(game.id)
-                .and(turns_dsl::archived.eq(false)),
-        )
-        .get_results(&db)
-        .unwrap();
-    if turns.len() > 0 {
-        diesel::update(games_dsl::games.filter(games_dsl::id.eq(game.id)))
-            .set((
-                games_dsl::timer.eq(Some(timer_form.timer)),
-                games_dsl::next_turn.eq(sched),
-            ))
-            .execute(&db)
-            .unwrap();
-    } else {
-        diesel::update(games_dsl::games.filter(games_dsl::id.eq(game.id)))
-            .set(games_dsl::timer.eq(Some(timer_form.timer)))
-            .execute(&db)
-            .unwrap();
-    }
+    let db = app_data.sqlx_pool.clone();
+    sqlx::query!("
+    UPDATE games SET timer=$2 WHERE id=$1 RETURNING *", path_id, timer_form.timer).fetch_one(&db).await.unwrap();
+    sqlx::query!("
+    UPDATE games g SET next_turn=NOW() + interval '1 minute' * g.timer FROM turns t WHERE g.id=$1 AND t.game_id=g.id  AND t.archived=FALSE RETURNING g.*", path_id).fetch_one(&db).await.unwrap();
     NewAdminLog {
         game_id: path_id,
-        datetime: std::time::SystemTime::now(),
+        datetime: Utc::now().naive_utc(),
         action: format!("Set timer to {} minutes", timer_form.timer),
     }
     .insert(&db)
+    .await
     .unwrap();
     Ok(HttpResponse::Found()
-        .header(header::LOCATION, format!("/game/{}#schedule", game.id))
+        .header(header::LOCATION, format!("/game/{}#schedule", path_id))
         .finish())
 }
 #[get("/game/{id}/status")]
@@ -798,28 +772,15 @@ async fn old_details(web::Path(path_id): web::Path<String>) -> Result<HttpRespon
 async fn details(
     (app_data, web::Path(path_id), session, payload): (
         web::Data<AppData>,
-        web::Path<String>,
+        web::Path<i32>,
         actix_session::Session,
         serde_qs::actix::QsQuery<GameDetailsPayload>,
     ),
 ) -> Result<HttpResponse> {
     let game_settings = &payload.game_settings;
     let email_form = &payload.email_form;
-    let db = app_data.pool.get().expect("Unable to connect to database");
     let sqlx_db = app_data.sqlx_pool.clone();
-    let game = if let Ok(id_i32) = path_id.parse::<i32>() {
-        use crate::schema::games::dsl::*;
-        games
-            .filter(id.eq(id_i32))
-            .get_result::<Game>(&*db)
-            .unwrap()
-    } else {
-        use crate::schema::games::dsl::*;
-        let game: Game = games.filter(name.ilike(path_id)).get_result(&*db).unwrap();
-        return Ok(HttpResponse::PermanentRedirect()
-            .header(header::LOCATION, format!("/game/{}#status", game.id))
-            .finish());
-    };
+    let game = Game::get(path_id, &sqlx_db).await.unwrap();
     if let Some(p) = &payload.password {
         if *p == game.password {
             session
@@ -861,7 +822,7 @@ async fn details(
     .fetch_all(&sqlx_db)
     .await
     .unwrap();
-    let nations = Nation::get_all(game.id, &db).unwrap();
+    let nations = Nation::get_all(game.id, &sqlx_db).await.unwrap();
     let disciples = sqlx::query_as!(Disciple,
                                     "
                                     WITH top as (SELECT game_id, MAX(turn_number) as top FROM turns where archived is not true group by game_id)
@@ -873,12 +834,12 @@ async fn details(
                                     ON top.game_id=d.game_id
                                     WHERE d.game_id=$1 AND (p.id IS NOT NULL OR top.top is null)
                                     ", game.id).fetch_all(&sqlx_db).await.unwrap();
-    let player_turn_map = crate::models::PlayerTurn::get_player_turns(game.id, &db);
-    let turns = Turn::get_all(game.id, &db).unwrap();
+    let player_turn_map = crate::models::PlayerTurn::get_player_turns(game.id, &sqlx_db).await.unwrap();
+    let turns = Turn::get_all(game.id, &sqlx_db).await.unwrap();
     let settings: GameSettings = if let Some(_) = game_settings.loaded {
         game_settings.clone()
     } else {
-        (&game, &game.get_mods(&db).unwrap()[..]).into()
+        (&game, &game.get_mods(&sqlx_db).await.unwrap()[..]).into()
     };
     let (maps, mods): (Vec<Map>, Vec<Mod>) = if authed == AuthStatus::AuthSuccess {
         (
@@ -944,15 +905,7 @@ async fn details(
             .unwrap(),
         )
     };
-    use crate::schema::email_configs::dsl as email_dsl;
-    let email_configs: Vec<EmailConfig> = email_dsl::email_configs
-        .filter(
-            email_dsl::email_address
-                .eq(&email_form.email_address)
-                .and(email_dsl::game_id.eq(game.id)),
-        )
-        .get_results(&db)
-        .unwrap();
+    let email_configs = sqlx::query_as!(EmailConfig, "SELECT * FROM email_configs WHERE game_id=$1 AND email_address=$2", path_id, email_form.email_address).fetch_all(&sqlx_db).await.unwrap();
     let logs = sqlx::query_as!(GameJobDisplay, r#"
     WITH _insert as (INSERT INTO admin_logs (game_id, datetime, action) 
     SELECT $1 as "game_id", NOW() as "datetime", concat('Viewed turn logs for turn ', j.turn_number) as "action"
@@ -962,9 +915,9 @@ async fn details(
     LEFT JOIN subjobs sj  ON sj.job_id=j.job_id AND j.job_id=$2 AND $2 IS NOT NULL AND sj.label='dom5 processing turn'
     WHERE j.game_id=$1 ORDER BY j.started_at DESC"#, game.id, payload.log_output).fetch_all(&sqlx_db).await.unwrap();
     let map = maps.iter().find(|m| m.id == game.map_id).unwrap();
-    let mut provinces = map.get_provinces(&db).unwrap_or(vec![]);
+    let mut provinces = map.get_provinces(&sqlx_db).await.unwrap_or(vec![]);
     if provinces.len() == 0 {
-        let (_, tga, _) = map.get_files(&db).unwrap();
+        let (_, tga, _) = Map::get_files(map.id, &sqlx_db).await.unwrap();
         let img = crate::image::io::Reader::with_format(
             std::io::Cursor::new(&tga.filebinary),
             crate::image::ImageFormat::Tga,
@@ -979,7 +932,7 @@ async fn details(
             .unwrap()
         });
         let new_provinces = crate::files::MapFile::load_provinces(&img).unwrap();
-        provinces = map.insert_provinces(new_provinces, &db).unwrap();
+        provinces = map.insert_provinces(new_provinces, &sqlx_db).await.unwrap();
     }
     let staling_players: Vec<i32> = sqlx::query!(
         r#"
@@ -1009,7 +962,7 @@ async fn details(
     .into_iter()
     .map(|r| r.nation_id)
     .collect();
-    let admin_logs = AdminLog::get_all(game.id, &db).unwrap();
+    let admin_logs = AdminLog::get_all(game.id, &sqlx_db).await.unwrap();
     let current_jobs: Vec<ActiveJob> = sqlx::query_as!(
         ActiveJob,
         r#"
@@ -1053,7 +1006,7 @@ async fn details(
                 .discord_manager
                 .as_ref()
                 .and_then(|d| Some(d.client_id.clone())),
-            discord_notifications: DiscordConfig::get_notifications(game.id, &db).unwrap(),
+            discord_notifications: DiscordConfig::get_notifications(game.id, &sqlx_db).await.unwrap(),
             discord_manager: app_data.discord_manager.as_ref(),
             unhealthy: sqlx::query!(r#"WITH top as (select MAX(job_id) as last FROM jobs where finished_at is not null and game_id=$1)
             SELECT reaped as "reaped" FROM jobs INNER JOIN top ON top.last=jobs.job_id"#,game.id).fetch_all(&sqlx_db).await.unwrap().into_iter().next().map_or(false, |t| t.reaped.unwrap()),
@@ -1073,25 +1026,17 @@ async fn launch(
     }
     let config = serde_qs::Config::new(10, false);
     let form: StartGame = config.deserialize_bytes(&*bytes).unwrap();
-    let db = app_data.pool.get().expect("Unable to connect to database");
-    use crate::schema::games::dsl::*;
+    let sqlx_db = app_data.sqlx_pool.clone();
     let sched = chrono::Utc::now().add(chrono::Duration::hours(form.countdown.unwrap_or(0) as i64));
-    let game = games
-        .filter(id.eq(path_id))
-        .get_result::<Game>(&*db)
-        .unwrap();
-
-    diesel::update(games)
-        .filter(id.eq(path_id))
-        .set(next_turn.eq(sched))
-        .execute(&db)
-        .unwrap();
+    let game = Game::get(path_id, &sqlx_db).await.unwrap();
+    sqlx::query!("UPDATE games SET next_turn=$2 WHERE id=$1 RETURNING *", path_id, sched).fetch_one(&sqlx_db).await.unwrap();
     NewAdminLog {
         game_id: path_id,
-        datetime: std::time::SystemTime::now(),
+        datetime: Utc::now().naive_utc(),
         action: format!("Set game to start in {} hours", form.countdown.unwrap_or(0)),
     }
-    .insert(&db)
+    .insert(&sqlx_db)
+    .await
     .unwrap();
     Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#schedule", game.id))
@@ -1101,8 +1046,7 @@ async fn launch(
 async fn create_post(
     (app_data, mut body): (web::Data<AppData>, web::Payload),
 ) -> Result<HttpResponse> {
-    let db = app_data.pool.get().expect("Unable to connect to database");
-    use crate::schema::maps::dsl as maps_dsl;
+    let sqlx_db = app_data.sqlx_pool.clone();
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
         bytes.extend_from_slice(&item?);
@@ -1126,27 +1070,20 @@ async fn create_post(
     let mut new_game = NewGame::default();
     let port_var = env::var("PORT_RANGE").expect("PORT_RANGE must be set (ie. '10000,10999')");
     let range: Vec<&str> = port_var.split(",").collect();
-    let new_port: i32 = diesel::dsl::sql::<diesel::sql_types::Int4>(&format!(
-                    "SELECT num FROM generate_series({}, {}) num LEFT OUTER JOIN games g ON g.port=num WHERE g.id IS NULL ORDER BY num ASC LIMIT 1",
-                    range[0], range[1]
-                ))
-                .get_result(&db)
-                .unwrap();
+    let new_port: i32 = sqlx::query!(
+                    "SELECT num FROM generate_series($1::integer, $2::integer) num LEFT OUTER JOIN games g ON g.port=num WHERE g.id IS NULL ORDER BY num ASC LIMIT 1",
+                    range[0].parse::<i32>().unwrap(), range[1].parse::<i32>().unwrap()
+                )
+                .fetch_one(&sqlx_db)
+                .await
+                .unwrap().num.unwrap();
     new_game.port = new_port;
     new_game.name = params.name;
     new_game.password = params.password.clone();
     new_game.masterpass = Some(params.password);
-    new_game.map_id = maps_dsl::maps
-        .order(maps_dsl::id.desc())
-        .limit(1)
-        .get_result::<Map>(&db)
-        .unwrap()
-        .id;
+    new_game.map_id = sqlx::query!("SELECT id FROM maps ORDER BY id DESC LIMIT 1").fetch_one(&sqlx_db).await.unwrap().id;
 
-    let game: Game = diesel::insert_into(crate::schema::games::table)
-        .values(&new_game)
-        .get_result(&db)
-        .expect("Error saving new game");
+    let game: Game = new_game.insert(&sqlx_db).await.unwrap();
 
     let addr = format!("/game/{}?password={}#settings", game.id, new_game.password);
 
@@ -1166,7 +1103,6 @@ async fn list(
     session: actix_session::Session,
     query: serde_qs::actix::QsQuery<GamesListPayload>,
 ) -> Result<HttpResponse> {
-    let db = app_data.pool.get().expect("Unable to connect to database");
     let sqlx_db = app_data.sqlx_pool.clone();
 
     let watch_player_ids: std::collections::HashSet<i32> = session
@@ -1190,9 +1126,11 @@ async fn list(
         ORDER BY MIN(pt.status), MAX(p.nationid), g.id
         "#, &watch_player_ids.into_iter().collect::<Vec<i32>>()[..]).fetch_all(&sqlx_db).await.unwrap();
     let player_counts = crate::models::Game::get_player_count(
-        results.iter().map(|g| g.id).collect::<Vec<i32>>(),
-        &db,
-    );
+        &results.iter().map(|g| g.id).collect::<Vec<i32>>(),
+        &sqlx_db,
+    )
+    .await
+    .unwrap();
     let turn_summaries = crate::models::Turn::turn_summary(
         &results.iter().map(|g| g.id).collect::<Vec<i32>>(),
         &sqlx_db,
@@ -1293,7 +1231,7 @@ async fn settings_post(
         actix_session::Session,
     ),
 ) -> Result<HttpResponse> {
-    let db = app_data.pool.get().unwrap();
+    let sqlx_db = app_data.sqlx_pool.clone();
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
         bytes.extend_from_slice(&item?);
@@ -1311,71 +1249,45 @@ async fn settings_post(
             .header(header::LOCATION, format!("/game/{}#settings", path_id))
             .finish());
     }
-    let old_game = Game::get(*path_id, &db).unwrap();
-    let old_mods = old_game.get_mods(&db).unwrap();
-    let game: Game = db
-        .transaction::<_, diesel::result::Error, _>(|| {
-            let game: Game = {
-                use crate::schema::games::dsl::*;
-                diesel::update(games.filter(id.eq(*path_id)))
-                    .set((
-                        era.eq(body.era),
-                        thrones_t1.eq(body.thrones_t1),
-                        thrones_t2.eq(body.thrones_t2),
-                        thrones_t3.eq(body.thrones_t3),
-                        throne_points_required.eq(body.throne_points_required),
-                        research_diff.eq(body.research_diff),
-                        research_rand.eq(body.research_rand > 0),
-                        hof_size.eq(body.hof_size),
-                        global_size.eq(body.global_size),
-                        indepstr.eq(body.indepstr),
-                        magicsites.eq(body.magicsites),
-                        eventrarity.eq(body.eventrarity),
-                        richness.eq(body.richness),
-                        resources.eq(body.resources),
-                        recruitment.eq(body.recruitment),
-                        supplies.eq(body.supplies),
-                        startprov.eq(body.startprov),
-                        renaming.eq(body.renaming > 0),
-                        scoregraphs.eq(body.scoregraphs > 0),
-                        nationinfo.eq(body.nationinfo > 0),
-                        artrest.eq(body.artrest > 0),
-                        teamgame.eq(body.teamgame > 0),
-                        clustered.eq(body.clustered > 0),
-                        storyevents.eq(body.storyevents),
-                        newailvl.eq(body.newailvl),
-                        map_id.eq(body.map),
-                        masterpass.eq(body.masterpass),
-                        private.eq(body.private > 0),
-                        require_password.eq(body.require_password > 0),
-                        select_start.eq(body.select_start),
-                        cataclysm.eq(body.cataclysm),
-                        max_stales.eq(body.max_stales),
-                        conq_all.eq(body.conq_all > 0),
-                    ))
-                    .get_result(&db)?
-            };
-            {
-                use crate::schema::game_mods::dsl::*;
-                diesel::delete(game_mods)
-                    .filter(game_id.eq(game.id))
-                    .execute(&db)?;
-                diesel::insert_into(game_mods)
-                    .values(
-                        body.cmods
-                            .iter()
-                            .map(|cm| NewGameMod {
-                                game_id: game.id,
-                                mod_id: *cm,
-                            })
-                            .collect::<Vec<NewGameMod>>(),
-                    )
-                    .execute(&db)?;
-            };
-            Ok(game)
-        })
-        .unwrap();
-    let mods = old_game.get_mods(&db).unwrap();
+    let old_game = Game::get(*path_id, &sqlx_db).await.unwrap();
+    let mut game = old_game.clone();
+    let old_mods = old_game.get_mods(&sqlx_db).await.unwrap();
+
+    game.era = body.era;
+    game.thrones_t1 = body.thrones_t1;
+    game.thrones_t2 = body.thrones_t2;
+    game.thrones_t3 = body.thrones_t3;
+    game.throne_points_required = body.throne_points_required;
+    game.research_diff = body.research_diff;
+    game.research_rand = body.research_rand > 0;
+    game.hof_size = body.hof_size;
+    game.global_size = body.global_size;
+    game.indepstr = body.indepstr;
+    game.magicsites = body.magicsites;
+    game.eventrarity = body.eventrarity;
+    game.richness = body.richness;
+    game.resources = body.resources;
+    game.recruitment = body.recruitment;
+    game.supplies = body.supplies;
+    game.startprov = body.startprov;
+    game.renaming = body.renaming > 0;
+    game.scoregraphs = body.scoregraphs > 0;
+    game.nationinfo = body.nationinfo > 0;
+    game.artrest = body.artrest > 0;
+    game.teamgame = body.teamgame > 0;
+    game.clustered = body.clustered > 0;
+    game.storyevents = body.storyevents;
+    game.newailvl = body.newailvl;
+    game.map_id = body.map;
+    game.masterpass = body.masterpass;
+    game.private = body.private > 0;
+    game.require_password = body.require_password > 0;
+    game.select_start = body.select_start;
+    game.cataclysm = body.cataclysm;
+    game.max_stales = body.max_stales;
+    game.conq_all = body.conq_all > 0;
+    game = game.update(&body.cmods, &sqlx_db).await.unwrap();
+    let mods = game.get_mods(&sqlx_db).await.unwrap();
     if mods.len() != old_mods.len()
         || mods
             .iter()
@@ -1488,25 +1400,10 @@ pub async fn archive_post(
             .header(header::LOCATION, format!("/game/{}#schedule", path_id))
             .finish());
     }
-    let db = app_data.pool.get().expect("Unable to connect to database");
-    let game = Game::get(path_id, &db).unwrap();
-    game.archive(form.archived, &db).unwrap();
-    if form.archived {
-        NewAdminLog {
-            game_id: path_id,
-            datetime: std::time::SystemTime::now(),
-            action: "Archived game".to_owned(),
-        }
-        .insert(&db)
-        .unwrap();
-    } else {
-        NewAdminLog {
-            game_id: path_id,
-            datetime: std::time::SystemTime::now(),
-            action: "Reinstated game".to_owned(),
-        }
-        .insert(&db)
-        .unwrap();
+    let sqlx_db = app_data.sqlx_pool.clone();
+    match form.archived {
+        true => Game::archive(path_id, &sqlx_db).await.unwrap(),
+        false => Game::unarchive(path_id, &sqlx_db).await.unwrap(),
     }
 
     return Ok(HttpResponse::Found()
@@ -1528,25 +1425,28 @@ pub async fn remove_post(
         .unwrap_or(Some(AuthStatus::Unauthed))
         .unwrap_or(AuthStatus::Unauthed)
         == AuthStatus::AuthSuccess;
-    let db = app_data.pool.get().expect("Unable to connect to database");
-    let turns = crate::models::Turn::current_turn(&vec![path_id], &db);
+    let sqlx_db = app_data.sqlx_pool.clone();
+    let turns = crate::models::Turn::current_turn(&vec![path_id], &sqlx_db).await.unwrap();
     // Check if there were no turns found for the vector of games containing only our game, *not*
     // that there were zero games for just ours, this is not a logic error, though it looks odd.
     if turns.len() == 0 {
-        let players = Player::get_players(path_id, &db).unwrap();
+        let players = Player::get_players(path_id, &sqlx_db).await.unwrap();
         if let Some(player) = players.iter().find(|p| p.nationid == nation_id) {
             log::debug!("Attempted pass {:?} {:?}", password, player.password);
             if player.password.is_some() && password == player.password {
-                player.remove(&db).unwrap();
+                player.remove(&sqlx_db).await.unwrap();
             } else if is_authed {
-                player.remove(&db).unwrap();
-                let nation = Nation::get(path_id, player.nationid, &db).unwrap();
+                player.remove(&sqlx_db).await.unwrap();
+                let nation = Nation::get(path_id, player.nationid, &sqlx_db)
+                    .await
+                    .unwrap();
                 NewAdminLog {
                     game_id: path_id,
-                    datetime: std::time::SystemTime::now(),
+                    datetime: Utc::now().naive_utc(),
                     action: format!("Removed {}", nation.name),
                 }
-                .insert(&db)
+                .insert(&sqlx_db)
+                .await
                 .unwrap();
             }
         }
@@ -1574,13 +1474,8 @@ pub async fn rollback_post(
             .header(header::LOCATION, format!("/game/{}#schedule", path_id))
             .finish());
     }
-    let db = app_data.pool.get().expect("Unable to connect to database");
-    use crate::schema::games::dsl as games_dsl;
-    let game: Game = games_dsl::games
-        .filter(games_dsl::id.eq(path_id))
-        .get_result(&db)
-        .unwrap();
-    game.rollback(&db).unwrap();
+    let sqlx_db = app_data.sqlx_pool.clone();
+    Game::rollback(path_id, &sqlx_db).await.unwrap();
     return Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#schedule", path_id))
         .finish());
@@ -1604,14 +1499,9 @@ pub async fn unstart_post(
             .header(header::LOCATION, format!("/game/{}#schedule", path_id))
             .finish());
     }
-    let db = app_data.pool.get().expect("Unable to connect to database");
-    use crate::schema::games::dsl as games_dsl;
-    let game: Game = games_dsl::games
-        .filter(games_dsl::id.eq(path_id))
-        .get_result(&db)
-        .unwrap();
-    game.unstart(&db).unwrap();
-    let _game = game.remove_timer(&db).unwrap();
+    let sqlx_db = app_data.sqlx_pool.clone();
+    Game::unstart(path_id, &sqlx_db).await.unwrap();
+    Game::remove_timer(path_id, &sqlx_db).await.unwrap();
     return Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#schedule", path_id))
         .finish());
@@ -1635,19 +1525,21 @@ pub async fn assign_team(
             .header(header::LOCATION, format!("/game/{}", path_id))
             .finish());
     }
-    let db = app_data.pool.get().expect("Unable to connect to database");
-    let disciple = Disciple::get(path_id, form.nation, &db).unwrap();
+    let sqlx_db = app_data.sqlx_pool.clone();
+    let disciple = Disciple::get(path_id, form.nation, &sqlx_db).await.unwrap();
     if form.team == 0 {
         if form.disciple == 0 {
-            disciple.create_team(&db).unwrap();
+            disciple.set_team(None, &sqlx_db).await.unwrap();
         } else {
-            disciple.remove(&db).unwrap();
+            disciple.remove(&sqlx_db).await.unwrap();
         }
     } else {
         disciple
-            .set_team(form.team, &db)
+            .set_team(Some(form.team), &sqlx_db)
+            .await
             .unwrap()
-            .set_disc(form.disciple, &db)
+            .set_disc(form.disciple, &sqlx_db)
+            .await
             .unwrap();
     }
     return Ok(HttpResponse::Found()
