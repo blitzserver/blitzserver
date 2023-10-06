@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * \n                    FROM mods m \n                    WHERE \n                        m.name ILIKE $1 OR \n                        EXISTS (\n                            SELECT m.* FROM mods mi \n                            INNER JOIN game_mods gm ON \n                                gm.mod_id=mi.id AND gm.game_id=$2 AND \n                                m.id=mi.id\n                        )\n                    ORDER BY (SELECT COUNT(*) FROM game_mods gmo WHERE gmo.mod_id=m.id) DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "dm_filename",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "file_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "icon_file_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "crc",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "d08618a52e5d8a7c7f3d2f47fba53f90e211419a193207a3c922ad375911d0de"
+}

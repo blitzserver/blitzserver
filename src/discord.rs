@@ -109,26 +109,6 @@ Examples:
 "#;
 
 impl DiscordManager {
-    fn send_message(&mut self, channel: &str, content: &str) -> Result<(), DiscordManagerError> {
-        unimplemented!("Fuck off");
-    }
-
-    fn connect(
-        &mut self,
-    ) -> Result<tungstenite::WebSocket<tungstenite::client::AutoStream>, DiscordManagerError> {
-        unimplemented!("Fuck off");
-    }
-
-    fn resume(
-        &mut self,
-    ) -> Result<tungstenite::WebSocket<tungstenite::client::AutoStream>, DiscordManagerError> {
-        unimplemented!("Fuck off");
-    }
-
-    pub fn send_notice(&mut self, notice: &DiscordConfig) -> Result<(), DiscordManagerError> {
-        unimplemented!("Fuck off");
-    }
-
     pub fn new(
         bus_tx: MsgBusTx,
     ) -> Result<Self, DiscordManagerError> {

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH tt AS (SELECT MAX(turn_number) as tt FROM turns WHERE game_id=$1 AND archived!=TRUE)\n        SELECT nation_id\n        FROM player_turns pt\n        LEFT JOIN games g ON g.id=$1\n        INNER JOIN tt ON tt.tt=pt.turn_number\n        WHERE pt.game_id=$1\n        AND pt.status IN (0,1)\n        AND pt.archived != TRUE\n        AND COALESCE((\n            SELECT COUNT(*) \n            FROM player_turns pt2 \n            WHERE pt2.turn_number < tt.tt\n              AND pt2.turn_number >= (tt.tt - g.max_stales) \n              AND pt2.archived!=TRUE \n              AND pt2.status=0 \n              AND pt2.game_id=g.id \n              AND pt2.nation_id=pt.nation_id\n            ) >= g.max_stales, FALSE)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "nation_id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7d666d3dc2fd9350f20ad96644b5c6c21a98f165eb03a862a4049e2f5cc89b5f"
+}

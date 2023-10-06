@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE maps m SET map_crc=$2, tga_crc=$3, winter_crc=$4 WHERE id=$1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "48e71603545d8310f29f841a5d3195f196e96e6482b290d952b6485bee1f7725"
+}

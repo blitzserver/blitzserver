@@ -15,7 +15,6 @@ pub struct AppData {
     pub sqlx_pool: sqlx::postgres::PgPool,
     pub msgbus_sender: MsgBusTx,
     pub email_manager: EmailManager,
-    pub discord_manager: Option<DiscordManager>,
 }
 
 impl AppData {

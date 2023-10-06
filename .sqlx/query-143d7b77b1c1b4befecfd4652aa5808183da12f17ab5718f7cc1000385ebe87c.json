@@ -1,0 +1,83 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH topturn as (select MAX(id) as id,nation_id,game_id FROM player_turns WHERE archived IS NOT TRUE GROUP BY nation_id, game_id)\n        SELECT \n            (SELECT array_agg(name) FROM players pd WHERE pd.cdkey=p.cdkey AND pd.game_id=p.game_ID AND pd.id!=p.id) duplicate_cdkey_nationnames,\n            p.*,\n            p.id=ANY($2) as \"playing\", \n            pt.status as \"turn_status?\"\n        FROM players p\n        LEFT JOIN topturn tt ON tt.game_id=$1 AND tt.nation_id=p.nationid\n        LEFT JOIN player_turns pt ON pt.id=tt.id\n        WHERE p.game_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "duplicate_cdkey_nationnames",
+        "type_info": "VarcharArray"
+      },
+      {
+        "ordinal": 1,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "nationid",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "game_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "file_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 6,
+        "name": "password",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "startprov",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "cdkey",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "playing",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 10,
+        "name": "turn_status?",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      null,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      null,
+      false
+    ]
+  },
+  "hash": "143d7b77b1c1b4befecfd4652aa5808183da12f17ab5718f7cc1000385ebe87c"
+}

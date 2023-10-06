@@ -1,0 +1,314 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH \n            removed_mods AS (DELETE FROM game_mods WHERE game_id=$34 AND mod_id != ANY($35)),\n            updated_mods AS (INSERT INTO game_mods (game_id, mod_id) VALUES($34, UNNEST($35::integer[])) ON CONFLICT (game_id, mod_id) DO NOTHING)\n        UPDATE games SET \n            era                    = $1,\n            thrones_t1             = $2,\n            thrones_t2             = $3,\n            thrones_t3             = $4,\n            throne_points_required = $5,\n            research_diff          = $6,\n            research_rand          = $7,\n            hof_size               = $8,\n            global_size            = $9,\n            indepstr               = $10,\n            magicsites             = $11,\n            eventrarity            = $12,\n            richness               = $13,\n            resources              = $14,\n            recruitment            = $15,\n            supplies               = $16,\n            startprov              = $17,\n            renaming               = $18,\n            scoregraphs            = $19,\n            nationinfo             = $20,\n            artrest                = $21,\n            teamgame               = $22,\n            clustered              = $23,\n            storyevents            = $24,\n            newailvl               = $25,\n            map_id                 = $26,\n            masterpass             = $27,\n            private                = $28,\n            require_password       = $29,\n            select_start           = $30,\n            cataclysm              = $31,\n            max_stales             = $32,\n            conq_all               = $33\n        WHERE\n            id                     = $34\n        RETURNING *\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "era",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "map_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "timer",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "thrones_t1",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "thrones_t2",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "thrones_t3",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "throne_points_required",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "research_diff",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "research_rand",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 12,
+        "name": "hof_size",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
+        "name": "global_size",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 14,
+        "name": "indepstr",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 15,
+        "name": "magicsites",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 16,
+        "name": "eventrarity",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
+        "name": "richness",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 18,
+        "name": "resources",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 19,
+        "name": "recruitment",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 20,
+        "name": "supplies",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 21,
+        "name": "startprov",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 22,
+        "name": "renaming",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 23,
+        "name": "scoregraphs",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 24,
+        "name": "nationinfo",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 25,
+        "name": "artrest",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 26,
+        "name": "teamgame",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 27,
+        "name": "clustered",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 28,
+        "name": "storyevents",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 29,
+        "name": "newailvl",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 30,
+        "name": "next_turn",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 31,
+        "name": "password",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 32,
+        "name": "archived",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 33,
+        "name": "masterpass",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 34,
+        "name": "private",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 35,
+        "name": "last_activity",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 36,
+        "name": "require_password",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 37,
+        "name": "select_start",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 38,
+        "name": "modified_mapcrc",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 39,
+        "name": "cataclysm",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 40,
+        "name": "max_stales",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 41,
+        "name": "motd",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 42,
+        "name": "conq_all",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 43,
+        "name": "binary_id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Bool",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Varchar",
+        "Bool",
+        "Bool",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Bool",
+        "Int4",
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "0fefb4e135c9b0b49d2fb8ad0f2d685cf41662620d9dd9b573bd88d2deeb6d93"
+}

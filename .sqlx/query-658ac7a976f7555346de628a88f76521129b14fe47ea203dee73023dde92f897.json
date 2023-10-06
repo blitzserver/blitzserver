@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT m.dm_filename\n                FROM games g\n                INNER JOIN game_mods gm ON gm.game_id=g.id\n                INNER JOIN mods m ON m.id=gm.mod_id\n                WHERE g.id=$1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "dm_filename",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "658ac7a976f7555346de628a88f76521129b14fe47ea203dee73023dde92f897"
+}

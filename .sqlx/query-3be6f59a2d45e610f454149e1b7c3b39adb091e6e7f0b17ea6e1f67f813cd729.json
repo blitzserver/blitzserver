@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM email_configs WHERE id=$1 AND email_address=$2 RETURNING *",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "nation_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "game_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "hours_before_host",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "email_address",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "last_turn_notified",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "subject",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "body",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "is_reminder",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3be6f59a2d45e610f454149e1b7c3b39adb091e6e7f0b17ea6e1f67f813cd729"
+}

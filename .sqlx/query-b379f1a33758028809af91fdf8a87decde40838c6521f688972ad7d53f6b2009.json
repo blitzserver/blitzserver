@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO email_configs (nation_id, game_id, hours_before_host, email_address, subject, body, is_reminder) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "nation_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "game_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "hours_before_host",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "email_address",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "last_turn_notified",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "subject",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 7,
+        "name": "body",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "is_reminder",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4",
+        "Varchar",
+        "Varchar",
+        "Varchar",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b379f1a33758028809af91fdf8a87decde40838c6521f688972ad7d53f6b2009"
+}

@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT \n                mf.filename as mfn, \n                mf.filebinary as mfb,\n                tf.filename as tfn,\n                tf.filebinary as tfb,\n                wf.filename as \"wfn?\",\n                wf.filebinary as \"wfb?\"\n                FROM games g\n                INNER JOIN maps m ON m.id=g.map_id\n                INNER JOIN files mf ON mf.id=m.mapfile_id\n                INNER JOIN files tf ON tf.id=m.tgafile_id\n                LEFT JOIN files wf ON wf.id=m.winterfile_id\n                WHERE g.id=$1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "mfn",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "mfb",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "tfn",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "tfb",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "wfn?",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "wfb?",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f7cbb275277be546915fface829508b1ae16d086816a1d18333b5c927b362c8e"
+}

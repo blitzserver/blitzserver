@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                            WITH top_turn AS (SELECT MAX(turn_number) as max FROM turns WHERE game_id=$1 AND archived != TRUE)\n                            SELECT pt.twoh_crc,pt.nation_id\n                            FROM player_turns pt\n                            INNER JOIN top_turn tt ON tt.max=pt.turn_number\n                            WHERE pt.game_id=$1 AND pt.archived != TRUE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "twoh_crc",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "nation_id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "796288de6d267e3594427008fd92153f0da07bd628a1bbe8bc8fe406bdc41eb3"
+}

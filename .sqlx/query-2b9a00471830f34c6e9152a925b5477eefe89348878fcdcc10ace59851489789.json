@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT DISTINCT ON(game_id) *\n        FROM turns t\n        WHERE archived=false AND game_id=ANY($1)\n        ORDER BY game_id, turn_number DESC\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "game_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "turn_number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "file_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 5,
+        "name": "archived",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "turnkey",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "winner",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "2b9a00471830f34c6e9152a925b5477eefe89348878fcdcc10ace59851489789"
+}

@@ -46,10 +46,10 @@ pub async fn list(app_data: web::Data<AppData>) -> Result<HttpResponse> {
 
 #[get("/images/mods/{id}.jpg")]
 pub async fn image(
-    (app_data, web::Path(path_id)): (web::Data<AppData>, web::Path<i32>),
+    (app_data, path_id): (web::Data<AppData>, web::Path<i32>),
 ) -> Result<HttpResponse> {
     let db = app_data.sqlx_pool.clone();
-    if let Ok(file) = sqlx::query_as!(File, r#"SELECT f.* FROM mods m INNER JOIN files f ON f.id = m.icon_file_id WHERE m.id=$1"#, path_id).fetch_one(&db).await
+    if let Ok(file) = sqlx::query_as!(File, r#"SELECT f.* FROM mods m INNER JOIN files f ON f.id = m.icon_file_id WHERE m.id=$1"#, *path_id).fetch_one(&db).await
     {
         let reader = crate::image::io::Reader::with_format(
             std::io::Cursor::new(file.filebinary),
@@ -61,7 +61,7 @@ pub async fn image(
         if !mods_dir.exists() {
             std::fs::create_dir_all(&mods_dir).unwrap();
         }
-        let mut file = std::fs::File::create(mods_dir.join(format!("{}.jpg", path_id))).unwrap();
+        let mut file = std::fs::File::create(mods_dir.join(format!("{}.jpg", *path_id))).unwrap();
         reader
             .write_to(&mut file, crate::image::ImageFormat::Jpeg)
             .unwrap();
@@ -74,7 +74,7 @@ pub async fn image(
             .unwrap();
         Ok(HttpResponse::Ok()
             .content_type("application/jpg")
-            .set(header::CacheControl(vec![header::CacheDirective::MaxAge(
+            .append_header(header::CacheControl(vec![header::CacheDirective::MaxAge(
                 86400u32,
             )]))
             .body(jpg_bytes))
@@ -90,7 +90,7 @@ pub async fn upload_post(
     let sqlx_db = app_data.sqlx_pool.clone();
     while let Ok(Some(mut field)) = payload.try_next().await {
         let mut mod_name: Option<ModDefinition> = None;
-        let content_type = field.content_disposition().unwrap();
+        let content_type = field.content_disposition().clone();
         match content_type.get_name() {
             Some("archive") => {
                 let mut contents: Vec<u8> = vec![];
@@ -159,7 +159,7 @@ pub async fn upload_post(
                                 let address = std::env::var("ADDRESS")
                                     .expect("ADDRESS env var not specified");
                                 return Ok(HttpResponse::Found()
-                                    .header(header::LOCATION, format!("{}/mods", address))
+                                    .append_header((header::LOCATION, format!("{}/mods", address)))
                                     .finish());
                             }
                             _ => {
@@ -215,7 +215,7 @@ async fn download((app_data, modid): (web::Data<AppData>, web::Path<i32>)) -> Re
 
     Ok(HttpResponse::Ok()
         .content_type("application/zip")
-        .set(header::CacheControl(vec![
+        .append_header(header::CacheControl(vec![
             header::CacheDirective::Public,
             header::CacheDirective::MaxAge(86400u32),
         ]))

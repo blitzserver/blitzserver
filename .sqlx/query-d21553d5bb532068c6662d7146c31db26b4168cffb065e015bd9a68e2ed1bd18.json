@@ -1,0 +1,82 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT m.* \n                FROM maps m\n                INNER JOIN games g ON\n                    g.map_id=m.id AND\n                    g.id=$1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "mapfile_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "tgafile_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "winterfile_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "province_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "uw_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "archived",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "map_crc",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "tga_crc",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "winter_crc",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "d21553d5bb532068c6662d7146c31db26b4168cffb065e015bd9a68e2ed1bd18"
+}

@@ -1,4 +1,6 @@
 use std::io::BufRead;
+use num_enum::FromPrimitive;
+use num_enum;
 
 #[repr(i32)]
 #[derive(Debug, FromPrimitive)]

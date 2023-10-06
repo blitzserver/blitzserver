@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                                                         WITH inserted as (INSERT INTO disciples (is_disciple, game_id, nation_id) VALUES ($3, $1, $2) \n                                                         ON CONFLICT (game_id, nation_id) DO UPDATE SET is_disciple=EXCLUDED.is_disciple RETURNING *)\n                                                         UPDATE disciples d SET is_disciple=1 FROM inserted WHERE d.team=inserted.team AND d.team>0 AND d.game_id=inserted.game_id",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "27d7250a6e8f543fc3873dc1ab65e2a17ca55b7a531bab464ff4d19eaf31d624"
+}

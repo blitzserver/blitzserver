@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH \n                updated_game as (\n                    UPDATE games SET last_activity=NOW() WHERE id=$1),\n                inserted_file as (\n                    INSERT INTO files (filename, filebinary) \n                    SELECT CONCAT(n.filename, '.2h'), $6 FROM nations n WHERE n.game_id=$1 AND n.nation_id=$2\n                    ON CONFLICT (filename,digest(filebinary, 'sha1'::text)) \n                    DO UPDATE SET filename=EXCLUDED.filename\n                    RETURNING *)\n            INSERT INTO players (file_id, game_id, nationid, name, password, cdkey) \n            SELECT id, $1, $2, $3, $4, $5 FROM inserted_file\n            ON CONFLICT (game_id, nationid) DO UPDATE SET file_id=EXCLUDED.file_id, name=EXCLUDED.name, password=EXCLUDED.password\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Varchar",
+        "Varchar",
+        "Int8",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "00fb2635dda6a585b2c10190f7003dc440fbfa3587b618658f66c33485507793"
+}

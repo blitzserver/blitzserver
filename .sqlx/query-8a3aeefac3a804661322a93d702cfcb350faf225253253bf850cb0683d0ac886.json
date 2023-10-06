@@ -1,0 +1,55 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n    SELECT \n        g.name as game_name, n.name as nation_name,\n        trn.filename as \"trnfilename\", trn.filebinary as \"trnfilebinary\", \n        twoh.filename as \"twohfilename?\", twoh.filebinary as \"twohfilebinary?\"\n    FROM player_turns pt \n    INNER JOIN games g ON g.id=$1\n    INNER JOIN nations n ON n.nation_id=pt.nation_id AND n.game_id=pt.game_id\n    INNER JOIN players p ON p.password=$4 AND p.game_id=$1 AND p.nationid=$2\n    INNER JOIN files trn ON trn.id=pt.trnfile_id\n    LEFT JOIN files twoh ON twoh.id=pt.twohfile_id\n    WHERE pt.game_id=$1 AND pt.nation_id=$2 AND pt.turn_number=$3 AND pt.archived != TRUE\n    ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "game_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "nation_name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "trnfilename",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "trnfilebinary",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "twohfilename?",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "twohfilebinary?",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8a3aeefac3a804661322a93d702cfcb350faf225253253bf850cb0683d0ac886"
+}

@@ -1,0 +1,35 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, cdkey, file_id FROM players WHERE game_id=$1 AND nationid=$2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "cdkey",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "file_id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "7586116958c90d367b12c63565ef0a3d8230919d8f23d036aa2a0cd8147b50d0"
+}

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT filebinary FROM files f INNER JOIN mods m ON m.file_id=f.id AND m.id=$1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "filebinary",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "708b3668a682e0824d942821ddb8d7365c3ecd87bc66db2a7293343278066a4c"
+}

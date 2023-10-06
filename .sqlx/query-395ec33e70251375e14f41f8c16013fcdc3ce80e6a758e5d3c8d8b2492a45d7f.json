@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT mapf.filebinary FROM maps m INNER JOIN files mapf ON mapf.id=m.mapfile_id WHERE m.id=$1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "filebinary",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "395ec33e70251375e14f41f8c16013fcdc3ce80e6a758e5d3c8d8b2492a45d7f"
+}

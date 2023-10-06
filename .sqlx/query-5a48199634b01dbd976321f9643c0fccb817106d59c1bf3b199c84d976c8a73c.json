@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                WITH _0 as (UPDATE subjobs SET finished_at=NOW() WHERE subjob_id=$2)\n                UPDATE jobs SET finished_at=NOW(), updated_at=NOW() WHERE job_id=$1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5a48199634b01dbd976321f9643c0fccb817106d59c1bf3b199c84d976c8a73c"
+}

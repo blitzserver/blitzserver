@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE games SET next_turn=NULL WHERE id=$1 AND timer IS NOT NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5c8fa6e29b7f90c645ae6ffcef349ce5c993153d68e31100bc4ad23d2124031d"
+}

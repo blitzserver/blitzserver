@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT f.* FROM mods m INNER JOIN files f ON f.id = m.icon_file_id WHERE m.id=$1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "filename",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "filebinary",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "22d1936c8f9e73fede461dd4f40e01f5cd3d6877c7f2daf3a2be7972210f7acd"
+}

@@ -263,16 +263,6 @@
         {% endif %}
       </section>
     </div>
-    {% if self.discord_manager.is_some() %}
-    <div id="discord">
-      <a href="#discord">discord</a>
-      <section class="tabsection">
-        {% if self.authed == AuthStatus::AuthSuccess && self.discord_manager.is_some() %}
-        {% include "discord.html" %}
-        {% endif %}
-      </section>
-    </div>
-    {% endif %}
     {% endif %}
     <!-- End Admin -->
     <div class="auth-input">

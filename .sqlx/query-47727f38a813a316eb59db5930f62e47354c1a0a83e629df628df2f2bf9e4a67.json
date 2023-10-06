@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT ma.id map_id, ma.filename map_filename, ma.filebinary map_binary, i.id image_id, i.filename image_filename, i.filebinary image_binary, wi.id \"winter_id?\", wi.filename \"wi_filename?\", wi.filebinary \"winter_binary?\"\n        FROM maps m\n        INNER JOIN files i ON i.id=m.tgafile_id\n        INNER JOIN files ma ON ma.id=m.mapfile_id\n        LEFT JOIN files wi ON wi.id=m.winterfile_id\n        WHERE m.id=$1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "map_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "map_filename",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "map_binary",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "image_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "image_filename",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 5,
+        "name": "image_binary",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 6,
+        "name": "winter_id?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "wi_filename?",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 8,
+        "name": "winter_binary?",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "47727f38a813a316eb59db5930f62e47354c1a0a83e629df628df2f2bf9e4a67"
+}

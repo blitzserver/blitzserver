@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE games set next_turn=COALESCE(next_turn,NOW()) + interval '1 minute' * $2\n        WHERE id=$1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6bd19b1ffa3c158fa9484cc38c206ac7eaef9ab11abd17cd6f47fda12e916e41"
+}

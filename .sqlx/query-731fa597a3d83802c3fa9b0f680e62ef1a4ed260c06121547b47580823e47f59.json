@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT gm.mod_id, m.file_id,m.dm_filename FROM game_mods gm LEFT JOIN mods m ON m.id=gm.mod_id WHERE game_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "mod_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "file_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "dm_filename",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "731fa597a3d83802c3fa9b0f680e62ef1a4ed260c06121547b47580823e47f59"
+}

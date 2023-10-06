@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n                is_disciple, team, nation_id\n                FROM disciples\n                WHERE game_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "is_disciple",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "team",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "nation_id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "7a2a2bfa990c251e37f1034b29852434fae38f7b643057364c9998431b039e71"
+}

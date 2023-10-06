@@ -377,12 +377,7 @@ impl Dom5Turn {
                     }
                     Err(_) => {
                         if wait_counter == 0 {
-                            let mut s = String::new();
-                            match proc.stdout.as_mut().unwrap().read_to_string(&mut s) {
-                            // TODO: Updatenation run logs should be stored with turn logs
-                            Ok(_) => panic!("Unable to find statusdump with nation info for game {}\nStdout:\n{}", self.game_id, &s),
-                            Err(e) => panic!("Unable to find statusdump with nation info for game {} and unable to fetch logs ({:?})", self.game_id, e)
-                        }
+                            panic!("Ran out of waits");
                         } else {
                             wait_counter -= 1
                         }
@@ -791,11 +786,11 @@ impl Dom5Turn {
                 ftherlnd.header.turnkey as i32,
                 winner
             )
-            .execute(&mut transaction)
+            .execute(&mut *transaction)
             .await?;
 
             let nations = sqlx::query!("SELECT * FROM nations WHERE game_id=$1", self.game_id)
-                .fetch_all(&mut transaction)
+                .fetch_all(&mut *transaction)
                 .await?;
             let mut computer_nationids = vec![];
             let mut defeated_nationids = vec![];
@@ -835,7 +830,7 @@ impl Dom5Turn {
                             turn_number,
                             status
                         )
-                        .execute(&mut transaction)
+                        .execute(&mut *transaction)
                         .await?;
                     }
                     // Player_turns which should be inserted without files (in bulk, later on)
@@ -860,17 +855,17 @@ impl Dom5Turn {
                 &computer_nationids,
                 &defeated_nationids
             )
-            .execute(&mut transaction)
+            .execute(&mut *transaction)
             .await?;
 
             if winner.is_none() {
-                sqlx::query!("UPDATE games SET next_turn=NOW()+ timer * interval '1 minute' WHERE id=$1 AND timer IS NOT NULL", self.game_id).execute(&mut transaction).await?;
+                sqlx::query!("UPDATE games SET next_turn=NOW()+ timer * interval '1 minute' WHERE id=$1 AND timer IS NOT NULL", self.game_id).execute(&mut *transaction).await?;
             } else {
                 sqlx::query!(
                     "UPDATE games SET next_turn=NULL WHERE id=$1 AND timer IS NOT NULL",
                     self.game_id
                 )
-                .execute(&mut transaction)
+                .execute(&mut *transaction)
                 .await?;
             }
             transaction.commit().await?;

@@ -9,7 +9,7 @@ use crate::discord::DiscordManager;
 use crate::dom5_turn::Dom5Turn;
 use crate::models::{
     AdminLog, Disciple, DiscordConfig, EmailConfig, Game, Map, MapProvince, Mod, Nation,
-    NewAdminLog, NewGame, PlayerTurn, Turn, Player
+    NewAdminLog, NewGame, Player, PlayerTurn, Turn,
 };
 use actix_web::http::header;
 use actix_web::{get, post, web, HttpResponse, Result};
@@ -275,9 +275,6 @@ struct GameDetailsTemplate<'a> {
     authed: AuthStatus,
     logs: Vec<GameJobDisplay>,
     admin_logs: &'a Vec<AdminLog>,
-    discord_clientid: Option<String>,
-    discord_notifications: Vec<DiscordConfig>,
-    discord_manager: Option<&'a DiscordManager>,
     staling_players: Vec<i32>,
     winner_name: Option<String>,
     active_job: Option<ActiveJob>,
@@ -348,18 +345,6 @@ impl<'a> GameDetailsTemplate<'a> {
                     .find(|n| n.nation_id == p.nationid)
                     .unwrap(),
             })
-    }
-    pub fn get_channel_name(&self, server: &str, channel: &str) -> String {
-        match self.discord_manager {
-            None => "Discord not enabled".to_string(),
-            Some(d) => d.get_channel_name(server, channel),
-        }
-    }
-    pub fn get_server_name(&self, server: &str) -> String {
-        match self.discord_manager {
-            None => "Discord not enabled".to_string(),
-            Some(d) => d.get_server_name(server),
-        }
     }
     fn get_team_leaders(&self) -> Vec<(i32, PlayerSummary)> {
         let mut teams = self
@@ -687,24 +672,20 @@ impl<'a> GamesTemplate<'a> {
 // === Routes ====
 #[post("/game/{id}/postpone")]
 async fn postpone(
-    (app_data, web::Path(path_id), timer_form): (
-        web::Data<AppData>,
-        web::Path<i32>,
-        web::Form<SetTimer>,
-    ),
+    (app_data, path_id, timer_form): (web::Data<AppData>, web::Path<i32>, web::Form<SetTimer>),
 ) -> Result<HttpResponse> {
     let db = app_data.sqlx_pool.clone();
     sqlx::query!(
         r#"UPDATE games set next_turn=COALESCE(next_turn,NOW()) + interval '1 minute' * $2
         WHERE id=$1"#,
-        path_id,
+        *path_id,
         timer_form.timer as f64
     )
     .execute(&app_data.sqlx_pool)
     .await
     .unwrap();
     NewAdminLog {
-        game_id: path_id,
+        game_id: *path_id,
         datetime: Utc::now().naive_utc(),
         action: format!("Postponed timer to {} minutes", timer_form.timer),
     }
@@ -712,21 +693,21 @@ async fn postpone(
     .await
     .unwrap();
     Ok(HttpResponse::Found()
-        .header(header::LOCATION, format!("/game/{}#schedule", path_id))
+        .append_header((header::LOCATION, format!("/game/{}#schedule", path_id)))
         .finish())
 }
 #[post("/game/{id}/forcehost")]
 async fn forcehost(
-    (app_data, web::Path(path_id)): (web::Data<AppData>, web::Path<i32>),
+    (app_data, path_id): (web::Data<AppData>, web::Path<i32>),
 ) -> Result<HttpResponse> {
     let db = app_data.sqlx_pool.clone();
     let sqlx_db = app_data.sqlx_pool.clone();
-    let game = Game::get(path_id, &sqlx_db).await.unwrap();
+    let game = Game::get(*path_id, &sqlx_db).await.unwrap();
     game.schedule_turn(chrono::Utc::now(), &sqlx_db)
         .await
         .unwrap();
     NewAdminLog {
-        game_id: path_id,
+        game_id: *path_id,
         datetime: Utc::now().naive_utc(),
         action: "Forcehosted".to_string(),
     }
@@ -734,24 +715,27 @@ async fn forcehost(
     .await
     .unwrap();
     Ok(HttpResponse::Found()
-        .header(header::LOCATION, format!("/game/{}#schedule", game.id))
+        .append_header((header::LOCATION, format!("/game/{}#schedule", game.id)))
         .finish())
 }
 #[post("/game/{id}/timer")]
 async fn timer(
-    (app_data, web::Path(path_id), timer_form): (
-        web::Data<AppData>,
-        web::Path<i32>,
-        web::Form<SetTimer>,
-    ),
+    (app_data, path_id, timer_form): (web::Data<AppData>, web::Path<i32>, web::Form<SetTimer>),
 ) -> Result<HttpResponse> {
     let db = app_data.sqlx_pool.clone();
+    sqlx::query!(
+        "
+    UPDATE games SET timer=$2 WHERE id=$1 RETURNING *",
+        *path_id,
+        timer_form.timer
+    )
+    .fetch_one(&db)
+    .await
+    .unwrap();
     sqlx::query!("
-    UPDATE games SET timer=$2 WHERE id=$1 RETURNING *", path_id, timer_form.timer).fetch_one(&db).await.unwrap();
-    sqlx::query!("
-    UPDATE games g SET next_turn=NOW() + interval '1 minute' * g.timer FROM turns t WHERE g.id=$1 AND t.game_id=g.id  AND t.archived=FALSE RETURNING g.*", path_id).fetch_one(&db).await.unwrap();
+    UPDATE games g SET next_turn=NOW() + interval '1 minute' * g.timer FROM turns t WHERE g.id=$1 AND t.game_id=g.id  AND t.archived=FALSE RETURNING g.*", *path_id).fetch_one(&db).await.unwrap();
     NewAdminLog {
-        game_id: path_id,
+        game_id: *path_id,
         datetime: Utc::now().naive_utc(),
         action: format!("Set timer to {} minutes", timer_form.timer),
     }
@@ -759,18 +743,18 @@ async fn timer(
     .await
     .unwrap();
     Ok(HttpResponse::Found()
-        .header(header::LOCATION, format!("/game/{}#schedule", path_id))
+        .append_header((header::LOCATION, format!("/game/{}#schedule", path_id)))
         .finish())
 }
 #[get("/game/{id}/status")]
-async fn old_details(web::Path(path_id): web::Path<String>) -> Result<HttpResponse> {
+async fn old_details(path_id: web::Path<String>) -> Result<HttpResponse> {
     return Ok(HttpResponse::PermanentRedirect()
-        .header(header::LOCATION, format!("/game/{}#status", path_id))
+        .append_header((header::LOCATION, format!("/game/{}#status", path_id)))
         .finish());
 }
 #[get("/game/{id}")]
 async fn details(
-    (app_data, web::Path(path_id), session, payload): (
+    (app_data, path_id, session, payload): (
         web::Data<AppData>,
         web::Path<i32>,
         actix_session::Session,
@@ -780,19 +764,19 @@ async fn details(
     let game_settings = &payload.game_settings;
     let email_form = &payload.email_form;
     let sqlx_db = app_data.sqlx_pool.clone();
-    let game = Game::get(path_id, &sqlx_db).await.unwrap();
+    let game = Game::get(*path_id, &sqlx_db).await.unwrap();
     if let Some(p) = &payload.password {
         if *p == game.password {
             session
-                .set(&format!("auth_{}", game.id), AuthStatus::AuthSuccess)
+                .insert(&format!("auth_{}", game.id), AuthStatus::AuthSuccess)
                 .unwrap();
         } else {
             session
-                .set(&format!("auth_{}", game.id), AuthStatus::AuthFail)
+                .insert(&format!("auth_{}", game.id), AuthStatus::AuthFail)
                 .unwrap();
         }
         return Ok(HttpResponse::TemporaryRedirect()
-            .header(header::LOCATION, format!("/game/{}#status", game.id))
+            .append_header((header::LOCATION, format!("/game/{}#status", game.id)))
             .finish());
     }
     let authed: AuthStatus = session
@@ -834,7 +818,9 @@ async fn details(
                                     ON top.game_id=d.game_id
                                     WHERE d.game_id=$1 AND (p.id IS NOT NULL OR top.top is null)
                                     ", game.id).fetch_all(&sqlx_db).await.unwrap();
-    let player_turn_map = crate::models::PlayerTurn::get_player_turns(game.id, &sqlx_db).await.unwrap();
+    let player_turn_map = crate::models::PlayerTurn::get_player_turns(game.id, &sqlx_db)
+        .await
+        .unwrap();
     let turns = Turn::get_all(game.id, &sqlx_db).await.unwrap();
     let settings: GameSettings = if let Some(_) = game_settings.loaded {
         game_settings.clone()
@@ -905,15 +891,31 @@ async fn details(
             .unwrap(),
         )
     };
-    let email_configs = sqlx::query_as!(EmailConfig, "SELECT * FROM email_configs WHERE game_id=$1 AND email_address=$2", path_id, email_form.email_address).fetch_all(&sqlx_db).await.unwrap();
+    let email_configs = sqlx::query_as!(
+        EmailConfig,
+        "SELECT * FROM email_configs WHERE game_id=$1 AND email_address=$2",
+        *path_id,
+        email_form.email_address
+    )
+    .fetch_all(&sqlx_db)
+    .await
+    .unwrap();
     let logs = sqlx::query_as!(GameJobDisplay, r#"
     WITH _insert as (INSERT INTO admin_logs (game_id, datetime, action) 
     SELECT $1 as "game_id", NOW() as "datetime", concat('Viewed turn logs for turn ', j.turn_number) as "action"
     FROM jobs j WHERE j.job_id=$2)
-    SELECT j.job_id, j.turn_number, j.started_at, j.finished_at, j.reaped, sj.logs as "game_logs?"
+    SELECT DISTINCT ON (j.started_at) 
+        j.job_id, 
+        j.turn_number, 
+        j.started_at, 
+        j.finished_at, 
+        j.reaped, 
+        string_agg(sj.label || E'\n' || sj.logs, E'\n-------\n' ORDER BY sj.started_at) as "game_logs?"
     FROM jobs j
-    LEFT JOIN subjobs sj  ON sj.job_id=j.job_id AND j.job_id=$2 AND $2 IS NOT NULL AND sj.label='dom5 processing turn'
-    WHERE j.game_id=$1 ORDER BY j.started_at DESC"#, game.id, payload.log_output).fetch_all(&sqlx_db).await.unwrap();
+    LEFT JOIN subjobs sj  ON sj.job_id=j.job_id AND j.job_id=$2 AND $2 IS NOT NULL
+    WHERE j.game_id=$1 
+    GROUP BY j.job_id
+    ORDER BY j.started_at DESC"#, game.id, payload.log_output).fetch_all(&sqlx_db).await.unwrap();
     let map = maps.iter().find(|m| m.id == game.map_id).unwrap();
     let mut provinces = map.get_provinces(&sqlx_db).await.unwrap_or(vec![]);
     if provinces.len() == 0 {
@@ -1002,14 +1004,8 @@ async fn details(
                 std::env::var("ADDRESS").expect("ADDRESS required for showing game location"),
             ),
             admin_logs: &admin_logs,
-            discord_clientid: app_data
-                .discord_manager
-                .as_ref()
-                .and_then(|d| Some(d.client_id.clone())),
-            discord_notifications: DiscordConfig::get_notifications(game.id, &sqlx_db).await.unwrap(),
-            discord_manager: app_data.discord_manager.as_ref(),
             unhealthy: sqlx::query!(r#"WITH top as (select MAX(job_id) as last FROM jobs where finished_at is not null and game_id=$1)
-            SELECT reaped as "reaped" FROM jobs INNER JOIN top ON top.last=jobs.job_id"#,game.id).fetch_all(&sqlx_db).await.unwrap().into_iter().next().map_or(false, |t| t.reaped.unwrap()),
+            SELECT reaped as "reaped" FROM jobs INNER JOIN top ON top.last=jobs.job_id"#,game.id).fetch_all(&sqlx_db).await.unwrap().into_iter().next().map_or(false, |t| t.reaped),
             game,
         })
         .render()
@@ -1018,7 +1014,7 @@ async fn details(
 }
 #[post("/game/{id}/launch")]
 async fn launch(
-    (app_data, web::Path(path_id), mut body): (web::Data<AppData>, web::Path<i32>, web::Payload),
+    (app_data, path_id, mut body): (web::Data<AppData>, web::Path<i32>, web::Payload),
 ) -> Result<HttpResponse> {
     let mut bytes = web::BytesMut::new();
     while let Some(item) = body.next().await {
@@ -1028,10 +1024,17 @@ async fn launch(
     let form: StartGame = config.deserialize_bytes(&*bytes).unwrap();
     let sqlx_db = app_data.sqlx_pool.clone();
     let sched = chrono::Utc::now().add(chrono::Duration::hours(form.countdown.unwrap_or(0) as i64));
-    let game = Game::get(path_id, &sqlx_db).await.unwrap();
-    sqlx::query!("UPDATE games SET next_turn=$2 WHERE id=$1 RETURNING *", path_id, sched).fetch_one(&sqlx_db).await.unwrap();
+    let game = Game::get(*path_id, &sqlx_db).await.unwrap();
+    sqlx::query!(
+        "UPDATE games SET next_turn=$2 WHERE id=$1 RETURNING *",
+        *path_id,
+        sched
+    )
+    .fetch_one(&sqlx_db)
+    .await
+    .unwrap();
     NewAdminLog {
-        game_id: path_id,
+        game_id: *path_id,
         datetime: Utc::now().naive_utc(),
         action: format!("Set game to start in {} hours", form.countdown.unwrap_or(0)),
     }
@@ -1039,7 +1042,7 @@ async fn launch(
     .await
     .unwrap();
     Ok(HttpResponse::Found()
-        .header(header::LOCATION, format!("/game/{}#schedule", game.id))
+        .append_header((header::LOCATION, format!("/game/{}#schedule", game.id)))
         .finish())
 }
 #[post("/games/create")]
@@ -1062,7 +1065,7 @@ async fn create_post(
                 != params.antibot.unwrap().to_ascii_lowercase()
         {
             return Ok(HttpResponse::Found()
-                .header(header::LOCATION, "/games?antibot_failed=1")
+                .append_header((header::LOCATION, "/games?antibot_failed=1"))
                 .finish());
         }
     }
@@ -1081,7 +1084,11 @@ async fn create_post(
     new_game.name = params.name;
     new_game.password = params.password.clone();
     new_game.masterpass = Some(params.password);
-    new_game.map_id = sqlx::query!("SELECT id FROM maps ORDER BY id DESC LIMIT 1").fetch_one(&sqlx_db).await.unwrap().id;
+    new_game.map_id = sqlx::query!("SELECT id FROM maps ORDER BY id DESC LIMIT 1")
+        .fetch_one(&sqlx_db)
+        .await
+        .unwrap()
+        .id;
 
     let game: Game = new_game.insert(&sqlx_db).await.unwrap();
 
@@ -1318,17 +1325,13 @@ async fn settings_post(
 }
 #[post("/game/{id}/email")]
 async fn emails_post(
-    (app_data, bytes, web::Path(game_id)): (
-        web::Data<AppData>,
-        actix_web::web::Bytes,
-        web::Path<i32>,
-    ),
+    (app_data, bytes, game_id): (web::Data<AppData>, actix_web::web::Bytes, web::Path<i32>),
 ) -> Result<HttpResponse> {
     let cfg = serde_qs::Config::new(10, false);
     match cfg.deserialize_bytes::<EmailForm>(&bytes) {
         Ok(email_form) => {
             app_data.email_manager.create_config(
-                game_id,
+                *game_id,
                 email_form.email_address.clone(),
                 email_form.subject,
                 email_form.body,
@@ -1337,13 +1340,13 @@ async fn emails_post(
                 email_form.is_reminder,
             );
             Ok(HttpResponse::Found()
-                .header(
+                .append_header((
                     header::LOCATION,
                     format!(
                         "/game/{}?email_address={}#emails",
                         game_id, email_form.email_address
                     ),
-                )
+                ))
                 .finish())
         }
         Err(_) => Ok(HttpResponse::BadRequest()
@@ -1353,12 +1356,13 @@ async fn emails_post(
 }
 #[post("/game/{id}/emails/{emailid}/delete")]
 async fn emails_delete(
-    (app_data, bytes, web::Path((game_id, email_id))): (
+    (app_data, bytes, path): (
         web::Data<AppData>,
         actix_web::web::Bytes,
         web::Path<(i32, i32)>,
     ),
 ) -> Result<HttpResponse> {
+    let (game_id, email_id) = path.into_inner();
     let cfg = serde_qs::Config::new(10, false);
     match cfg.deserialize_bytes::<EmailForm>(&bytes) {
         Ok(email_form) => {
@@ -1366,13 +1370,13 @@ async fn emails_delete(
                 .email_manager
                 .delete_config(email_id, email_form.email_address.clone());
             Ok(HttpResponse::Found()
-                .header(
+                .append_header((
                     header::LOCATION,
                     format!(
                         "/game/{}#emails?email_address={}",
                         game_id, email_form.email_address
                     ),
-                )
+                ))
                 .finish())
         }
         Err(_) => Ok(HttpResponse::BadRequest()
@@ -1383,7 +1387,7 @@ async fn emails_delete(
 
 #[post("/game/{id}/archive")]
 pub async fn archive_post(
-    (app_data, web::Path(path_id), session, form): (
+    (app_data, path_id, session, form): (
         web::Data<AppData>,
         web::Path<i32>,
         actix_session::Session,
@@ -1391,19 +1395,19 @@ pub async fn archive_post(
     ),
 ) -> Result<HttpResponse> {
     if session
-        .get(&format!("auth_{}", path_id))
+        .get(&format!("auth_{}", *path_id))
         .unwrap_or(Some(AuthStatus::Unauthed))
         .unwrap_or(AuthStatus::Unauthed)
         == AuthStatus::Unauthed
     {
         return Ok(HttpResponse::Unauthorized()
-            .header(header::LOCATION, format!("/game/{}#schedule", path_id))
+            .append_header((header::LOCATION, format!("/game/{}#schedule", *path_id)))
             .finish());
     }
     let sqlx_db = app_data.sqlx_pool.clone();
     match form.archived {
-        true => Game::archive(path_id, &sqlx_db).await.unwrap(),
-        false => Game::unarchive(path_id, &sqlx_db).await.unwrap(),
+        true => Game::archive(*path_id, &sqlx_db).await.unwrap(),
+        false => Game::unarchive(*path_id, &sqlx_db).await.unwrap(),
     }
 
     return Ok(HttpResponse::Found()
@@ -1413,20 +1417,23 @@ pub async fn archive_post(
 
 #[post("/game/{id}/remove/{playerid}")]
 pub async fn remove_post(
-    (app_data, web::Path((path_id, nation_id)), session, web::Form(RemovePlayerForm { password } )): (
+    (app_data, path, session, web::Form(RemovePlayerForm { password } )): (
         web::Data<AppData>,
         web::Path<(i32, i32)>,
         actix_session::Session,
         web::Form<RemovePlayerForm>,
     ),
 ) -> Result<HttpResponse> {
+    let (path_id, nation_id) = path.into_inner();
     let is_authed = session
         .get(&format!("auth_{}", path_id))
         .unwrap_or(Some(AuthStatus::Unauthed))
         .unwrap_or(AuthStatus::Unauthed)
         == AuthStatus::AuthSuccess;
     let sqlx_db = app_data.sqlx_pool.clone();
-    let turns = crate::models::Turn::current_turn(&vec![path_id], &sqlx_db).await.unwrap();
+    let turns = crate::models::Turn::current_turn(&vec![path_id], &sqlx_db)
+        .await
+        .unwrap();
     // Check if there were no turns found for the vector of games containing only our game, *not*
     // that there were zero games for just ours, this is not a logic error, though it looks odd.
     if turns.len() == 0 {
@@ -1458,7 +1465,7 @@ pub async fn remove_post(
 
 #[post("/game/{id}/rollback")]
 pub async fn rollback_post(
-    (app_data, web::Path(path_id), session): (
+    (app_data, path_id, session): (
         web::Data<AppData>,
         web::Path<i32>,
         actix_session::Session,
@@ -1475,7 +1482,7 @@ pub async fn rollback_post(
             .finish());
     }
     let sqlx_db = app_data.sqlx_pool.clone();
-    Game::rollback(path_id, &sqlx_db).await.unwrap();
+    Game::rollback(*path_id, &sqlx_db).await.unwrap();
     return Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#schedule", path_id))
         .finish());
@@ -1483,32 +1490,32 @@ pub async fn rollback_post(
 
 #[post("/game/{id}/unstart")]
 pub async fn unstart_post(
-    (app_data, web::Path(path_id), session): (
+    (app_data, path_id, session): (
         web::Data<AppData>,
         web::Path<i32>,
         actix_session::Session,
     ),
 ) -> Result<HttpResponse> {
     if session
-        .get(&format!("auth_{}", path_id))
+        .get(&format!("auth_{}", *path_id))
         .unwrap_or(Some(AuthStatus::Unauthed))
         .unwrap_or(AuthStatus::Unauthed)
         == AuthStatus::Unauthed
     {
         return Ok(HttpResponse::Unauthorized()
-            .header(header::LOCATION, format!("/game/{}#schedule", path_id))
+            .header(header::LOCATION, format!("/game/{}#schedule", *path_id))
             .finish());
     }
     let sqlx_db = app_data.sqlx_pool.clone();
-    Game::unstart(path_id, &sqlx_db).await.unwrap();
-    Game::remove_timer(path_id, &sqlx_db).await.unwrap();
+    Game::unstart(*path_id, &sqlx_db).await.unwrap();
+    Game::remove_timer(*path_id, &sqlx_db).await.unwrap();
     return Ok(HttpResponse::Found()
-        .header(header::LOCATION, format!("/game/{}#schedule", path_id))
+        .header(header::LOCATION, format!("/game/{}#schedule", *path_id))
         .finish());
 }
 #[post("/game/{id}/assign-team")]
 pub async fn assign_team(
-    (app_data, web::Path(path_id), session, form): (
+    (app_data, path_id, session, form): (
         web::Data<AppData>,
         web::Path<i32>,
         actix_session::Session,
@@ -1516,17 +1523,17 @@ pub async fn assign_team(
     ),
 ) -> Result<HttpResponse> {
     if session
-        .get(&format!("auth_{}", path_id))
+        .get(&format!("auth_{}", *path_id))
         .unwrap_or(Some(AuthStatus::Unauthed))
         .unwrap_or(AuthStatus::Unauthed)
         == AuthStatus::Unauthed
     {
         return Ok(HttpResponse::Unauthorized()
-            .header(header::LOCATION, format!("/game/{}", path_id))
+            .header(header::LOCATION, format!("/game/{}", *path_id))
             .finish());
     }
     let sqlx_db = app_data.sqlx_pool.clone();
-    let disciple = Disciple::get(path_id, form.nation, &sqlx_db).await.unwrap();
+    let disciple = Disciple::get(*path_id, form.nation, &sqlx_db).await.unwrap();
     if form.team == 0 {
         if form.disciple == 0 {
             disciple.set_team(None, &sqlx_db).await.unwrap();
@@ -1543,12 +1550,12 @@ pub async fn assign_team(
             .unwrap();
     }
     return Ok(HttpResponse::Found()
-        .header(header::LOCATION, format!("/game/{}#status", path_id))
+        .header(header::LOCATION, format!("/game/{}#status", *path_id))
         .finish());
 }
 #[post("/game/{id}/motd")]
 pub async fn motd(
-    (app_data, web::Path(path_id), session, mut form): (
+    (app_data, path_id, session, mut form): (
         web::Data<AppData>,
         web::Path<i32>,
         actix_session::Session,
@@ -1556,30 +1563,30 @@ pub async fn motd(
     ),
 ) -> Result<HttpResponse> {
     if session
-        .get(&format!("auth_{}", path_id))
+        .get(&format!("auth_{}", *path_id))
         .unwrap_or(Some(AuthStatus::Unauthed))
         .unwrap_or(AuthStatus::Unauthed)
         == AuthStatus::Unauthed
     {
         return Ok(HttpResponse::Unauthorized()
-            .header(header::LOCATION, format!("/game/{}", path_id))
+            .header(header::LOCATION, format!("/game/{}", *path_id))
             .finish());
     }
     let sqlx_pool = app_data.sqlx_pool.clone();
     if form.motd == Some("".to_owned()) {
         form.motd = None;
     }
-    sqlx::query!("UPDATE games SET motd=$2 WHERE id=$1", path_id, form.motd)
+    sqlx::query!("UPDATE games SET motd=$2 WHERE id=$1", *path_id, form.motd)
         .execute(&sqlx_pool)
         .await
         .unwrap();
     return Ok(HttpResponse::Found()
-        .header(header::LOCATION, format!("/game/{}#schedule", path_id))
+        .header(header::LOCATION, format!("/game/{}#schedule", *path_id))
         .finish());
 }
 #[post("/game/{id}/watch")]
 pub async fn watch(
-    (web::Path(path_id), session, form): (
+    (path_id, session, form): (
         web::Path<i32>,
         actix_session::Session,
         web::Form<WatchForm>,
@@ -1597,21 +1604,22 @@ pub async fn watch(
             watches.insert(form.player_id);
         }
     }
-    session.set("watches", watches).unwrap();
+    session.insert("watches", watches).unwrap();
 
     return Ok(HttpResponse::Found()
-        .header(header::LOCATION, format!("/game/{}#status", path_id))
+        .append_header((header::LOCATION, format!("/game/{}#status", *path_id)))
         .finish());
 }
 #[post("/game/{id}/startloc/{nationid}")]
 pub async fn assign_start(
-    (app_data, web::Path((path_id, nation_id)), session, bytes): (
+    (app_data, path, session, bytes): (
         web::Data<AppData>,
         web::Path<(i32, i32)>,
         actix_session::Session,
         actix_web::web::Bytes,
     ),
 ) -> Result<HttpResponse> {
+    let (path_id, nation_id) = path.into_inner();
     let cfg = serde_qs::Config::new(10, false);
     let form = cfg.deserialize_bytes::<StartLocForm>(&bytes).unwrap();
     match form.password.get(&nation_id) {
@@ -1652,18 +1660,19 @@ pub async fn assign_start(
         _ => {}
     }
     return Ok(HttpResponse::Found()
-        .header(header::LOCATION, format!("/game/{}#status", path_id))
+        .append_header((header::LOCATION, format!("/game/{}#status", path_id)))
         .finish());
 }
 
 #[post("/game/{id}/turns/{turn}/download/{nation_id}")]
 pub async fn download_turn(
-    (app_data, web::Path((game_id, turn, nation_id)), form): (
+    (app_data, path, form): (
         web::Data<AppData>,
         web::Path<(i32, i32, i32)>,
         web::Form<DownloadTurnForm>,
     ),
 ) -> Result<HttpResponse> {
+    let (game_id, turn, nation_id) = path.into_inner();
     let db = app_data.sqlx_pool.clone();
     let files = sqlx::query!(
         r#"
@@ -1689,7 +1698,7 @@ pub async fn download_turn(
     .unwrap();
     if files.len() == 0 {
         return Ok(HttpResponse::Found()
-            .header(header::LOCATION, format!("/game/{}#schedule", game_id))
+            .append_header((header::LOCATION, format!("/game/{}#schedule", game_id)))
             .finish());
     }
     let mut bytes: Vec<u8> = vec![];
@@ -1711,13 +1720,13 @@ pub async fn download_turn(
     zip.finish().unwrap();
     drop(zip);
     return Ok(HttpResponse::Ok()
-        .set_header(
+        .append_header((
             "content-disposition",
             format!(
                 r#"attachment; filename="{} {} turn {}.zip""#,
                 files[0].game_name, files[0].nation_name, turn
             ),
-        )
+        ))
         .content_type("application/zip")
         .body(bytes));
 }

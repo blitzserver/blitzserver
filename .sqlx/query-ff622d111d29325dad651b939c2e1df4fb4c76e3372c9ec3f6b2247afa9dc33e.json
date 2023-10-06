@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.nationid, p.startprov\n                                FROM players p\n                                WHERE p.game_id=$1 AND p.startprov IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "nationid",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "startprov",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "ff622d111d29325dad651b939c2e1df4fb4c76e3372c9ec3f6b2247afa9dc33e"
+}

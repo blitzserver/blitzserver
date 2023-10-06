@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH archive AS (\n                UPDATE games SET port=NULL, archived=TRUE,last_activity=NOW() WHERE id=$1 RETURNING *)\n            INSERT INTO admin_logs (game_id, datetime, action) VALUES ($1, NOW(), 'Archived game') RETURNING *",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "game_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "datetime",
+        "type_info": "Timestamp"
+      },
+      {
+        "ordinal": 3,
+        "name": "action",
+        "type_info": "Varchar"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d09abb84afa2efa2688fe49265b16d28f1f902b1ee5ed6fe834553a691a7c965"
+}

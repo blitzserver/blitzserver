@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT f.filebinary\n                                FROM games g\n                                    INNER JOIN maps m ON m.id=g.map_id\n                                    INNER JOIN files f ON f.id=m.tgafile_id\n                                WHERE g.id=$1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "filebinary",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "850c17f91181d3efcf1e04856c8784a776fd60bd047481b5927324489da6ab29"
+}

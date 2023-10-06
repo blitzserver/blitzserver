@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH res as (UPDATE players SET startprov=NULL WHERE game_id=$1)\n            UPDATE games SET modified_mapcrc=NULL WHERE id=$1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "54f522e1f06fd50583e56cdc308d5d9936640ded84584d8dd1dc144d6c356b26"
+}

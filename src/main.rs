@@ -7,8 +7,6 @@
 #![feature(get_mut_unchecked)]
 #![feature(never_type)]
 #[macro_use]
-extern crate num_enum;
-#[macro_use]
 extern crate async_std;
 extern crate base64;
 extern crate byteorder;
@@ -31,6 +29,8 @@ extern crate tungstenite;
 extern crate url;
 extern crate zip;
 
+use actix_session::SessionMiddleware;
+use actix_session::storage::CookieSessionStore;
 use actix_web::http::header;
 use actix_web::{get, middleware, App, HttpResponse, HttpServer, Result};
 use dotenv::dotenv;
@@ -55,14 +55,14 @@ use frontend::AppData;
 #[get("/")]
 async fn index() -> Result<HttpResponse> {
     Ok(HttpResponse::PermanentRedirect()
-        .header(header::LOCATION, "/games")
+        .append_header((header::LOCATION, "/games"))
         .finish())
 }
 
 #[get("/styles.css")]
 async fn styles() -> Result<HttpResponse> {
     Ok(HttpResponse::Ok()
-        .set(header::CacheControl(vec![header::CacheDirective::MaxAge(
+        .append_header(header::CacheControl(vec![header::CacheDirective::MaxAge(
             86400u32,
         )]))
         .content_type("text/css")
@@ -96,32 +96,9 @@ async fn main() -> std::io::Result<()> {
     };
     scheduler.run();
 
-    let discord_manager = match discord::DiscordManager::new(bus.sender.clone()) {
-        Ok(d) => {
-            match (
-                d.clone().monitor_bus(bus.new_recv()),
-                d.clone().monitor_discord(),
-            ) {
-                (Err(e), _) => {
-                    log::warn!("Discord integration disabled, {:?}", e);
-                    None
-                }
-                (_, Err(e)) => {
-                    log::warn!("Discord integration disabled, {:?}", e);
-                    None
-                }
-                _ => Some(d),
-            }
-        }
-        Err(e) => {
-            log::warn!("Discord integration disabled, {:?}", e);
-            None
-        }
-    };
     let app_data = AppData {
         msgbus_sender: bus.sender.clone(),
         sqlx_pool: sqlx_pool.clone(),
-        discord_manager,
         email_manager: crate::email_manager::EmailManager {
             msgbus_tx: bus.sender.clone(),
             sqlx_pool: sqlx_pool.clone(),
@@ -140,7 +117,8 @@ async fn main() -> std::io::Result<()> {
         smtp_server: env::var("SMTP_SERVER").expect("SMTP_SERVER must be said to the SMTP server"),
         hostname: env::var("HOSTNAME").expect("HOSTNAME must be set to accessible address"),
     }
-    .monitor().await;
+    .monitor()
+    .await;
 
     HttpServer::new(move || {
         // TODO: Hack here, we create the map thumbnail dir VERY ahead of time since the file
@@ -149,20 +127,18 @@ async fn main() -> std::io::Result<()> {
         if !maps_dir.exists() {
             std::fs::create_dir_all(&maps_dir).unwrap();
         }
+        let secret_key = actix_web::cookie::Key::from(env::var("COOKIE_KEY")
+            .expect("Missing COOKIE_KEY phrase, needed for signed cookies!")
+            .as_bytes());
 
         App::new()
             .wrap(middleware::Logger::default())
             .wrap(middleware::Compress::default())
             .data(app_data.clone())
-            .wrap(
-                actix_session::CookieSession::private(
-                    env::var("COOKIE_KEY")
-                        .expect("Missing COOKIE_KEY phrase, needed for signed cookies!")
-                        .as_bytes(),
-                )
-                .secure(true)
-                .max_age(999_999_999_999)
-            )
+            .wrap(SessionMiddleware::new(
+                CookieSessionStore::default(),
+                secret_key
+            ))
             .app_data(
                 serde_qs::actix::QsQueryConfig::default()
                     .qs_config(serde_qs::Config::new(10, false)),

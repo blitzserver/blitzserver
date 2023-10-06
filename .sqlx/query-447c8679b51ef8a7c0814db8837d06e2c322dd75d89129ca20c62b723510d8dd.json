@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n    WITH _insert as (INSERT INTO admin_logs (game_id, datetime, action) \n    SELECT $1 as \"game_id\", NOW() as \"datetime\", concat('Viewed turn logs for turn ', j.turn_number) as \"action\"\n    FROM jobs j WHERE j.job_id=$2)\n    SELECT j.job_id, j.turn_number, j.started_at, j.finished_at, j.reaped, sj.logs as \"game_logs?\"\n    FROM jobs j\n    LEFT JOIN subjobs sj  ON sj.job_id=j.job_id AND j.job_id=$2 AND $2 IS NOT NULL AND sj.label='dom5 processing turn'\n    WHERE j.game_id=$1 ORDER BY j.started_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "job_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "turn_number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "started_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 3,
+        "name": "finished_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 4,
+        "name": "reaped",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "game_logs?",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "447c8679b51ef8a7c0814db8837d06e2c322dd75d89129ca20c62b723510d8dd"
+}

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH inserted AS (INSERT INTO player_turns\n            (status, game_id, nation_id, turn_number)\n            SELECT 3, $1, UNNEST($3::integer[]), $2)\n            INSERT INTO player_turns\n            (status, game_id, nation_id, turn_number)\n            SELECT 4, $1, UNNEST($4::integer[]), $2;\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4Array",
+        "Int4Array"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bd0860d3286a91c6dadad40c70976c460b064b8ad73310648752b62726b4eeaf"
+}

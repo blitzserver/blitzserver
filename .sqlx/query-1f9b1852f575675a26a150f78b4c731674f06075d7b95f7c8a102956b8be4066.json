@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT nationid, startprov FROM players WHERE game_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "nationid",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "startprov",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "1f9b1852f575675a26a150f78b4c731674f06075d7b95f7c8a102956b8be4066"
+}

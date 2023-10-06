@@ -18,10 +18,10 @@ pub struct MapDetailsTemplate<'a> {
 
 #[get("/map/{id}")]
 pub async fn details(
-    (app_data, web::Path(path_id)): (web::Data<AppData>, web::Path<i32>),
+    (app_data, path_id): (web::Data<AppData>, web::Path<i32>),
 ) -> Result<HttpResponse> {
     let sqlx_pool = app_data.sqlx_pool.clone();
-    let map = sqlx::query_as!(Map, "SELECT * FROM maps WHERE id=$1", path_id)
+    let map = sqlx::query_as!(Map, "SELECT * FROM maps WHERE id=$1", *path_id)
         .fetch_one(&sqlx_pool)
         .await
         .unwrap();
@@ -32,10 +32,10 @@ pub async fn details(
 
 #[get("/images/maps/{id}.jpg")]
 pub async fn image(
-    (app_data, web::Path(path_id)): (web::Data<AppData>, web::Path<i32>),
+    (app_data, path_id): (web::Data<AppData>, web::Path<i32>),
 ) -> Result<HttpResponse> {
     let db = app_data.sqlx_pool.clone();
-    let (_, image, _) = Map::get_files(path_id, &db).await.unwrap();
+    let (_, image, _) = Map::get_files(*path_id, &db).await.unwrap();
     let mut jpg_bytes: Vec<u8> = Vec::new();
     let reader = crate::image::io::Reader::with_format(
         std::io::Cursor::new(image.filebinary),
@@ -110,7 +110,7 @@ async fn download((app_data, mapid): (web::Data<AppData>, web::Path<i32>)) -> Re
 
     Ok(HttpResponse::Ok()
         .content_type("application/zip")
-        .set(header::CacheControl(vec![
+        .append_header(header::CacheControl(vec![
             header::CacheDirective::Public,
             header::CacheDirective::MaxAge(86400u32),
         ]))
@@ -154,7 +154,7 @@ async fn upload_post(
             if errors.len() > 0 {
                 continue;
             }
-            let content_type = field.content_disposition().unwrap();
+            let content_type = field.content_disposition().clone();
             match content_type.get_name() {
                 Some("map") => {
                     let mut contents: Vec<u8> = vec![];
@@ -302,7 +302,7 @@ async fn upload_post(
         }
         let address = std::env::var("ADDRESS").expect("ADDRESS env var not specified");
         return Ok(HttpResponse::Found()
-            .header(header::LOCATION, format!("{}/maps", address))
+            .append_header((header::LOCATION, format!("{}/maps", address)))
             .finish());
     }
 }

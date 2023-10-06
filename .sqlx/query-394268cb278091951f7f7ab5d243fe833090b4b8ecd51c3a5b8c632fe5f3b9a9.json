@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH game AS (UPDATE games SET modified_mapcrc=NULL WHERE id=$3 AND select_start=2 RETURNING *)\n                UPDATE players p SET startprov=$1\n                FROM game g \n                WHERE p.game_id=g.id AND p.nationid=$2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "394268cb278091951f7f7ab5d243fe833090b4b8ecd51c3a5b8c632fe5f3b9a9"
+}
