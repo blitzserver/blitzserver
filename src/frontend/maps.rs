@@ -1,5 +1,4 @@
 use super::AppData;
-use crate::diesel::prelude::*;
 use crate::models::{File, Map, NewFile, NewMap};
 use actix_multipart::Multipart;
 use actix_web::http::header;

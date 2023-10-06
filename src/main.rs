@@ -9,7 +9,6 @@
 #[macro_use]
 extern crate num_enum;
 #[macro_use]
-extern crate diesel;
 extern crate async_std;
 extern crate base64;
 extern crate byteorder;
@@ -34,8 +33,6 @@ extern crate zip;
 
 use actix_web::http::header;
 use actix_web::{get, middleware, App, HttpResponse, HttpServer, Result};
-use diesel::r2d2::ConnectionManager;
-use diesel::PgConnection;
 use dotenv::dotenv;
 use std::env;
 
@@ -50,7 +47,6 @@ pub mod frontend;
 pub mod models;
 pub mod msgbus;
 pub mod packets;
-pub mod schema;
 pub mod statusdump;
 pub mod util;
 
@@ -84,11 +80,6 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
     // Db
     dotenv().ok();
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let pool = {
-        let manager = ConnectionManager::<PgConnection>::new(database_url);
-        r2d2::Pool::new(manager).unwrap().clone()
-    };
     let bus = msgbus::MsgBus::new();
 
     let sqlx_pool = sqlx::postgres::PgPoolOptions::new()
@@ -105,7 +96,7 @@ async fn main() -> std::io::Result<()> {
     };
     scheduler.run();
 
-    let discord_manager = match discord::DiscordManager::new(bus.sender.clone(), pool.clone()) {
+    let discord_manager = match discord::DiscordManager::new(bus.sender.clone()) {
         Ok(d) => {
             match (
                 d.clone().monitor_bus(bus.new_recv()),
@@ -129,7 +120,6 @@ async fn main() -> std::io::Result<()> {
     };
     let app_data = AppData {
         msgbus_sender: bus.sender.clone(),
-        pool: pool.clone(),
         sqlx_pool: sqlx_pool.clone(),
         discord_manager,
         email_manager: crate::email_manager::EmailManager {

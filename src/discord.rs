@@ -1,7 +1,5 @@
 use crate::models::DiscordConfig;
 use crate::msgbus::{MsgBusRx, MsgBusTx};
-use diesel::r2d2::ConnectionManager;
-use diesel::PgConnection;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::env;
@@ -13,7 +11,6 @@ pub struct DiscordManager {
     bot_token: String,
     client: Option<reqwest::blocking::Client>,
     pub client_id: String,
-    db_pool: r2d2::Pool<ConnectionManager<PgConnection>>,
     session_id: Option<String>,
     seq: Option<i32>,
     bus_tx: MsgBusTx,
@@ -134,7 +131,6 @@ impl DiscordManager {
 
     pub fn new(
         bus_tx: MsgBusTx,
-        db_pool: r2d2::Pool<ConnectionManager<PgConnection>>,
     ) -> Result<Self, DiscordManagerError> {
         let bot_token = env::var_os("DISCORD_BOTTOKEN")
             .ok_or(DiscordManagerError::NoBotToken)?
@@ -150,7 +146,6 @@ impl DiscordManager {
             client_id,
             client: None,
             bot_token,
-            db_pool,
             session_id: None,
             seq: None,
             bus_tx,

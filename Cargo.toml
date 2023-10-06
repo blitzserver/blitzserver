@@ -8,7 +8,6 @@ edition = "2018"
 
 [dependencies]
 actix-web = "*"
-diesel = { version = "*", features = ["64-column-tables", "r2d2", "postgres", "chrono"] }
 serde = { version = "*", features = ["derive"] }
 dotenv = "*"
 askama = "*"
@@ -43,7 +42,7 @@ url = "*"
 serde_json = "*"
 rand = "*"
 smol = "*"
-sqlx = { version = "0.5", features = ["runtime-async-std-native-tls", "chrono", "postgres"] }
+sqlx = { version = "0.7", features = ["runtime-async-std-native-tls", "chrono", "postgres"] }
 nonblock = "*"
 async-std = "*"
 derive_more = "*"

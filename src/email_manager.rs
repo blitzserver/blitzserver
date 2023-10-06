@@ -1,7 +1,5 @@
 use crate::models::{EmailConfig, Game, NewEmailConfig, Turn};
 use crate::msgbus::{EmailConfigCreatedMsg, EmailConfigDeletedMsg, Msg, MsgBusTx};
-use diesel::r2d2::ConnectionManager;
-use diesel::PgConnection;
 use lettre::{transport::smtp::authentication::Credentials, Transport};
 use sqlx::{Pool, Postgres};
 use std::env;

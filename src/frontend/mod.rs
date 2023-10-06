@@ -1,6 +1,4 @@
-use diesel::r2d2::ConnectionManager;
 use std::env;
-use diesel::PgConnection;
 use crate::msgbus::MsgBusTx;
 use crate::discord::DiscordManager;
 use crate::email_manager::EmailManager;
@@ -14,7 +12,6 @@ pub mod binaries;
 
 #[derive(Clone)]
 pub struct AppData {
-    pub pool: r2d2::Pool<ConnectionManager<PgConnection>>,
     pub sqlx_pool: sqlx::postgres::PgPool,
     pub msgbus_sender: MsgBusTx,
     pub email_manager: EmailManager,

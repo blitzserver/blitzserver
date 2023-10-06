@@ -1,11 +1,8 @@
 use super::{File, Game};
 use crate::files::saves::{DomSaveReadError, SaveFile};
-use crate::schema::players;
 use sqlx::Postgres;
 use thiserror::Error;
-#[derive(Identifiable, Queryable, Associations, PartialEq, Debug)]
-#[belongs_to(Game)]
-#[table_name = "players"]
+#[derive(PartialEq, Debug)]
 pub struct Player {
     pub id: i32,
     pub nationid: i32,
@@ -95,8 +92,6 @@ impl Player {
     }
 }
 
-#[derive(Insertable)]
-#[table_name = "players"]
 pub struct NewPlayer {
     pub nationid: i32,
     pub game_id: i32,
