@@ -1,3 +1,4 @@
+use actix_web::{dev::Response, Responder, HttpResponse, body::BoxBody};
 use serde::de::Error;
 
 pub fn from_str_opt<'de, D, S>(deserializer: D) -> Result<Option<S>, D::Error>
@@ -79,5 +80,15 @@ pub fn rand_bool() -> bool {
     match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() % 2 {
         1 => true,
         _ => false
+    }
+}
+
+pub struct ActixHtmlNode(pub html_node::Node);
+
+impl Responder for ActixHtmlNode {
+    type Body = BoxBody;
+
+    fn respond_to(self, req: &actix_web::HttpRequest) -> actix_web::HttpResponse<Self::Body> {
+        HttpResponse::Ok().content_type("text/html").body(self.0.to_string())
     }
 }

@@ -1,4 +1,5 @@
 pub mod player;
+pub mod binary;
 
 use std::env;
 use chrono::NaiveDateTime;
@@ -426,9 +427,10 @@ impl NewGame {
         where D: sqlx::Executor<'q, Database = Postgres> 
     {
         sqlx::query_as!(Game, "
-        INSERT INTO games ( name, era, map_id, port, thrones_t1, thrones_t2, thrones_t3, throne_points_required, research_diff, research_rand, hof_size, global_size, indepstr, magicsites, eventrarity, richness, resources, recruitment, supplies, startprov, renaming, scoregraphs, nationinfo, artrest, teamgame, clustered, storyevents, newailvl, password, masterpass)
-        VALUES (            $1,   $2,  $3,     $4,   $5,         $6,         $7,         $8,                     $9,            $10,           $11,      $12,         $13,      $14,        $15,         $16,      $17,       $18,         $19,      $20,       $21,      $22,         $23,        $24,     $25,      $26,       $27,         $28,      $29,      $30)
-        RETURNING *
+        INSERT INTO games ( name, era, map_id, port, thrones_t1, thrones_t2, thrones_t3, throne_points_required, research_diff, research_rand, hof_size, global_size, indepstr, magicsites, eventrarity, richness, resources, recruitment, supplies, startprov, renaming, scoregraphs, nationinfo, artrest, teamgame, clustered, storyevents, newailvl, password, masterpass, binary_id)
+        SELECT              $1,   $2,  $3,     $4,   $5,         $6,         $7,         $8,                     $9,            $10,           $11,      $12,         $13,      $14,        $15,         $16,      $17,       $18,         $19,      $20,       $21,      $22,         $23,        $24,     $25,      $26,       $27,         $28,      $29,      $30,        b.binary_id
+        FROM (SELECT binary_id FROM binaries  ORDER BY binary_id DESC LIMIT 1) b
+        RETURNING games.*
         " , 
         self.name,
         self.era,

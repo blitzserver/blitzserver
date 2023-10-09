@@ -1,7 +1,23 @@
 {% extends "container.html" %}
 {% block body %}
 <div>
-  Binaries
+ <div class="pane">
+			<form enctype="multipart/form-data" action="/binaries" method="post">
+				<h3>Upload Binary</h3>
+				<div class="input-group">
+          <label>Name</label>
+          <input placeholder="Dominions 5.61" name="name" required type="text" />
+				</div>
+				<div class="input-group">
+          <label>Archive</label>
+          <input name="archive" required type="file" />
+				</div>
+				<input class="btn btn-block btn-primary" type="submit" value="Upload"/>
+			</form>
+  </div>
+  <div>
+  </div>
+ Binaries
 </div>
 {% endblock %}
 

@@ -1,5 +1,6 @@
 use crate::files::saves::kingdom::KingdomType;
 use crate::files::saves::{DomSaveReadError, SaveFile};
+use crate::models::binary::Binary;
 use encoding::{all::ISO_8859_1, DecoderTrap, Encoding};
 use nonblock::NonBlockingReader;
 use std::io::{Read, Seek, Write};
@@ -326,12 +327,9 @@ impl Dom5Turn {
                 Err(e) => panic!("{}", e),
                 Ok(_) => {}
             }
+            let path = Binary::extract_to_tmp(self.game_id, &self.db_pool).await.unwrap();
             let mut proc = AutokilledProc(
-                std::process::Command::new(std::path::PathBuf::from(
-                    std::env::var("DOM5_BIN")
-                        .expect("DOM5_BIN not specified")
-                        .to_string(),
-                ))
+                std::process::Command::new(path)
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped())
                 .env("DOM5_CONF", &data_dir)
@@ -638,12 +636,9 @@ impl Dom5Turn {
             if let None = game.turn {
                 arguments.append(&mut vec!["--newgame".to_string()]);
             }
+            let path = Binary::extract_to_tmp(self.game_id, &self.db_pool).await.unwrap();
             let mut child = AutokilledProc(
-                std::process::Command::new(std::path::PathBuf::from(
-                    std::env::var("DOM5_BIN")
-                        .expect("DOM5_BIN not specified")
-                        .to_string(),
-                ))
+                std::process::Command::new(path)
                 .env(
                     "DOM5_CONF",
                     std::env::current_dir()

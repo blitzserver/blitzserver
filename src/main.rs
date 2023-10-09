@@ -49,6 +49,7 @@ pub mod msgbus;
 pub mod packets;
 pub mod statusdump;
 pub mod util;
+pub mod views;
 
 use frontend::AppData;
 
@@ -181,6 +182,7 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::mods::image)
             .service(frontend::help::help)
             .service(frontend::binaries::list)
+            .service(frontend::binaries::upload)
             .service(actix_files::Files::new("/", "./content"))
     })
     .bind("0.0.0.0:8080")?

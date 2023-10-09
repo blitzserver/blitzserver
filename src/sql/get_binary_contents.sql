@@ -1,0 +1,12 @@
+SELECT 
+  b.executable_path, 
+  b.name, 
+  f.filename, 
+  f.filebinary 
+FROM 
+  files f, 
+  binaries b,
+  games g
+WHERE g.id=$1 AND f.id=g.binary_id AND b.binary_id=g.binary_id;
+
+
