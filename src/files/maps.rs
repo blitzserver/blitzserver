@@ -7,6 +7,7 @@ pub struct MapFile {
     pub winter_filename: Option<String>,
     pub prov_count: i32,
     pub uwprov_count: i32,
+    pub min_version: i32,
 }
 
 #[derive(Debug)]
@@ -87,6 +88,11 @@ impl std::convert::TryFrom<&[u8]> for MapFile {
             .and_then(|c| c.captures(&nocomment_lines))
             .and_then(|m| m.get(1))
             .and_then(|d| Some(d.as_str().to_owned()));
+        let min_version = regex::Regex::new(r#"#domversion ([0-9]+)"#)
+            .ok()
+            .and_then(|c| c.captures(&nocomment_lines))
+            .and_then(|m| m.get(1))
+            .and_then(|d| Some(d.as_str().to_owned()));
 
         let mut province_count: i32 = 0;
         let mut uw_count = 0;
@@ -122,7 +128,8 @@ impl std::convert::TryFrom<&[u8]> for MapFile {
         Ok(MapFile {
             map_name: name,
             tga_filename: tga_name,
-            winter_filename: winter_filename,
+            winter_filename,
+            min_version: min_version.as_deref().map(|c| str::parse::<i32>(c).ok()).flatten().unwrap_or(0),
             prov_count: province_count,
             uwprov_count: uw_count
         })

@@ -16,7 +16,7 @@ impl Submit2hResp {
 
 impl crate::packets::BodyContents for Submit2hResp {
     const ID: u8 = 0xa;
-    fn write<W: std::io::Write>(&self, w: &mut W) {
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
         w.write_u8(1).unwrap();
     }
 }

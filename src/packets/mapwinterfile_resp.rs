@@ -23,7 +23,7 @@ impl MapWinterFileResp {
 
 impl crate::packets::BodyContents for MapWinterFileResp {
     const ID: u8 = 0x22;
-    fn write<W: std::io::Write>(&self, w: &mut W) {
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
         w.write_u32::<LittleEndian>(self.winter_contents.len() as u32)
             .unwrap();
         w.write_all(&self.winter_contents).unwrap();

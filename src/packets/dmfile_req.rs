@@ -5,7 +5,7 @@ pub struct DmFileReq {
 }
 
 impl DmFileReq {
-    pub fn from_reader<R: std::io::Read>(r: &mut R) -> DmFileReq {
+    pub fn from_reader<R: std::io::Read>(r: &mut R, version: Option<u16>) -> Self {
         let mut dmfile_bytes = vec![];
         loop {
             let c = r.read_u8().unwrap();
@@ -15,7 +15,7 @@ impl DmFileReq {
                 break;
             }
         }
-        DmFileReq {
+        Self {
             filename: String::from_utf8_lossy(&dmfile_bytes).to_string(),
         }
     }
@@ -23,7 +23,7 @@ impl DmFileReq {
 
 impl crate::packets::BodyContents for DmFileReq {
     const ID: u8 = 0xf;
-    fn write<W: std::io::Write>(&self, w: &mut W) {
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
         w.write_all(self.filename.as_bytes()).unwrap();
         w.write_u8(0).unwrap();
     }

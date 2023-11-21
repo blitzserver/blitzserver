@@ -129,7 +129,7 @@ impl GameInfoResp {
 impl crate::packets::BodyContents for GameInfoResp {
     const ID: u8 = 0x4;
 
-    fn write<W: std::io::Write>(&self, w: &mut W) {
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
         w.write(&[0xc3, 0x1, 0, 0]).unwrap();
         w.write_u8(self.game_state).unwrap();
         w.write(self.game_name.as_bytes()).unwrap();

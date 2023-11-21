@@ -141,6 +141,7 @@ async fn upload_post(
         winterfile_id: None,
         province_count: 0,
         uw_count: 0,
+        min_version: 0
     };
     let sqlx_db = app_data.sqlx_pool.clone();
     let mut tga_name: Option<String> = None;
@@ -178,6 +179,7 @@ async fn upload_post(
                                 new_map.name = mfd.map_name.clone();
                                 new_map.province_count = mfd.prov_count;
                                 new_map.uw_count = mfd.uwprov_count;
+                                new_map.min_version = mfd.min_version;
                                 map_file_data = Some(mfd);
                             }
                         }

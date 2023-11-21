@@ -31,7 +31,7 @@ impl MapFileResp {
 
 impl crate::packets::BodyContents for MapFileResp {
     const ID: u8 = 0x1e;
-    fn write<W: std::io::Write>(&self, w: &mut W) {
+    fn write<W: std::io::Write>(&self, w: &mut W, verison: Option<u16>) {
         w.write_u32::<LittleEndian>(self.map_contents.len() as u32)
             .unwrap();
         w.write_all(&self.map_contents).unwrap();

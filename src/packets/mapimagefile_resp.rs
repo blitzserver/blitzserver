@@ -23,7 +23,7 @@ impl MapImageFileResp {
 
 impl crate::packets::BodyContents for MapImageFileResp {
     const ID: u8 = 0xe;
-    fn write<W: std::io::Write>(&self, w: &mut W) {
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
         w.write_u32::<LittleEndian>(self.image_contents.len() as u32)
             .unwrap();
         w.write_all(&self.image_contents).unwrap();

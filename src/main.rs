@@ -1,4 +1,5 @@
 #![feature(duration_constants)]
+#![feature(let_chains)]
 #![recursion_limit = "256"]
 #![feature(try_blocks)]
 #![feature(extract_if)]

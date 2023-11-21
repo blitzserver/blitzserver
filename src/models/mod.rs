@@ -347,7 +347,13 @@ impl Game {
         let port_var = env::var("PORT_RANGE").expect("PORT_RANGE must be set (ie. '10000,10999')");
         let range: Vec<&str> = port_var.split(",").collect();
         sqlx::query!("WITH unarchive AS (
-                     UPDATE games SET port=(SELECT MIN(num) FROM generate_series($2::integer, $3::integer) num LEFT OUTER JOIN games g ON g.port=num), archived=TRUE,last_activity=NOW() WHERE id=$1 RETURNING *)
+                     UPDATE games 
+                     SET port=(SELECT MIN(num) 
+                             FROM generate_series($2::integer, $3::integer) num 
+                             LEFT OUTER JOIN games g ON g.port=num), 
+                         archived=FALSE,
+                         last_activity=NOW() 
+                    WHERE id=$1 RETURNING *)
             INSERT INTO admin_logs (game_id, datetime, action) VALUES ($1, NOW(), 'Reinstated game') RETURNING *", game_id, range[0].parse::<i32>().unwrap(), range[1].parse::<i32>().unwrap()).fetch_one(db).await.unwrap();
         Ok(())
     }
@@ -518,6 +524,7 @@ pub struct Map {
     pub map_crc: Option<i32>,
     pub tga_crc: Option<i32>,
     pub winter_crc: Option<i32>,
+    pub min_version: i32,
 }
 
 #[derive(Debug, Error)]
@@ -687,19 +694,21 @@ pub struct NewMap {
     pub winterfile_id: Option<i32>,
     pub province_count: i32,
     pub uw_count: i32,
+    pub min_version: i32,
 }
 
 impl NewMap {
     pub async fn insert<'q, D>(&self, db: D) -> Result<Map, sqlx::error::Error> 
         where D: sqlx::Executor<'q, Database = Postgres>
     {
-        sqlx::query_as!(Map, "INSERT INTO maps (name, mapfile_id, tgafile_id, winterfile_id, province_count, uw_count) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+        sqlx::query_as!(Map, "INSERT INTO maps (name, mapfile_id, tgafile_id, winterfile_id, province_count, uw_count, min_version) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
         self.name,
         self.mapfile_id,
         self.tgafile_id,
         self.winterfile_id,
         self.province_count,
-        self.uw_count
+        self.uw_count,
+        self.min_version
         ).fetch_one(db).await
     }
 }

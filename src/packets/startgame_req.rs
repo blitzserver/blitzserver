@@ -10,5 +10,5 @@ impl StartGameReq {
 
 impl crate::packets::BodyContents for StartGameReq {
     const ID: u8 = 0x36;
-    fn write<W: std::io::Write>(&self, _w: &mut W) {}
+    fn write<W: std::io::Write>(&self, _w: &mut W, version: Option<u16>) {}
 }

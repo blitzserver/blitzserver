@@ -7,12 +7,14 @@ use zip::ZipArchive;
 pub struct Binary {
     pub binary_id: i32,
     pub executable_path: String,
-    pub name: String,
+    pub version: String,
+    pub version_number: i32,
+    pub foldered_maps: bool
 }
 
 impl Binary {
     pub async fn new<'q, D>(
-        name: &str,
+        version: &str,
         filename: &str,
         contents: &[u8],
         executable_path: &str,
@@ -27,7 +29,7 @@ impl Binary {
             filename,
             contents,
             executable_path,
-            name
+            version
         )
         .fetch_one(db)
         .await
@@ -49,7 +51,7 @@ impl Binary {
             .fetch_one(db)
             .await
             .unwrap();
-        let binary_path = format!("/tmp/{}", binary.name);
+        let binary_path = format!("/tmp/{}", binary.version);
         if !Path::new(&binary_path).exists() {
             let mut zip = ZipArchive::new(std::io::Cursor::new(&binary.filebinary)).unwrap();
             zip.extract(Path::new(&binary_path)).unwrap();

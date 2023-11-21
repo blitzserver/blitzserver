@@ -18,7 +18,7 @@ impl LoadingMessageResp {
 
 impl crate::packets::BodyContents for LoadingMessageResp {
     const ID: u8 = 0x24; 
-    fn write<W: std::io::Write>(&self, w: &mut W) {
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
         w.write_all(&self.message.as_bytes()).unwrap();
         w.write_u8(0).unwrap();
     }

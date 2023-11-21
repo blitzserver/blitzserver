@@ -24,19 +24,10 @@ pub async fn list(app_data: Data<AppData>) -> Result<ActixHtmlNode> {
 pub async fn upload((app_data, mut payload): (Data<AppData>, Multipart)) -> Result<HttpResponse> {
     let db = app_data.sqlx_pool.clone();
     println!("Recv request");
-    let mut name: Option<String> = None;
     let binary_match = regex::Regex::new("dom._amd64").unwrap();
     while let Ok(Some(mut field)) = payload.try_next().await {
         let content_type = field.content_disposition().clone();
         match content_type.get_name() {
-            Some("name") => {
-                name = Some(
-                    std::str::from_utf8(&field.next().await.unwrap().unwrap())
-                        .unwrap()
-                        .to_owned(),
-                );
-                println!("Found name");
-            }
             Some("archive") => {
                 let mut contents: Vec<u8> = vec![];
                 while let Some(bytes) = field.next().await {
@@ -49,20 +40,21 @@ pub async fn upload((app_data, mut payload): (Data<AppData>, Multipart)) -> Resu
                     .unwrap()
                     .to_owned();
 
-                let archive = zip::ZipArchive::new(std::io::Cursor::new(&contents)).unwrap();
+                let mut archive = zip::ZipArchive::new(std::io::Cursor::new(&contents)).unwrap();
+                let tmp_path = std::path::Path::new("/tmp")
+                    .join(std::path::PathBuf::from(rand::random::<u32>().to_string()));
+                archive.extract(&tmp_path).unwrap();
                 let fname = archive
                     .file_names()
                     .find(|fname| binary_match.is_match(fname))
                     .unwrap();
-                Binary::new(
-                    &name.as_ref().unwrap(),
-                    &filename,
-                    &contents,
-                    &fname,
-                    &db,
-                )
-                .await
-                .unwrap();
+
+                let command = std::process::Command::new(tmp_path.join(&fname)).arg("--version").output().unwrap();
+                let stdout = std::str::from_utf8(&command.stdout).unwrap();
+                let version = regex::Regex::new("Dominions ., version (.+?) ").unwrap().captures(stdout).unwrap().get(1).unwrap().as_str();
+                Binary::new(&version, &filename, &contents, &fname, &db)
+                    .await
+                    .unwrap();
             }
             _ => unimplemented!("Not there"),
         }
@@ -82,10 +74,6 @@ fn list_view(data: ListTemplate) -> ActixHtmlNode {
                     <form enctype="multipart/form-data" action="/binaries" method="post">
                         <h3>Upload Binary</h3>
                         <div class="input-group">
-                            <label>Name</label>
-                            <input placeholder="Dominions 5.61" name="name" required type="text" />
-                        </div>
-                        <div class="input-group">
                             <label>Archive</label>
                             <input name="archive" required type="file" />
                         </div>
@@ -94,7 +82,7 @@ fn list_view(data: ListTemplate) -> ActixHtmlNode {
                 </div>
                 <div>
                     { data.binaries.iter().map(|b| html! {
-                        <div>{text!("{}", b.name)}</div>
+                        <div>{text!("Dominions {}", b.version)}</div>
                     })}
 
                 </div>

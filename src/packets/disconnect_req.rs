@@ -1,5 +1,3 @@
-
-
 #[derive(Debug, Clone)]
 pub struct DisconnectReq {}
 
@@ -11,5 +9,5 @@ impl DisconnectReq {
 
 impl crate::packets::BodyContents for DisconnectReq {
     const ID: u8 = 0xb;
-    fn write<W: std::io::Write>(&self, _w: &mut W) {}
+    fn write<W: std::io::Write>(&self, _w: &mut W, version: Option<u16>) {}
 }

@@ -1,7 +1,7 @@
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 #[derive(Debug, Clone)]
 pub struct GameInfoReq {
-    version: u16,
+    pub version: u16,
     unk: u32,
 }
 
@@ -15,7 +15,7 @@ impl GameInfoReq {
 
 impl crate::packets::BodyContents for GameInfoReq {
     const ID: u8 = 0x3d;
-    fn write<W: std::io::Write>(&self, w: &mut W) {
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
         w.write_u16::<LittleEndian>(self.version).unwrap();
         w.write_u32::<LittleEndian>(0x4cfb0).unwrap();
     }

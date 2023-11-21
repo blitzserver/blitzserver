@@ -1,6 +1,6 @@
-use crate::models::{Player, Mod};
+use crate::{models::{Player, Mod}, packets::astralpacket_resp::AstralPacketResp};
 use std::io::Read;
-use crate::packets::{ MapImageFileResp, ModFileResp, TwoHResp, DmFileResp, MapWinterFileResp,  Submit2hResp, AstralPacketResp, MapFileResp, TrnResp, MapResp, TwoHCrcResp, BodyContents, PasswordsResp, PAResp, DisconnectResp, GameInfoResp, LoadingMessageResp, Packet };
+use crate::packets::{ MapImageFileResp, ModFileResp, TwoHResp, DmFileResp, MapWinterFileResp,  Submit2hResp, MapFileResp, TrnResp, MapResp, TwoHCrcResp, BodyContents, PasswordsResp, PAResp, DisconnectResp, GameInfoResp, LoadingMessageResp, Packet };
 use std::io::BufReader;
 use std::net::TcpStream;
 use thiserror::Error;
@@ -209,21 +209,22 @@ impl Dom5Conn {
             LoadingMessageResp {
                 message: format!("{} ({} seconds)", msg, i),
             }
-            .write_packet(&mut self.stream);
+            .write_packet(&mut self.stream, None);
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
         LoadingMessageResp {
             message: "".to_string(),
         }
-        .write_packet(&mut self.stream);
+        .write_packet(&mut self.stream, None);
     }
     pub fn run(mut self) {
         std::thread::spawn(move || {
             smol::block_on(async {
+                let mut client_version: Option<u16> = None;
                 let peer_addr = self.stream.peer_addr();
                 let mut buffered_conn = BufReader::new(self.stream.try_clone().unwrap());
-                while let Ok(packet) = Packet::from_reader(&mut buffered_conn) {
-                    log::debug!("{:?} ===> {:?}", peer_addr, packet);
+                while let Ok(packet) = Packet::from_reader(&mut buffered_conn, client_version) {
+                    log::info!("{:?} ===> {:?}", peer_addr, packet);
                     match packet.body {
                         /*
                          * User wishes the game to be started, set the next_turn to 5 seconds
@@ -239,10 +240,11 @@ impl Dom5Conn {
                         /*
                          * Initial connect and request for game state
                          */
-                        crate::packets::Body::GameInfoReq(_) => {
+                        crate::packets::Body::GameInfoReq(req) => {
+                            client_version = Some(req.version);
                             self.generate_gameinfo()
                                 .unwrap()
-                                .write_packet(&mut self.stream);
+                                .write_packet(&mut self.stream, None);
                         }
 
                         /*
@@ -250,7 +252,7 @@ impl Dom5Conn {
                          */
                         crate::packets::Body::AstralPacketReq(_) => {
                             let crcs = Mod::get_crcs(self.game_id, &self.db_pool).unwrap();
-                            AstralPacketResp { dmfiles: crcs }.write_packet(&mut self.stream);
+                            AstralPacketResp { dmfiles: crcs }.write_packet(&mut self.stream, client_version);
                         }
                         /*
                          * Heartbeat, expects gameinfo but also accepts a message
@@ -258,14 +260,14 @@ impl Dom5Conn {
                         crate::packets::Body::HeartbeatReq(_) => {
                             self.generate_gameinfo()
                                 .unwrap()
-                                .write_packet(&mut self.stream);
+                                .write_packet(&mut self.stream, None);
                         }
 
                         /*
                          * Player is fucking off, expects an ack
                          */
                         crate::packets::Body::DisconnectReq(_) => {
-                            DisconnectResp {}.write_packet(&mut self.stream);
+                            DisconnectResp {}.write_packet(&mut self.stream, None);
                             break;
                         }
                         /*
@@ -303,27 +305,27 @@ impl Dom5Conn {
                                          WHERE g.id=$1"#,
                                          self.game_id).fetch_one(&self.db_pool).await {
                                         Ok(R { motd: Some(motd), winner_name: Some(w), .. } ) => {
-                                            LoadingMessageResp { message: format!("{}\nGame won by {}! Congratulations :)", motd, w) }.write_packet(&mut self.stream);
-                                            PAResp {}.write_packet(&mut self.stream);
+                                            LoadingMessageResp { message: format!("{}\nGame won by {}! Congratulations :)", motd, w) }.write_packet(&mut self.stream, None);
+                                            PAResp {}.write_packet(&mut self.stream, None);
                                             break;
                                         }
                                         Ok(R { motd: None, winner_name: Some(w), .. } ) => {
-                                            LoadingMessageResp { message: format!("Game won by {}! Congratulations :)", w) }.write_packet(&mut self.stream);
-                                            PAResp {}.write_packet(&mut self.stream);
+                                            LoadingMessageResp { message: format!("Game won by {}! Congratulations :)", w) }.write_packet(&mut self.stream, None);
+                                            PAResp {}.write_packet(&mut self.stream, None);
                                             break;
                                         }
                                         Ok(R { motd: Some(motd), max: Some(t), winner_name: None } ) => {
-                                            LoadingMessageResp { message: format!("{}\nCurrent turn: {}", motd, t) }.write_packet(&mut self.stream);
-                                            PAResp {}.write_packet(&mut self.stream);
+                                            LoadingMessageResp { message: format!("{}\nCurrent turn: {}", motd, t) }.write_packet(&mut self.stream, None);
+                                            PAResp {}.write_packet(&mut self.stream, None);
                                             break;
                                         }
                                         Ok(R { motd: None, max: Some(t), winner_name: None } ) => {
-                                            LoadingMessageResp { message: format!("Current turn: {}", t) }.write_packet(&mut self.stream);
-                                            PAResp {}.write_packet(&mut self.stream);
+                                            LoadingMessageResp { message: format!("Current turn: {}", t) }.write_packet(&mut self.stream, None);
+                                            PAResp {}.write_packet(&mut self.stream, None);
                                             break;
                                         }
                                         _ => {
-                                            LoadingMessageResp { message: "Game being started..".to_owned() }.write_packet(&mut self.stream);
+                                            LoadingMessageResp { message: "Game being started..".to_owned() }.write_packet(&mut self.stream, None);
                                         }
                                     }
                                     std::thread::sleep(std::time::Duration::from_secs(1));
@@ -394,10 +396,10 @@ impl Dom5Conn {
                             match sqlx::query!("SELECT nationid FROM players WHERE password IS NOT NULL AND game_id=$1", self.game_id).fetch_all(&self.db_pool).await {
                                 Err(e) => {
                                     log::error!("Failed to determine passwords: {:?}", e);
-                                    PasswordsResp::new(&vec![]).write_packet(&mut self.stream);
+                                    PasswordsResp::new(&vec![]).write_packet(&mut self.stream, None);
                                 }
                                 Ok(records) => {
-                                    PasswordsResp::new(&records.into_iter().map(|r| r.nationid).collect::<Vec<i32>>()).write_packet(&mut self.stream);
+                                    PasswordsResp::new(&records.into_iter().map(|r| r.nationid).collect::<Vec<i32>>()).write_packet(&mut self.stream, None);
                                 }
                             }
                         }
@@ -417,14 +419,14 @@ impl Dom5Conn {
                                 .await {
                                     Err(e) => {
                                         log::error!("Failed to find twoh crc records: {:?}", e);
-                                        TwoHCrcResp{ crcs: std::collections::HashMap::new() }.write_packet(&mut self.stream);
+                                        TwoHCrcResp{ crcs: std::collections::HashMap::new() }.write_packet(&mut self.stream, None);
                                     }
                                     Ok(records) => {
                                         TwoHCrcResp{ crcs: records.into_iter().fold(std::collections::HashMap::new(),
                                         |mut acc, t| {
                                             acc.insert(t.nation_id as u16, t.twoh_crc.unwrap_or(0) as u32);
                                             acc
-                                        })}.write_packet(&mut self.stream);
+                                        })}.write_packet(&mut self.stream, None);
                                     }
                                 }
 
@@ -444,10 +446,10 @@ impl Dom5Conn {
                             self.game_id, pkt.nation_desired as i32).fetch_one(&self.db_pool).await {
                                 Err(e) => {
                                     log::error!("Failed to get trn for nation {}: {:?}", pkt.nation_desired, e);
-                                    TrnResp { trn_contents: vec![] }.write_packet(&mut self.stream);
+                                    TrnResp { trn_contents: vec![] }.write_packet(&mut self.stream, None);
                                 }
                                 Ok(record) => {
-                                    TrnResp { trn_contents: record.filebinary }.write_packet(&mut self.stream);
+                                    TrnResp { trn_contents: record.filebinary }.write_packet(&mut self.stream, None);
                                 }
                             }
                         }
@@ -467,7 +469,7 @@ impl Dom5Conn {
                                         map_crc: map_crc as u32,
                                         image_crc: tga_crc as u32,
                                         winter_crc: winter_stuff.as_ref().map(|w| w.2 as u32)
-                                    }.write_packet(&mut self.stream);
+                                    }.write_packet(&mut self.stream, None);
                                 }
                                 Err(e) => {
                                     log::error!("Unable to get map crcs: {:?}", e);
@@ -491,7 +493,7 @@ impl Dom5Conn {
                                         for p in startprovs {
                                             map.filebinary.append( &mut format!( "\n#specstart {} {}\n", p.nationid, p.startprov.unwrap_or(0)).into_bytes());
                                         }
-                                        MapFileResp { map_contents: map.filebinary }.write_packet(&mut self.stream);
+                                        MapFileResp { map_contents: map.filebinary }.write_packet(&mut self.stream, None);
                                     }
                                     (e1, e2) => {
                                         log::error!("Failed to fetch map info: {:?}, {:?}", e1, e2);
@@ -511,7 +513,7 @@ impl Dom5Conn {
                                     Ok(m) => 
                                         MapImageFileResp {
                                             image_contents: m.filebinary,
-                                        }.write_packet(&mut self.stream),
+                                        }.write_packet(&mut self.stream, None),
                                     Err(e) => log::error!("Failed to get TGA for game {}: {:?}", self.game_id, e)
                                 }
                         }
@@ -528,7 +530,7 @@ impl Dom5Conn {
                                     Ok(m) => 
                                         MapWinterFileResp {
                                             winter_contents: m.filebinary.unwrap_or(vec![]),
-                                        }.write_packet(&mut self.stream),
+                                        }.write_packet(&mut self.stream, None),
                                     Err(e) => log::error!("Failed to get winter for game {}: {:?}", self.game_id, e)
                                 }
                         }
@@ -550,7 +552,7 @@ impl Dom5Conn {
                                     TwoHResp {
                                         nation_id: pkt.nation_desired as u16,
                                         twoh_contents: filebinary.filebinary
-                                    }.write_packet(&mut self.stream);
+                                    }.write_packet(&mut self.stream, None);
                                 }
                                 Err(e) => {
                                     log::error!("Failed to get save for nation {} game {}", pkt.nation_desired, self.game_id);
@@ -567,13 +569,13 @@ impl Dom5Conn {
                                 Ok(twoh) => {
                                     match sqlx::query!("SELECT MAX(turn_number) turn_number FROM turns WHERE game_id=$1 AND archived != TRUE", self.game_id).fetch_one(&self.db_pool).await {
                                         Ok(t) => if t.turn_number != Some(twoh.header.turnnumber) {
-                                            Submit2hResp {}.write_packet(&mut self.stream);
+                                            Submit2hResp {}.write_packet(&mut self.stream, None);
                                             continue;
                                         }
                                         Err(e) => {
                                             log::error!("Failed to check current turn for game {}: {:?}", self.game_id, e);
                                             self.send_message("There was an issue submitting your turn! You may have to contact the admin!");
-                                            Submit2hResp {}.write_packet(&mut self.stream);
+                                            Submit2hResp {}.write_packet(&mut self.stream, None);
                                         }
                                     }
                                     let twoh_crc = crate::util::calculate_crc(&pkt.twoh_contents[..]);
@@ -591,19 +593,19 @@ impl Dom5Conn {
                                         WHERE archived != TRUE AND pt.game_id=$3 AND pt.nation_id=$2 AND pt.turn_number=tt.turn_number AND pt.turn_number=$4 RETURNING pt.id"#,
                                         pkt.twoh_contents, twoh.header.nationid, self.game_id, twoh.header.turnnumber, twoh_crc as i32, if twoh.header.status == 1 { 1 } else { 2 } ).fetch_one(&self.db_pool).await {
                                         Ok(_) => {
-                                            Submit2hResp {}.write_packet(&mut self.stream);
+                                            Submit2hResp {}.write_packet(&mut self.stream, None);
                                         }
                                         Err(e) => {
                                             log::error!("Failed to receive and save 2h for nation {} in game {}: {:?}", twoh.header.turnnumber, self.game_id, e);
                                             self.send_message("There was an issue submitting your turn! You may have to contact the admin!");
-                                            Submit2hResp {}.write_packet(&mut self.stream);
+                                            Submit2hResp {}.write_packet(&mut self.stream, None);
                                         }
                                     }
                                 },
                                 Err(e) => {
                                     log::error!("Corrupt orders received for game {}", self.game_id);
                                     self.send_message("Your orders seem to be corrupt! This is probably a bug with the server! Contact the admin!");
-                                    Submit2hResp {}.write_packet(&mut self.stream);
+                                    Submit2hResp {}.write_packet(&mut self.stream, None);
                                 }
                             }
                         }
@@ -648,8 +650,8 @@ impl Dom5Conn {
                                                 continue;
                                             }
                                         }
-                                        if m.dm_filename == pkt.filename {
-                                            match std::fs::File::open(mod_dir.join(&pkt.filename)) {
+                                        if std::path::Path::new(&m.dm_filename).file_name().unwrap().to_str().unwrap() == pkt.filename {
+                                            match std::fs::File::open(mod_dir.join(m.dm_filename)) {
                                                 Err(e) => {
                                                     log::error!("Unable to find dm file for mod that should have it: {:?}", e);
                                                     self.send_message("Somethings wrong with the mods. Contact the admin!");
@@ -657,12 +659,15 @@ impl Dom5Conn {
                                                 }
                                                 Ok(mut file) => {
                                                     let mut contents = vec![];
-                                                    file.read_to_end(&mut contents);
+                                                    file.read_to_end(&mut contents).unwrap();
                                                     DmFileResp {
                                                         contents
-                                                    }.write_packet(&mut self.stream);
+                                                    }.write_packet(&mut self.stream, None);
                                                 }
                                             }
+                                        } else {
+                                            log::error!("Failed to find dm file for dmreq {}", pkt.filename);
+                                            self.send_message("Somethings wrong with the mods. Contact the admin!");
                                         }
                                     }
                                 }
@@ -686,7 +691,7 @@ impl Dom5Conn {
                                         Some(mut file) => {
                                             let mut contents = vec![];
                                             file.read_to_end(&mut contents);
-                                            ModFileResp::new(contents).write_packet(&mut self.stream);
+                                            ModFileResp::new(contents).write_packet(&mut self.stream, None);
                                         }
                                         None => {
                                             log::error!("Unable to find file {} for game {}", pkt.filename, self.game_id);

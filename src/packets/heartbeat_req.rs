@@ -10,5 +10,5 @@ impl HeartbeatReq {
 
 impl crate::packets::BodyContents for HeartbeatReq {
     const ID: u8 = 0x03;
-    fn write<W: std::io::Write>(&self, _w: &mut W) {}
+    fn write<W: std::io::Write>(&self, _w: &mut W, version: Option<u16>) {}
 }

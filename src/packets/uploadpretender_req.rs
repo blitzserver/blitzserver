@@ -23,7 +23,7 @@ impl UploadPretenderReq {
 
 impl crate::packets::BodyContents for UploadPretenderReq {
     const ID: u8 = 0x34;
-    fn write<W: std::io::Write>(&self, w: &mut W) {
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
         w.write_u16::<LittleEndian>(self.nation_id).unwrap();
         w.write_all(&[0x2c, 0x6a, 0x1, 0x0, 0x0]).unwrap();
         w.write_all(&self.pretender_contents).unwrap();

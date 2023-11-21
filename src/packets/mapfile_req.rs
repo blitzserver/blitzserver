@@ -10,5 +10,5 @@ impl MapFileReq {
 
 impl crate::packets::BodyContents for MapFileReq {
     const ID: u8 = 0x1d;
-    fn write<W: std::io::Write>(&self, _w: &mut W) {}
+    fn write<W: std::io::Write>(&self, _w: &mut W, version: Option<u16>) {}
 }

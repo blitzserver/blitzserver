@@ -21,7 +21,7 @@ impl TwoHCrcResp {
 
 impl crate::packets::BodyContents for TwoHCrcResp {
     const ID: u8 = 0x16;
-    fn write<W: std::io::Write>(&self, w: &mut W) {
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
         for (k, v) in self.crcs.iter() {
             w.write_u16::<LittleEndian>(*k).unwrap();
             w.write_u32::<LittleEndian>(*v).unwrap();

@@ -11,7 +11,7 @@ impl MapReq {
 
 impl crate::packets::BodyContents for MapReq {
     const ID: u8 = 0x13;
-    fn write<W: std::io::Write>(&self, _w: &mut W) {
+    fn write<W: std::io::Write>(&self, _w: &mut W, version: Option<u16>) {
     }
 }
 

@@ -14,5 +14,5 @@ impl PAReq {
 
 impl crate::packets::BodyContents for PAReq {
     const ID: u8 = 0x19;
-    fn write<W: std::io::Write>(&self, _w: &mut W) {}
+    fn write<W: std::io::Write>(&self, _w: &mut W, version: Option<u16>) {}
 }

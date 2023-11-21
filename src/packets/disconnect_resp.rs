@@ -10,5 +10,5 @@ impl DisconnectResp {
 
 impl crate::packets::BodyContents for DisconnectResp {
     const ID: u8 = 0xc;
-    fn write<W: std::io::Write>(&self, _w: &mut W) {}
+    fn write<W: std::io::Write>(&self, _w: &mut W, version: Option<u16>) {}
 }

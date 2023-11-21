@@ -1,10 +1,13 @@
-use crate::files::saves::kingdom::KingdomType;
-use crate::files::saves::{DomSaveReadError, SaveFile};
+use crate::files::saves::DomSaveReadError;
 use crate::models::binary::Binary;
+use serde::Deserialize;
+use serde_dom5::{SaveFile, Body};
 use encoding::{all::ISO_8859_1, DecoderTrap, Encoding};
 use nonblock::NonBlockingReader;
 use std::io::{Read, Seek, Write};
 use thiserror::Error;
+use serde_dom5::game_settings::GameSettings;
+use serde_dom5::ftherlnd_contents::FtherlndContents;
 
 pub struct AutokilledProc(std::process::Child);
 
@@ -61,7 +64,7 @@ pub enum Dom5TurnErr {
     #[error("Hung while processing")]
     TurnHang,
     #[error("Corrupt ftherlnd")]
-    CorruptFthrlnd(DomSaveReadError),
+    CorruptFthrlnd(Box<bincode::ErrorKind>),
     #[error("Missing ftherlnd")]
     MissingFthrlnd,
     #[error("Ftherlnd mixup")]
@@ -130,7 +133,7 @@ impl Dom5Turn {
     }
     fn populate_maps(&mut self) -> Result<(), Dom5TurnErr> {
         smol::block_on(async {
-            let map_dir = std::env::current_dir()
+            let mut map_dir = std::env::current_dir()
                 .map_err(Dom5TurnErr::UncleanModDir)?
                 .join("tmp")
                 .join("games")
@@ -143,11 +146,13 @@ impl Dom5Turn {
                 tf.filename as tfn,
                 tf.filebinary as tfb,
                 wf.filename as "wfn?",
-                wf.filebinary as "wfb?"
+                wf.filebinary as "wfb?",
+                b.foldered_maps as "foldered_maps"
                 FROM games g
                 INNER JOIN maps m ON m.id=g.map_id
                 INNER JOIN files mf ON mf.id=m.mapfile_id
                 INNER JOIN files tf ON tf.id=m.tgafile_id
+                INNER JOIN binaries b ON b.binary_id=g.binary_id
                 LEFT JOIN files wf ON wf.id=m.winterfile_id
                 WHERE g.id=$1"#,
                 self.game_id
@@ -164,6 +169,9 @@ impl Dom5Turn {
                     )
                     .into_bytes(),
                 );
+            }
+            if map_record.foldered_maps {
+                map_dir = map_dir.join(map_record.mfn.split(".").next().unwrap());
             }
             if !map_dir.exists() {
                 std::fs::create_dir_all(&map_dir).map_err(Dom5TurnErr::UncleanMapDir)?;
@@ -327,7 +335,9 @@ impl Dom5Turn {
                 Err(e) => panic!("{}", e),
                 Ok(_) => {}
             }
+            println!("Extracting");
             let path = Binary::extract_to_tmp(self.game_id, &self.db_pool).await.unwrap();
+            println!("Extracted");
             let mut proc = AutokilledProc(
                 std::process::Command::new(path)
                 .stdout(std::process::Stdio::piped())
@@ -636,7 +646,9 @@ impl Dom5Turn {
             if let None = game.turn {
                 arguments.append(&mut vec!["--newgame".to_string()]);
             }
+            println!("Extracting");
             let path = Binary::extract_to_tmp(self.game_id, &self.db_pool).await.unwrap();
+            println!("Extracted");
             let mut child = AutokilledProc(
                 std::process::Command::new(path)
                 .env(
@@ -755,15 +767,14 @@ impl Dom5Turn {
             };
             file.read_to_end(&mut contents).unwrap();
             file.seek(std::io::SeekFrom::Start(0)).unwrap();
-            let ftherlnd = SaveFile::read_contents(file).map_err(Dom5TurnErr::CorruptFthrlnd)?;
-            let (winner, kingdoms) = match ftherlnd.body {
-                crate::files::saves::SaveBody::FthrContents(fth) => (
-                    match fth.settings.winnerid {
+            let ftherlnd: SaveFile = bincode::deserialize_from(&file).map_err(Dom5TurnErr::CorruptFthrlnd)?;
+            let winner = match ftherlnd.body {
+                Body::FtherlndContents(fth) => 
+                    match fth.get_settings().winner() {
                         -1 => None,
                         w => Some(w as i32),
                     },
-                    fth.kingdoms,
-                ),
+                    /*fth.kingdoms,*/
                 _ => return Err(Dom5TurnErr::FtherlndMixup),
             };
             let turn_number = ftherlnd.header.turnnumber;
@@ -779,7 +790,7 @@ impl Dom5Turn {
                 self.game_id,
                 turn_number,
                 ftherlnd.header.turnkey as i32,
-                winner
+                winner.unwrap_or(0)
             )
             .execute(&mut *transaction)
             .await?;
@@ -789,6 +800,8 @@ impl Dom5Turn {
                 .await?;
             let mut computer_nationids = vec![];
             let mut defeated_nationids = vec![];
+            println!("Not currently updating turns");
+            /*
             for kingdom in kingdoms {
                 match kingdom.player_type {
                     // Player_turns which should be inserted with files
@@ -835,6 +848,7 @@ impl Dom5Turn {
                     KingdomType::Special => {}
                 }
             }
+            */
             // Bulk insert player_turns without files
             sqlx::query!(
                 "

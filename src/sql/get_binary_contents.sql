@@ -1,6 +1,6 @@
 SELECT 
   b.executable_path, 
-  b.name, 
+  b.version,
   f.filename, 
   f.filebinary 
 FROM 

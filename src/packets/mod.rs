@@ -26,9 +26,13 @@ pub mod mapwinterfile_req;
 pub mod mapwinterfile_resp;
 pub mod modfile_req;
 pub mod modfile_resp;
+pub mod nationsselected_req;
+pub mod pa_req;
 pub mod pa_resp;
 pub mod passwords_req;
 pub mod passwords_resp;
+pub mod setdisc_req;
+pub mod setteam_req;
 pub mod startgame_req;
 pub mod submit2h_req;
 pub mod submit2h_resp;
@@ -38,17 +42,11 @@ pub mod twoh_req;
 pub mod twoh_resp;
 pub mod twohcrc_req;
 pub mod twohcrc_resp;
-pub mod pa_req;
 pub mod uploadpretender_req;
-pub mod nationsselected_req;
-pub mod setteam_req;
-pub mod setdisc_req;
 
 pub use astralpacket_req::AstralPacketReq;
-pub use astralpacket_resp::AstralPacketResp;
 pub use disconnect_req::DisconnectReq;
 pub use disconnect_resp::DisconnectResp;
-pub use dmfile_req::DmFileReq;
 pub use dmfile_resp::DmFileResp;
 pub use gameinfo_req::GameInfoReq;
 pub use gameinfo_resp::GameInfoResp;
@@ -65,9 +63,12 @@ pub use mapwinterfile_resp::MapWinterFileResp;
 pub use modfile_req::ModFileReq;
 pub use modfile_resp::ModFileResp;
 pub use nationsselected_req::NationsSelectedReq;
+pub use pa_req::PAReq;
 pub use pa_resp::PAResp;
 pub use passwords_req::PasswordsReq;
 pub use passwords_resp::PasswordsResp;
+pub use setdisc_req::SetDiscReq;
+pub use setteam_req::SetTeamReq;
 pub use startgame_req::StartGameReq;
 pub use submit2h_req::Submit2hReq;
 pub use submit2h_resp::Submit2hResp;
@@ -77,17 +78,17 @@ pub use twoh_req::TwoHReq;
 pub use twoh_resp::TwoHResp;
 pub use twohcrc_req::TwoHCrcReq;
 pub use twohcrc_resp::TwoHCrcResp;
-pub use pa_req::PAReq;
 pub use uploadpretender_req::UploadPretenderReq;
-pub use setteam_req::SetTeamReq;
-pub use setdisc_req::SetDiscReq;
+
+use self::astralpacket_resp::AstralPacketResp;
+use self::dmfile_req::DmFileReq;
 
 #[derive(Error, Debug)]
 pub enum PacketError {
     #[error("No more data")]
     Disconnect(#[from] std::io::Error),
     #[error("Invalid header")]
-    InvalidCompressionMethod(u8)
+    InvalidCompressionMethod(u8),
 }
 
 pub type PacketResult<T> = Result<T, PacketError>;
@@ -99,16 +100,16 @@ pub struct Packet {
 }
 
 impl Packet {
-    pub fn from_reader<R: std::io::Read>(r: &mut R) -> PacketResult<Packet> {
+    pub fn from_reader<R: std::io::Read>(r: &mut R, version: Option<u16>) -> PacketResult<Packet> {
         let header = Header::from_reader(r)?;
         let mut body_buf: Vec<u8> = vec![0u8; header.length as usize];
         r.read_exact(&mut body_buf).unwrap();
         let mut reader = &body_buf[..];
         let body = if header.compression == CompressionType::Zlib {
             let _len = reader.read_u32::<LittleEndian>().unwrap();
-            Body::from_reader(&mut std::io::BufReader::new(ZlibDecoder::new(reader)))
+            Body::from_reader(&mut std::io::BufReader::new(ZlibDecoder::new(reader)), version)
         } else {
-            Body::from_reader(&mut reader)
+            Body::from_reader(&mut reader, version)
         };
         Ok(Packet { header, body })
     }
@@ -131,7 +132,8 @@ impl Header {
     pub fn from_reader<R: std::io::Read>(r: &mut R) -> PacketResult<Header> {
         let unk: u8 = r.read_u8()?;
         let compression_byte = r.read_u8()?;
-        let compression = FromPrimitive::from_u8(compression_byte).ok_or(PacketError::InvalidCompressionMethod(compression_byte))?;
+        let compression = FromPrimitive::from_u8(compression_byte)
+            .ok_or(PacketError::InvalidCompressionMethod(compression_byte))?;
         let length: u32 = r.read_u32::<LittleEndian>()?;
         Ok(Header {
             unk,
@@ -187,13 +189,15 @@ pub enum Body {
 }
 
 impl Body {
-    pub fn from_reader<R: std::io::BufRead>(r: &mut R) -> Body {
+    pub fn from_reader<R: std::io::BufRead>(r: &mut R, version: Option<u16>) -> Body {
         match r.read_u8().unwrap() {
             UploadPretenderReq::ID => Body::UploadPretenderReq(UploadPretenderReq::from_reader(r)),
             HeartbeatReq::ID => Body::HeartbeatReq(HeartbeatReq::from_reader(r)),
             GameInfoReq::ID => Body::GameInfoReq(GameInfoReq::from_reader(r)),
             GameInfoResp::ID => Body::GameInfoResp(GameInfoResp::from_reader(r)),
-            AstralPacketResp::ID => Body::AstralPacketResp(AstralPacketResp::from_reader(r)),
+            AstralPacketResp::ID => {
+                Body::AstralPacketResp(AstralPacketResp::from_reader(r, version))
+            }
             AstralPacketReq::ID => Body::AstralPacketReq(AstralPacketReq::from_reader(r)),
             StartGameReq::ID => Body::StartGameReq(StartGameReq::from_reader(r)),
             DisconnectReq::ID => Body::DisconnectReq(DisconnectReq::from_reader(r)),
@@ -217,7 +221,7 @@ impl Body {
             Submit2hResp::ID => Body::Submit2hResp(Submit2hResp::from_reader(r)),
             TwoHReq::ID => Body::TwoHReq(TwoHReq::from_reader(r)),
             TwoHResp::ID => Body::TwoHResp(TwoHResp::from_reader(r)),
-            DmFileReq::ID => Body::DmFileReq(DmFileReq::from_reader(r)),
+            DmFileReq::ID => Body::DmFileReq(DmFileReq::from_reader(r, version)),
             DmFileResp::ID => Body::DmFileResp(DmFileResp::from_reader(r)),
             ModFileReq::ID => Body::ModFileReq(ModFileReq::from_reader(r)),
             ModFileResp::ID => Body::ModFileResp(ModFileResp::from_reader(r)),
@@ -234,44 +238,44 @@ impl Body {
             }
         }
     }
-    pub fn write<W: std::io::Write>(&self, w: &mut W) {
+    pub fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
         match self {
-            Self::NationsSelectedReq(p) => p.write(w),
-            Self::PAResp(p) => p.write(w),
-            Self::DisconnectReq(p) => p.write(w),
-            Self::UploadPretenderReq(p) => p.write(w),
-            Self::HeartbeatReq(p) => p.write(w),
-            Self::AstralPacketReq(p) => p.write(w),
-            Self::AstralPacketResp(p) => p.write(w),
-            Self::GameInfoReq(p) => p.write(w),
-            Self::GameInfoResp(p) => p.write(w),
-            Self::StartGameReq(p) => p.write(w),
-            Self::PAReq(p) => p.write(w),
-            Self::PasswordsReq(p) => p.write(w),
-            Self::TwoHCrcReq(p) => p.write(w),
-            Self::PasswordsResp(p) => p.write(w),
-            Self::TwoHCrcResp(p) => p.write(w),
-            Self::LoadingMessageResp(p) => p.write(w),
-            Self::TrnReq(p) => p.write(w),
-            Self::TrnResp(p) => p.write(w),
-            Self::MapReq(p) => p.write(w),
-            Self::MapResp(p) => p.write(w),
-            Self::MapFileReq(p) => p.write(w),
-            Self::MapFileResp(p) => p.write(w),
-            Self::MapImageFileReq(p) => p.write(w),
-            Self::MapImageFileResp(p) => p.write(w),
-            Self::MapWinterFileReq(p) => p.write(w),
-            Self::MapWinterFileResp(p) => p.write(w),
-            Self::Submit2hReq(p) => p.write(w),
-            Self::Submit2hResp(p) => p.write(w),
-            Self::TwoHReq(p) => p.write(w),
-            Self::TwoHResp(p) => p.write(w),
-            Self::DmFileReq(p) => p.write(w),
-            Self::DmFileResp(p) => p.write(w),
-            Self::ModFileReq(p) => p.write(w),
-            Self::ModFileResp(p) => p.write(w),
-            Self::SetTeamReq(p) => p.write(w),
-            Self::SetDiscReq(p) => p.write(w),
+            Self::NationsSelectedReq(p) => p.write(w, version),
+            Self::PAResp(p) => p.write(w, version),
+            Self::DisconnectReq(p) => p.write(w, version),
+            Self::UploadPretenderReq(p) => p.write(w, version),
+            Self::HeartbeatReq(p) => p.write(w, version),
+            Self::AstralPacketReq(p) => p.write(w, version),
+            Self::AstralPacketResp(p) => p.write(w, version),
+            Self::GameInfoReq(p) => p.write(w, version),
+            Self::GameInfoResp(p) => p.write(w, version),
+            Self::StartGameReq(p) => p.write(w, version),
+            Self::PAReq(p) => p.write(w, version),
+            Self::PasswordsReq(p) => p.write(w, version),
+            Self::TwoHCrcReq(p) => p.write(w, version),
+            Self::PasswordsResp(p) => p.write(w, version),
+            Self::TwoHCrcResp(p) => p.write(w, version),
+            Self::LoadingMessageResp(p) => p.write(w, version),
+            Self::TrnReq(p) => p.write(w, version),
+            Self::TrnResp(p) => p.write(w, version),
+            Self::MapReq(p) => p.write(w, version),
+            Self::MapResp(p) => p.write(w, version),
+            Self::MapFileReq(p) => p.write(w, version),
+            Self::MapFileResp(p) => p.write(w, version),
+            Self::MapImageFileReq(p) => p.write(w, version),
+            Self::MapImageFileResp(p) => p.write(w, version),
+            Self::MapWinterFileReq(p) => p.write(w, version),
+            Self::MapWinterFileResp(p) => p.write(w, version),
+            Self::Submit2hReq(p) => p.write(w, version),
+            Self::Submit2hResp(p) => p.write(w, version),
+            Self::TwoHReq(p) => p.write(w, version),
+            Self::TwoHResp(p) => p.write(w, version),
+            Self::DmFileReq(p) => p.write(w, version),
+            Self::DmFileResp(p) => p.write(w, version),
+            Self::ModFileReq(p) => p.write(w, version),
+            Self::ModFileResp(p) => p.write(w, version),
+            Self::SetTeamReq(p) => p.write(w, version),
+            Self::SetDiscReq(p) => p.write(w, version),
         }
     }
 }
@@ -282,15 +286,15 @@ where
 {
     const ID: u8;
 
-    fn write<W: std::io::Write>(&self, w: &mut W);
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>);
 
-    fn write_packet<W: std::io::Write>(&self, w: &mut W) {
-        log::debug!("                     <===  {:?}", self);
+    fn write_packet<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
+        log::info!("                     <===  {:?}", self);
         let mut full: Vec<u8> = vec![];
 
         // Create body
         let mut body: Vec<u8> = vec![];
-        self.write(&mut body);
+        self.write(&mut body, version);
         let mut packet_body: Vec<u8> = vec![];
         packet_body
             .write_u32::<LittleEndian>((body.len() + 5) as u32) // TODO: This cant be right

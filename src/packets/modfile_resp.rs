@@ -46,7 +46,7 @@ impl ModFileResp {
 
 impl crate::packets::BodyContents for ModFileResp {
     const ID: u8 = 0x1c;
-    fn write<W: std::io::Write>(&self, w: &mut W) {
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
         w.write_u32::<LittleEndian>(self.contents.len() as u32)
             .unwrap();
         w.write_u32::<LittleEndian>(crate::util::calculate_crc(&self.contents[..]))

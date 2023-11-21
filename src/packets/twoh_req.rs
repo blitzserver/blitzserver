@@ -17,7 +17,7 @@ impl TwoHReq {
 
 impl crate::packets::BodyContents for TwoHReq {
     const ID: u8 = 0x17;
-    fn write<W: std::io::Write>(&self, w: &mut W) {
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
         w.write_u8(self.nation_desired).unwrap();
         w.write_u16::<LittleEndian>(0).unwrap();
     }

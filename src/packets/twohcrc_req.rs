@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone)]
 pub struct TwoHCrcReq {
     remaining: Vec<u8>,
@@ -14,5 +13,5 @@ impl TwoHCrcReq {
 
 impl crate::packets::BodyContents for TwoHCrcReq {
     const ID: u8 = 0x15;
-    fn write<W: std::io::Write>(&self, _w: &mut W) {}
+    fn write<W: std::io::Write>(&self, _w: &mut W, version: Option<u16>) {}
 }

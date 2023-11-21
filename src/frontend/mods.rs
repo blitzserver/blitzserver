@@ -37,7 +37,10 @@ pub async fn list(app_data: web::Data<AppData>) -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (ListModsTemplate {
             errors: &vec![],
-            mods: sqlx::query_as!(Mod, "SELECT * FROM mods").fetch_all(&db).await.unwrap()
+            mods: sqlx::query_as!(Mod, "SELECT * FROM mods")
+                .fetch_all(&db)
+                .await
+                .unwrap(),
         })
         .render()
         .unwrap(),
@@ -49,7 +52,13 @@ pub async fn image(
     (app_data, path_id): (web::Data<AppData>, web::Path<i32>),
 ) -> Result<HttpResponse> {
     let db = app_data.sqlx_pool.clone();
-    if let Ok(file) = sqlx::query_as!(File, r#"SELECT f.* FROM mods m INNER JOIN files f ON f.id = m.icon_file_id WHERE m.id=$1"#, *path_id).fetch_one(&db).await
+    if let Ok(file) = sqlx::query_as!(
+        File,
+        r#"SELECT f.* FROM mods m INNER JOIN files f ON f.id = m.icon_file_id WHERE m.id=$1"#,
+        *path_id
+    )
+    .fetch_one(&db)
+    .await
     {
         let reader = crate::image::io::Reader::with_format(
             std::io::Cursor::new(file.filebinary),
@@ -99,36 +108,35 @@ pub async fn upload_post(
                 }
                 match zip::ZipArchive::new(std::io::Cursor::new(&contents)) {
                     Ok(mut archive) => {
-                        for i in 0..archive.len() {
-                            let mut archive_file = archive.by_index(i).unwrap();
-                            if archive_file.is_file()
-                                && std::path::PathBuf::from(archive_file.name()).extension()
-                                    == Some(std::ffi::OsStr::new("dm"))
+                        let valid_filenames = archive
+                            .file_names()
+                            .filter(|fname| fname.split(".").find(|f| f == &"dm").is_some())
+                            .map(|fname| fname.to_owned())
+                            .collect::<Vec<String>>();
+                        for fname in valid_filenames {
+                            let mut archive_file = archive.by_name(&fname).unwrap();
+                            let mut contents: String = String::new();
+                            archive_file.read_to_string(&mut contents).unwrap();
+                            let icon_filename_captures =
+                                regex::Regex::new(r#"#icon +"?(.+?)"?\r?\n"#)
+                                    .unwrap()
+                                    .captures(&contents);
+                            if let Some(modname_captures) =
+                                regex::Regex::new(r#"#modname +"?(.+?)"?\r?\n"#)
+                                    .unwrap()
+                                    .captures(&contents)
                             {
-                                let mut contents: String = String::new();
-                                archive_file.read_to_string(&mut contents).unwrap();
-                                let icon_filename_captures =
-                                    regex::Regex::new(r#"#icon +"?(.+?)"?\r?\n"#)
-                                        .unwrap()
-                                        .captures(&contents);
-                                if let Some(modname_captures) =
-                                    regex::Regex::new(r#"#modname +"?(.+?)"?\r?\n"#)
-                                        .unwrap()
-                                        .captures(&contents)
-                                {
-                                    mod_name = Some(ModDefinition {
-                                        name: modname_captures.get(1).unwrap().as_str().to_owned(),
-                                        icon_filename: icon_filename_captures.map_or(
-                                            "".to_string(),
-                                            |c| {
-                                                c.get(1).map_or("".to_string(), |c| {
-                                                    c.as_str().to_owned()
-                                                })
-                                            },
-                                        ),
-                                        dm_filename: archive_file.name().to_owned(),
-                                    });
-                                }
+                                mod_name = Some(ModDefinition {
+                                    name: modname_captures.get(1).unwrap().as_str().to_owned(),
+                                    icon_filename: icon_filename_captures.map_or(
+                                        "".to_string(),
+                                        |c| {
+                                            std::path::Path::new(&fname).parent().unwrap().join(c.get(1)
+                                                .map_or("".to_string(), |c| c.as_str().to_owned())).to_string_lossy().to_string()
+                                        },
+                                    ),
+                                    dm_filename: archive_file.name().to_owned(),
+                                });
                             }
                         }
                         match mod_name {
@@ -149,7 +157,8 @@ pub async fn upload_post(
                                         .collect::<std::io::Result<Vec<u8>>>()
                                         .unwrap();
                                     let new_banner_file = NewFile::new(&icon_filename, &contents);
-                                    let banner_file: File = new_banner_file.insert(&sqlx_db).await.unwrap();
+                                    let banner_file: File =
+                                        new_banner_file.insert(&sqlx_db).await.unwrap();
                                     Some(banner_file)
                                 };
                                 let new_file =
@@ -166,7 +175,10 @@ pub async fn upload_post(
                                 return Ok(HttpResponse::Ok().content_type("text/html").body(
                                     (ListModsTemplate {
                                         errors: &vec!["Unable to find mod in zip".to_string()],
-                                        mods: sqlx::query_as!(Mod, "SELECT * FROM mods").fetch_all(&sqlx_db).await.unwrap()
+                                        mods: sqlx::query_as!(Mod, "SELECT * FROM mods")
+                                            .fetch_all(&sqlx_db)
+                                            .await
+                                            .unwrap(),
                                     })
                                     .render()
                                     .unwrap(),
@@ -177,7 +189,10 @@ pub async fn upload_post(
                     _ => {
                         return Ok(HttpResponse::Ok().content_type("text/html").body(
                             (ListModsTemplate {
-                                mods: sqlx::query_as!(Mod, "SELECT * FROM mods").fetch_all(&sqlx_db).await.unwrap(),
+                                mods: sqlx::query_as!(Mod, "SELECT * FROM mods")
+                                    .fetch_all(&sqlx_db)
+                                    .await
+                                    .unwrap(),
                                 errors: &vec!["File is not a zip".to_string()],
                             })
                             .render()
@@ -191,7 +206,10 @@ pub async fn upload_post(
     }
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (ListModsTemplate {
-            mods: sqlx::query_as!(Mod, "SELECT * FROM mods").fetch_all(&sqlx_db).await.unwrap(),
+            mods: sqlx::query_as!(Mod, "SELECT * FROM mods")
+                .fetch_all(&sqlx_db)
+                .await
+                .unwrap(),
             errors: &vec!["Form post is complete garbage".to_string()],
         })
         .render()
@@ -204,14 +222,23 @@ pub async fn details(
     (app_data, path): (web::Data<AppData>, web::Path<i32>),
 ) -> Result<HttpResponse> {
     let sqlx_db = app_data.sqlx_pool.clone();
-    let cmod = sqlx::query_as!(Mod, "SELECT * FROM mods WHERE id=$1", *path).fetch_one(&sqlx_db).await.unwrap();
+    let cmod = sqlx::query_as!(Mod, "SELECT * FROM mods WHERE id=$1", *path)
+        .fetch_one(&sqlx_db)
+        .await
+        .unwrap();
     Ok(HttpResponse::Ok().body((ModDetailsTemplate { cmod: &cmod }).render().unwrap()))
 }
 
 #[get("/mod/{id}/download")]
 async fn download((app_data, modid): (web::Data<AppData>, web::Path<i32>)) -> Result<HttpResponse> {
     let sqlx_db = app_data.sqlx_pool.clone();
-    let zipfile = sqlx::query!("SELECT filebinary FROM files f INNER JOIN mods m ON m.file_id=f.id AND m.id=$1", *modid).fetch_one(&sqlx_db).await.unwrap();
+    let zipfile = sqlx::query!(
+        "SELECT filebinary FROM files f INNER JOIN mods m ON m.file_id=f.id AND m.id=$1",
+        *modid
+    )
+    .fetch_one(&sqlx_db)
+    .await
+    .unwrap();
 
     Ok(HttpResponse::Ok()
         .content_type("application/zip")

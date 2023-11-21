@@ -50,7 +50,7 @@ impl Submit2hReq {
 
 impl crate::packets::BodyContents for Submit2hReq {
     const ID: u8 = 0x9;
-    fn write<W: std::io::Write>(&self, w: &mut W) {
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
         w.write_u8(self.nation_id).unwrap();
         w.write_all(&[0x00, 0x00, 0x02c, 0xe6, 0x14, 0x00, 0x00])
             .unwrap();
