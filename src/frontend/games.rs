@@ -165,6 +165,7 @@ struct GameDetailsPayload {
     email_form: EmailForm,
     password: Option<String>,
     log_output: Option<i32>,
+    expert: Option<i32>,
 }
 pub fn deserialize_option_ignore_error<'de, T, D>(d: D) -> Result<Option<T>, D::Error>
 where
@@ -282,12 +283,16 @@ struct GameDetailsTemplate<'a> {
     winner_name: Option<String>,
     active_job: Option<ActiveJob>,
     unhealthy: bool,
+    expert: Option<i32>,
 }
 pub struct PNT<'a> {
     player: &'a GameDetailsPlayer,
     nation: &'a Nation,
 }
 impl<'a> GameDetailsTemplate<'a> {
+    pub fn is_not_expert(&self) -> bool {
+        self.expert.is_none()
+    }
     pub fn get_duplicate_players_string(&self, nation: &PlayerSummary) -> String {
         format!(
             "This cdkey is also playing {}",
@@ -1024,6 +1029,7 @@ async fn details(
     .unwrap();
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (GameDetailsTemplate {
+            expert: payload.expert,
             active_job: current_jobs.into_iter().next(),
             logs,
             staling_players,

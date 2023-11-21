@@ -231,7 +231,7 @@
         <div class="pane">
           <form action="/game/{{game.id}}/settings" method="post">
             <input type="hidden" name="loaded" value="1" />
-            <fieldset {% if self.game.archived || self.turn_number != 0 || self.authed != AuthStatus::AuthSuccess %}disabled="disabled"{% endif %}>
+            <fieldset {% if self.game.archived || (self.turn_number != 0 && self.is_not_expert()) || self.authed != AuthStatus::AuthSuccess %}disabled="disabled"{% endif %}>
               {% include "settings.html" %}
               <input type="submit" class="btn btn-primary btn-block" value="Save Settings" />
             </fieldset>
