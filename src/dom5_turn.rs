@@ -561,7 +561,6 @@ impl Dom5Turn {
                 acc
             }));
             arguments.append(&mut vec![
-                "-d".to_string(),
                 "--noclientstart".to_string(),
                 if game.renaming { "--renaming" } else { "" }.to_string(),
                 "--thrones".to_string(),
