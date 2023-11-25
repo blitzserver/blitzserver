@@ -63,6 +63,7 @@ struct GameSettings {
     #[serde(default,                   deserialize_with ="from_str_opt") ] cataclysm:              Option<i32>,
     #[serde(default,                   deserialize_with ="from_str_opt") ] max_stales:             Option<i32>,
     #[serde(default,                   deserialize_with ="from_str")     ] conq_all:               i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] debug_level:            i32,
 //Markertotellwhethertheformisonitsfirstload
     #[serde(default)]loaded:Option<String>,
 }
@@ -106,6 +107,7 @@ impl From<(&Game, &[Mod])> for GameSettings {
             cataclysm: game.cataclysm,
             max_stales: game.max_stales,
             conq_all: game.conq_all as i32,
+            debug_level: game.debug_level,
         }
     }
 }
@@ -1358,6 +1360,7 @@ async fn settings_post(
                         cataclysm.eq(body.cataclysm),
                         max_stales.eq(body.max_stales),
                         conq_all.eq(body.conq_all > 0),
+                        debug_level.eq(body.debug_level),
                     ))
                     .get_result(&db)?
             };

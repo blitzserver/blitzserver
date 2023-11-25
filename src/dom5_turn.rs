@@ -277,7 +277,7 @@ impl Dom5Turn {
     fn _update_nations(&mut self, subjob_id: Option<i32>) -> Result<(), Dom5TurnErr> {
         smol::block_on(async {
             let game = sqlx::query!(
-                "SELECT g.era, g.name FROM games g WHERE g.id=$1",
+                "SELECT g.era, g.name, g.debug_level FROM games g WHERE g.id=$1",
                 self.game_id
             )
             .fetch_one(&self.db_pool)
@@ -307,6 +307,14 @@ impl Dom5Turn {
             .fetch_all(&self.db_pool)
             .await?;
             let mut arguments = vec![
+                if game.debug_level > 0 {
+                    (0..game.debug_level).fold("-".to_owned(), |mut acc, _| {
+                        acc.push_str("d");
+                        acc
+                    })
+                } else {
+                    "".to_owned()
+                },
                 "--statusdump".to_string(),
                 "--port".to_string(),
                 format!("{}", Self::find_unused_port().unwrap()),
@@ -561,6 +569,14 @@ impl Dom5Turn {
                 acc
             }));
             arguments.append(&mut vec![
+                if game.debug_level > 0 {
+                    (0..game.debug_level).fold("-".to_owned(), |mut acc, _| {
+                        acc.push_str("d");
+                        acc
+                    })
+                } else {
+                    "".to_owned()
+                },
                 "--noclientstart".to_string(),
                 if game.renaming { "--renaming" } else { "" }.to_string(),
                 "--thrones".to_string(),
@@ -572,7 +588,12 @@ impl Dom5Turn {
                 game.throne_points_required.to_string(),
                 "--research".to_string(),
                 game.research_diff.to_string(),
-                if game.research_rand { "" } else { "--norandres" }.to_string(),
+                if game.research_rand {
+                    ""
+                } else {
+                    "--norandres"
+                }
+                .to_string(),
                 "--hofsize".to_string(),
                 game.hof_size.to_string(),
                 "--globals".to_string(),

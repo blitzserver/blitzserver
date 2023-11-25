@@ -127,6 +127,7 @@ table! {
         max_stales -> Nullable<Int4>,
         motd -> Nullable<Varchar>,
         conq_all -> Bool,
+        debug_level -> Int4,
     }
 }
 

@@ -274,6 +274,15 @@
         <label for="max_stales">Maximum Stales</label>
         <input name="max_stales" type="number" value="{{self.max_stales_str()}}" />
       </div>
+      <div class="input-group">
+        <label for="debug_level">Debug Level</label>
+        <select name="debug_level">
+          <option {% if settings.debug_level==0 %} selected="selected" {% endif %} value="0">None</option>
+          <option {% if settings.debug_level==1 %} selected="selected" {% endif %} value="1">Some (-d)</option>
+          <option {% if settings.debug_level==2 %} selected="selected" {% endif %} value="2">Lots (-dd)</option>
+          <option {% if settings.debug_level==3 %} selected="selected" {% endif %} value="3">AIIEE SAVE ME BLITZMIN (-ddd)</option>
+        </select>
+      </div>
     </div>
   </div>
 </div>

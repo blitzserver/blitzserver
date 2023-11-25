@@ -67,6 +67,7 @@ pub struct Game {
     pub max_stales: Option<i32>,
     pub motd: Option<String>,
     pub conq_all: bool,
+    pub debug_level: i32,
 }
 
 #[derive(derive_more::From, derive_more::Into)]
