@@ -1,13 +1,14 @@
 use crate::files::saves::DomSaveReadError;
 use crate::models::binary::Binary;
-use serde::Deserialize;
-use serde_dom5::{SaveFile, Body};
 use encoding::{all::ISO_8859_1, DecoderTrap, Encoding};
 use nonblock::NonBlockingReader;
+use serde::Deserialize;
+use serde_dom5::ftherlnd_contents::FtherlndContents;
+use serde_dom5::game_settings::GameSettings;
+use serde_dom5::{Body, SaveFile};
 use std::io::{Read, Seek, Write};
 use thiserror::Error;
-use serde_dom5::game_settings::GameSettings;
-use serde_dom5::ftherlnd_contents::FtherlndContents;
+use serde_dom5::kingdom::KingdomType;
 
 pub struct AutokilledProc(std::process::Child);
 
@@ -336,17 +337,19 @@ impl Dom5Turn {
                 Ok(_) => {}
             }
             println!("Extracting");
-            let path = Binary::extract_to_tmp(self.game_id, &self.db_pool).await.unwrap();
+            let path = Binary::extract_to_tmp(self.game_id, &self.db_pool)
+                .await
+                .unwrap();
             println!("Extracted");
             let mut proc = AutokilledProc(
                 std::process::Command::new(path)
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped())
-                .env("DOM5_CONF", &data_dir)
-                .env("DOM6_CONF", &data_dir)
-                .args(arguments)
-                .spawn()
-                .map_err(Dom5TurnErr::ProcessError)?,
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped())
+                    .env("DOM5_CONF", &data_dir)
+                    .env("DOM6_CONF", &data_dir)
+                    .args(arguments)
+                    .spawn()
+                    .map_err(Dom5TurnErr::ProcessError)?,
             );
             let statusdump;
             let mut wait_counter: i32 = 10;
@@ -577,7 +580,12 @@ impl Dom5Turn {
                 game.throne_points_required.to_string(),
                 "--research".to_string(),
                 game.research_diff.to_string(),
-                if game.research_rand { "" } else { "--norandres" }.to_string(),
+                if game.research_rand {
+                    ""
+                } else {
+                    "--norandres"
+                }
+                .to_string(),
                 "--hofsize".to_string(),
                 game.hof_size.to_string(),
                 "--globals".to_string(),
@@ -647,31 +655,33 @@ impl Dom5Turn {
                 arguments.append(&mut vec!["--newgame".to_string()]);
             }
             println!("Extracting");
-            let path = Binary::extract_to_tmp(self.game_id, &self.db_pool).await.unwrap();
+            let path = Binary::extract_to_tmp(self.game_id, &self.db_pool)
+                .await
+                .unwrap();
             println!("Extracted");
             let mut child = AutokilledProc(
                 std::process::Command::new(path)
-                .env(
-                    "DOM5_CONF",
-                    std::env::current_dir()
-                        .unwrap()
-                        .join("tmp")
-                        .join("games")
-                        .join(self.game_id.to_string()),
-                )
-                .env(
-                    "DOM6_CONF",
-                    std::env::current_dir()
-                        .unwrap()
-                        .join("tmp")
-                        .join("games")
-                        .join(self.game_id.to_string()),
-                )
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped())
-                .args(&arguments)
-                .spawn()
-                .map_err(Dom5TurnErr::ProcessError)?,
+                    .env(
+                        "DOM5_CONF",
+                        std::env::current_dir()
+                            .unwrap()
+                            .join("tmp")
+                            .join("games")
+                            .join(self.game_id.to_string()),
+                    )
+                    .env(
+                        "DOM6_CONF",
+                        std::env::current_dir()
+                            .unwrap()
+                            .join("tmp")
+                            .join("games")
+                            .join(self.game_id.to_string()),
+                    )
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped())
+                    .args(&arguments)
+                    .spawn()
+                    .map_err(Dom5TurnErr::ProcessError)?,
             );
 
             let stdout = child.stdout.take().unwrap();
@@ -767,14 +777,16 @@ impl Dom5Turn {
             };
             file.read_to_end(&mut contents).unwrap();
             file.seek(std::io::SeekFrom::Start(0)).unwrap();
-            let ftherlnd: SaveFile = bincode::deserialize_from(&file).map_err(Dom5TurnErr::CorruptFthrlnd)?;
-            let winner = match ftherlnd.body {
-                Body::FtherlndContents(fth) => 
+            let ftherlnd: SaveFile =
+                bincode::deserialize_from(&file).map_err(Dom5TurnErr::CorruptFthrlnd)?;
+            let (winner, kingdoms) = match ftherlnd.body {
+                Body::FtherlndContents(ref fth) => (
                     match fth.get_settings().winner() {
                         -1 => None,
                         w => Some(w as i32),
                     },
-                    /*fth.kingdoms,*/
+                    fth.get_kingdoms(),
+                ),
                 _ => return Err(Dom5TurnErr::FtherlndMixup),
             };
             let turn_number = ftherlnd.header.turnnumber;
@@ -800,20 +812,18 @@ impl Dom5Turn {
                 .await?;
             let mut computer_nationids = vec![];
             let mut defeated_nationids = vec![];
-            println!("Not currently updating turns");
-            /*
-            for kingdom in kingdoms {
-                match kingdom.player_type {
+            for (nation_id, kingdom) in kingdoms {
+                match kingdom.kingdom_type {
                     // Player_turns which should be inserted with files
                     KingdomType::DefeatedWithTurn | KingdomType::Human => {
-                        let status = match kingdom.player_type {
+                        let status = match kingdom.kingdom_type {
                             KingdomType::DefeatedWithTurn => 5,
                             KingdomType::Human => 0,
                             _ => panic!("Impossible to reach defeated & human branch without being defeated or human")
                         };
                         let nation = nations
                             .iter()
-                            .find(|n| n.nation_id == kingdom.nation_id as i32)
+                            .find(|n| n.nation_id == *nation_id as i32)
                             .unwrap();
                         let mut player_turn_file =
                             std::fs::File::open(save_dir.join(format!("{}.trn", nation.filename)))
@@ -833,7 +843,7 @@ impl Dom5Turn {
                         SELECT id, $3, $4, $5, $6 FROM inserted",
                             &nation.filename,
                             &contents,
-                            kingdom.nation_id as i32,
+                            *nation_id as i32,
                             self.game_id,
                             turn_number,
                             status
@@ -842,13 +852,13 @@ impl Dom5Turn {
                         .await?;
                     }
                     // Player_turns which should be inserted without files (in bulk, later on)
-                    KingdomType::Computer => computer_nationids.push(kingdom.nation_id as i32),
-                    KingdomType::Defeated => defeated_nationids.push(kingdom.nation_id as i32),
+                    KingdomType::Computer => computer_nationids.push(*nation_id as i32),
+                    KingdomType::Defeated => defeated_nationids.push(*nation_id as i32),
                     // Kingdom types we shall ignore
                     KingdomType::Special => {}
+                    KingdomType::Unknown => {}
                 }
             }
-            */
             // Bulk insert player_turns without files
             sqlx::query!(
                 "

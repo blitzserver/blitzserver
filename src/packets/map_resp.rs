@@ -1,4 +1,6 @@
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+
+use super::BodyContents;
 #[derive(Debug, Clone)]
 pub struct MapResp {
     pub map_name: String,
@@ -101,5 +103,152 @@ impl crate::packets::BodyContents for MapResp {
             w.write_u32::<LittleEndian>(0).unwrap();
             w.write_u32::<LittleEndian>(0).unwrap();
         }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct MapResp6 {
+    planes: Vec<PlaneDef>,
+}
+
+impl crate::packets::BodyContents for MapResp6 {
+    const ID: u8 = 0x14;
+
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
+        for plane in &self.planes {
+            plane.write(w, version);
+        }
+    }
+}
+#[derive(Clone, Debug)]
+pub struct PlaneDef {
+    plane_name: String,
+    plane_file_name: String,
+    unk: i32,
+    unk1: i32,
+    d6m_filename: String,
+    unk2: i32,
+    unk3: i32,
+    plane_images: Vec<PlaneImage>,
+}
+
+impl PlaneDef {
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
+        w.write_all(self.plane_name.as_bytes()).unwrap();
+        w.write_all(self.plane_file_name.as_bytes()).unwrap();
+        w.write_i32::<LittleEndian>(self.unk).unwrap();
+        w.write_i32::<LittleEndian>(self.unk1).unwrap();
+        w.write_all(self.d6m_filename.as_bytes()).unwrap();
+        w.write_i32::<LittleEndian>(self.unk2).unwrap();
+        w.write_i32::<LittleEndian>(self.unk3).unwrap();
+        for image in &self.plane_images {
+            image.write(w, version);
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PlaneImage {
+    name: String,
+    unk: i32,
+    unk1: i32,
+    unk2: i8,
+}
+
+impl PlaneImage {
+    pub fn from_reader<R: std::io::BufRead>(r: &mut R) -> Option<PlaneImage> {
+        let mut name: String = "".to_owned();
+        loop {
+            let c = r.read_u8().unwrap();
+            if c == 0 {
+                break;
+            }
+            name.push(c as char);
+        }
+        if name == "" {
+            return None;
+        }
+        let unk = r.read_i32::<LittleEndian>().unwrap();
+        let unk1 = r.read_i32::<LittleEndian>().unwrap();
+        let unk2 = r.read_i8().unwrap();
+        return Some(PlaneImage {
+            name,
+            unk,
+            unk1,
+            unk2,
+        });
+    }
+}
+
+impl PlaneImage {
+    fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
+        w.write_all(self.name.as_bytes()).unwrap();
+        w.write_i32::<LittleEndian>(self.unk).unwrap();
+        w.write_i32::<LittleEndian>(self.unk1).unwrap();
+        w.write_i8(self.unk2).unwrap();
+    }
+}
+
+impl PlaneDef {
+    pub fn from_reader<R: std::io::BufRead>(r: &mut R) -> PlaneDef {
+        let mut plane_name: String = "".to_owned();
+        loop {
+            let c = r.read_u8().unwrap();
+            if c == 0 {
+                break;
+            }
+            plane_name.push(c as char);
+        }
+        let mut plane_file_name: String = "".to_owned();
+        loop {
+            let c = r.read_u8().unwrap();
+            if c == 0 {
+                break;
+            }
+            plane_file_name.push(c as char);
+        }
+        let unk = r.read_i32::<LittleEndian>().unwrap();
+        let unk1 = r.read_i32::<LittleEndian>().unwrap();
+        let mut d6m_filename: String = "".to_owned();
+        loop {
+            let c = r.read_u8().unwrap();
+            if c == 0 {
+                break;
+            }
+            d6m_filename.push(c as char);
+        }
+        let unk2 = r.read_i32::<LittleEndian>().unwrap();
+        let unk3 = r.read_i32::<LittleEndian>().unwrap();
+
+        let mut plane_images = vec![];
+        loop {
+            match PlaneImage::from_reader(r) {
+                None => break,
+                Some(i) => plane_images.push(i),
+            }
+        }
+
+        PlaneDef {
+            plane_name,
+            plane_file_name,
+            unk,
+            unk1,
+            d6m_filename,
+            unk2,
+            unk3,
+            plane_images,
+        }
+    }
+}
+
+impl MapResp6 {
+    pub fn from_reader<R: std::io::BufRead>(r: &mut R) -> MapResp6 {
+        let highestplane = r.read_i16::<LittleEndian>().unwrap();
+        let mut planes: Vec<PlaneDef> = vec![];
+        for _ in 0..=highestplane {
+            planes.push(PlaneDef::from_reader(r));
+        }
+
+        MapResp6 { planes }
     }
 }

@@ -6,6 +6,10 @@ use flate2::write::ZlibEncoder;
 use std::io::Write;
 use thiserror::Error;
 
+use bincode::Options;
+use std::collections::VecDeque;
+use std::fs;
+
 pub mod astralpacket_req;
 pub mod astralpacket_resp;
 pub mod disconnect_req;
@@ -82,6 +86,7 @@ pub use uploadpretender_req::UploadPretenderReq;
 
 use self::astralpacket_resp::AstralPacketResp;
 use self::dmfile_req::DmFileReq;
+use self::map_resp::MapResp6;
 
 #[derive(Error, Debug)]
 pub enum PacketError {
@@ -170,6 +175,7 @@ pub enum Body {
     TrnResp(TrnResp),
     MapReq(MapReq),
     MapResp(MapResp),
+    MapResp6(MapResp6),
     MapFileReq(MapFileReq),
     MapFileResp(MapFileResp),
     MapImageFileReq(MapImageFileReq),
@@ -190,46 +196,45 @@ pub enum Body {
 
 impl Body {
     pub fn from_reader<R: std::io::BufRead>(r: &mut R, version: Option<u16>) -> Body {
-        match r.read_u8().unwrap() {
-            UploadPretenderReq::ID => Body::UploadPretenderReq(UploadPretenderReq::from_reader(r)),
-            HeartbeatReq::ID => Body::HeartbeatReq(HeartbeatReq::from_reader(r)),
-            GameInfoReq::ID => Body::GameInfoReq(GameInfoReq::from_reader(r)),
-            GameInfoResp::ID => Body::GameInfoResp(GameInfoResp::from_reader(r)),
-            AstralPacketResp::ID => {
-                Body::AstralPacketResp(AstralPacketResp::from_reader(r, version))
+        match (version, r.read_u8().unwrap()) {
+            (_, UploadPretenderReq::ID) => Body::UploadPretenderReq(UploadPretenderReq::from_reader(r)),
+            (_, HeartbeatReq::ID) => Body::HeartbeatReq(HeartbeatReq::from_reader(r)),
+            (_, GameInfoReq::ID) => Body::GameInfoReq(GameInfoReq::from_reader(r)),
+            (_, GameInfoResp::ID) => Body::GameInfoResp(GameInfoResp::from_reader(r)),
+            (_, AstralPacketResp::ID) => {
+                 Body::AstralPacketResp(AstralPacketResp::from_reader(r, version))
             }
-            AstralPacketReq::ID => Body::AstralPacketReq(AstralPacketReq::from_reader(r)),
-            StartGameReq::ID => Body::StartGameReq(StartGameReq::from_reader(r)),
-            DisconnectReq::ID => Body::DisconnectReq(DisconnectReq::from_reader(r)),
-            PAResp::ID => Body::PAResp(PAResp::from_reader(r)),
-            PAReq::ID => Body::PAReq(PAReq::from_reader(r)),
-            PasswordsReq::ID => Body::PasswordsReq(PasswordsReq::from_reader(r)),
-            TwoHCrcReq::ID => Body::TwoHCrcReq(TwoHCrcReq::from_reader(r)),
-            PasswordsResp::ID => Body::PasswordsResp(PasswordsResp::from_reader(r)),
-            TwoHCrcResp::ID => Body::TwoHCrcResp(TwoHCrcResp::from_reader(r)),
-            TrnReq::ID => Body::TrnReq(TrnReq::from_reader(r)),
-            TrnResp::ID => Body::TrnResp(TrnResp::from_reader(r)),
-            MapReq::ID => Body::MapReq(MapReq::from_reader(r)),
-            MapResp::ID => Body::MapResp(MapResp::from_reader(r)),
-            MapFileReq::ID => Body::MapFileReq(MapFileReq::from_reader(r)),
-            MapFileResp::ID => Body::MapFileResp(MapFileResp::from_reader(r)),
-            MapImageFileReq::ID => Body::MapImageFileReq(MapImageFileReq::from_reader(r)),
-            MapImageFileResp::ID => Body::MapImageFileResp(MapImageFileResp::from_reader(r)),
-            MapWinterFileReq::ID => Body::MapWinterFileReq(MapWinterFileReq::from_reader(r)),
-            MapWinterFileResp::ID => Body::MapWinterFileResp(MapWinterFileResp::from_reader(r)),
-            Submit2hReq::ID => Body::Submit2hReq(Submit2hReq::from_reader(r)),
-            Submit2hResp::ID => Body::Submit2hResp(Submit2hResp::from_reader(r)),
-            TwoHReq::ID => Body::TwoHReq(TwoHReq::from_reader(r)),
-            TwoHResp::ID => Body::TwoHResp(TwoHResp::from_reader(r)),
-            DmFileReq::ID => Body::DmFileReq(DmFileReq::from_reader(r, version)),
-            DmFileResp::ID => Body::DmFileResp(DmFileResp::from_reader(r)),
-            ModFileReq::ID => Body::ModFileReq(ModFileReq::from_reader(r)),
-            ModFileResp::ID => Body::ModFileResp(ModFileResp::from_reader(r)),
-            NationsSelectedReq::ID => Body::NationsSelectedReq(NationsSelectedReq::from_reader(r)),
-            SetTeamReq::ID => Body::SetTeamReq(SetTeamReq::from_reader(r)),
-            SetDiscReq::ID => Body::SetDiscReq(SetDiscReq::from_reader(r)),
-
-            d => {
+            (_, AstralPacketReq::ID) => Body::AstralPacketReq(AstralPacketReq::from_reader(r)),
+            (_, StartGameReq::ID) => Body::StartGameReq(StartGameReq::from_reader(r)),
+            (_, DisconnectReq::ID) => Body::DisconnectReq(DisconnectReq::from_reader(r)),
+            (_, PAResp::ID) => Body::PAResp(PAResp::from_reader(r)),
+            (_, PAReq::ID) => Body::PAReq(PAReq::from_reader(r)),
+            (_, PasswordsReq::ID) => Body::PasswordsReq(PasswordsReq::from_reader(r)),
+            (_, TwoHCrcReq::ID) => Body::TwoHCrcReq(TwoHCrcReq::from_reader(r)),
+            (_, PasswordsResp::ID) => Body::PasswordsResp(PasswordsResp::from_reader(r)),
+            (_, TwoHCrcResp::ID) => Body::TwoHCrcResp(TwoHCrcResp::from_reader(r)),
+            (_, TrnReq::ID) => Body::TrnReq(TrnReq::from_reader(r)),
+            (_, TrnResp::ID) => Body::TrnResp(TrnResp::from_reader(r)),
+            (_, MapReq::ID) => Body::MapReq(MapReq::from_reader(r)),
+            (Some(v), MapResp::ID) if v > 561 => Body::MapResp6(MapResp6::from_reader(r)),
+            (_, MapFileReq::ID) => Body::MapFileReq(MapFileReq::from_reader(r)),
+            (_, MapFileResp::ID) => Body::MapFileResp(MapFileResp::from_reader(r)),
+            (_, MapImageFileReq::ID) => Body::MapImageFileReq(MapImageFileReq::from_reader(r)),
+            (_, MapImageFileResp::ID) => Body::MapImageFileResp(MapImageFileResp::from_reader(r)),
+            (_, MapWinterFileReq::ID) => Body::MapWinterFileReq(MapWinterFileReq::from_reader(r)),
+            (_, MapWinterFileResp::ID) => Body::MapWinterFileResp(MapWinterFileResp::from_reader(r)),
+            (_, Submit2hReq::ID) => Body::Submit2hReq(Submit2hReq::from_reader(r)),
+            (_, Submit2hResp::ID) => Body::Submit2hResp(Submit2hResp::from_reader(r)),
+            (_, TwoHReq::ID) => Body::TwoHReq(TwoHReq::from_reader(r)),
+            (_, TwoHResp::ID) => Body::TwoHResp(TwoHResp::from_reader(r)),
+            (_, DmFileReq::ID) => Body::DmFileReq(DmFileReq::from_reader(r, version)),
+            (_, DmFileResp::ID) => Body::DmFileResp(DmFileResp::from_reader(r)),
+            (_, ModFileReq::ID) => Body::ModFileReq(ModFileReq::from_reader(r)),
+            (_, ModFileResp::ID) => Body::ModFileResp(ModFileResp::from_reader(r)),
+            (_, NationsSelectedReq::ID) => Body::NationsSelectedReq(NationsSelectedReq::from_reader(r)),
+            (_, SetTeamReq::ID) => Body::SetTeamReq(SetTeamReq::from_reader(r)),
+            (_, SetDiscReq::ID) => Body::SetDiscReq(SetDiscReq::from_reader(r)),
+            (_, d) => {
                 let mut v = vec![];
                 r.read_to_end(&mut v).unwrap();
                 panic!(
@@ -260,6 +265,7 @@ impl Body {
             Self::TrnResp(p) => p.write(w, version),
             Self::MapReq(p) => p.write(w, version),
             Self::MapResp(p) => p.write(w, version),
+            Self::MapResp6(p) => unimplemented!("Not serializing yet"),
             Self::MapFileReq(p) => p.write(w, version),
             Self::MapFileResp(p) => p.write(w, version),
             Self::MapImageFileReq(p) => p.write(w, version),
@@ -314,5 +320,34 @@ where
         .write(&mut full);
         full.write_all(&packet_body[..]).unwrap();
         w.write_all(&full).unwrap();
+    }
+}
+
+#[test]
+fn deserialize_packet() {
+    let mut openset = VecDeque::from([std::path::PathBuf::from("./test_data/packets")]);
+    while let Some(path) = openset.pop_front() {
+        for entry in fs::read_dir(path).unwrap() {
+            let entry = entry.unwrap();
+            if let Ok(ft) = entry.file_type() {
+                if ft.is_dir() {
+                    if !entry
+                        .file_name()
+                        .as_os_str()
+                        .to_str()
+                        .unwrap()
+                        .starts_with("_")
+                    {
+                        openset.push_back(entry.path());
+                    }
+                }
+                if ft.is_file() {
+                    let mut file = std::fs::File::open(entry.path()).unwrap();
+                    println!("Deserializing {:?}", entry.path());
+                    let packet = Packet::from_reader(&mut file, Some(600)).unwrap();
+                    println!("Packet {:?}", packet);
+                }
+            }
+        }
     }
 }

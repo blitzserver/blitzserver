@@ -6,9 +6,10 @@ use actix_web::{get, post, web, HttpResponse, Result};
 use askama::Template;
 use futures::{StreamExt, TryStreamExt};
 use libvips::ops;
+use regex::Regex;
 use std::convert::TryFrom;
-use std::io::Read;
 use std::io::Write;
+use std::io::{BufRead, BufReader, Read};
 
 #[derive(Template)]
 #[template(path = "maps/details.html")]
@@ -141,13 +142,9 @@ async fn upload_post(
         winterfile_id: None,
         province_count: 0,
         uw_count: 0,
-        min_version: 0
+        min_version: 0,
     };
     let sqlx_db = app_data.sqlx_pool.clone();
-    let mut tga_name: Option<String> = None;
-    let mut winter_name: Option<String> = None;
-    let mut map_file_data: Option<crate::files::MapFile> = None;
-    let mut provinces = None;
 
     let mut errors: Vec<String> = vec![];
     {
@@ -162,6 +159,41 @@ async fn upload_post(
                     while let Some(bytes) = field.next().await {
                         contents.extend_from_slice(&bytes.unwrap());
                     }
+                    let mut archive = match zip::ZipArchive::new(std::io::Cursor::new(&contents)) {
+                        Err(e) => {
+                            errors.push("Uploaded map is not a .zip archive".to_string());
+                            break;
+                        }
+                        Ok(f) => {
+                            println!("Found map zip");
+                            f
+                        }
+                    };
+
+                    let mut mapfiles = vec![];
+                    for name in archive.file_names() {
+                        if name.ends_with(".map") {
+                            mapfiles.push(name.to_owned());
+                        }
+                    }
+                    mapfiles.sort();
+                    let name_capture = Regex::new("#dom2title (.+?)\n").unwrap();
+                    let img_capture = Regex::new("#imagefile (.+?)\n").unwrap();
+                    for plane_filename in mapfiles {
+                        let base_plane_file = archive.by_name(&plane_filename).unwrap();
+                        let reader = std::io::BufReader::new(base_plane_file);
+                        let mut name = "Unnamed Plane".to_owned();
+                        let mut imgfilename = "".to_owned();
+                        for line in reader.lines().flatten() {
+                            if let Some(capture) = name_capture.captures(&line) {
+                                name = capture.get(1).unwrap().as_str().to_owned();
+                            }
+                            if let Some(capture) = img_capture.captures(&line) {
+                                imgfilename = capture.get(1).unwrap().as_str().to_owned();
+                            }
+                        }
+                    }
+                    /*
                     let new_file = NewFile::new(content_type.get_filename().unwrap(), &contents);
                     match crate::files::MapFile::try_from(&contents[..]) {
                         Ok(mfd) => {
@@ -191,102 +223,12 @@ async fn upload_post(
                     // == DONE
                     let file: File = new_file.insert(&sqlx_db).await.unwrap();
                     new_map.mapfile_id = file.id;
-                }
-                Some("tga") => {
-                    let mut contents: Vec<u8> = vec![];
-                    while let Some(bytes) = field.next().await {
-                        contents.extend_from_slice(&bytes.unwrap());
-                    }
-                    let filename = content_type.get_filename().unwrap();
-                    match map_file_data {
-                        None => {
-                            tga_name = Some(filename.to_string());
-                        }
-                        Some(ref mut mfd) => {
-                            if mfd.tga_filename.trim() != filename.trim() {
-                                errors.push(format!(
-                                    "Map #imagefile is {}, but TGA filename is {}",
-                                    mfd.tga_filename, filename
-                                ));
-                                break;
-                            }
-                        }
-                    }
-                    let img = crate::image::io::Reader::with_format(
-                        std::io::Cursor::new(&contents),
-                        crate::image::ImageFormat::Tga,
-                    )
-                    .decode()
-                    .unwrap_or_else(|_| {
-                        crate::image::io::Reader::with_format(
-                            std::io::Cursor::new(&contents),
-                            crate::image::ImageFormat::Sgi,
-                        )
-                        .decode()
-                        .unwrap()
-                    });
-                    provinces = Some(crate::files::MapFile::load_provinces(&img).unwrap());
-                    let new_file = NewFile::new(content_type.get_filename().unwrap(), &contents);
-                    let file: File = new_file.insert(&sqlx_db).await.unwrap();
-                    new_map.tgafile_id = file.id;
-                }
-                Some("tga_winter") => {
-                    let mut contents: Vec<u8> = vec![];
-                    while let Some(bytes) = field.next().await {
-                        contents.extend_from_slice(&bytes.unwrap());
-                    }
-                    let filename = content_type.get_filename().unwrap();
-                    if filename != "" {
-                        match map_file_data {
-                            None => winter_name = Some(filename.to_string()),
-                            Some(ref mfd) => match mfd.winter_filename {
-                                None => {
-                                    errors.push(format!("Map does not contain a #winterimagefile, but {} has been uploaded as one", filename));
-                                    break;
-                                }
-                                Some(ref winter_filename) => {
-                                    if winter_filename.trim() != filename.trim() {
-                                        errors.push(format!(
-                                            "Map #winterimagefile is {}, but TGA filename is {}",
-                                            winter_filename, filename
-                                        ));
-                                        break;
-                                    }
-                                }
-                            },
-                        }
-                        let new_file = NewFile::new(filename, &contents);
-                        let file: File = new_file.insert(&sqlx_db).await.unwrap();
-                        new_map.winterfile_id = Some(file.id);
-                    }
+                    */
                 }
                 _ => {}
             };
         }
     }
-    if errors.len() == 0 {
-        if new_map.mapfile_id == 0 {
-            errors.push("Missing map file\n".to_string());
-        }
-        if new_map.tgafile_id == 0 {
-            errors.push("Missing tga file\n".to_string());
-        }
-        if map_file_data.as_ref().unwrap().winter_filename.is_some()
-            && !new_map.winterfile_id.is_some()
-        {
-            errors.push(format!(
-                "Map contains #winterimagefile {}, but none has been provided",
-                map_file_data
-                    .as_ref()
-                    .unwrap()
-                    .winter_filename
-                    .as_ref()
-                    .unwrap()
-                    .clone()
-            ));
-        }
-    }
-
     if errors.len() > 0 {
         let result_maps = Map::get_available_maps(0, true, &sqlx_db).await.unwrap();
         return Ok(HttpResponse::Ok().content_type("text/html").body(
@@ -298,10 +240,6 @@ async fn upload_post(
             .unwrap(),
         ));
     } else {
-        let map = new_map.insert(&sqlx_db).await.unwrap();
-        if let Some(provinces) = provinces {
-            map.insert_provinces(provinces, &sqlx_db).await.unwrap();
-        }
         let address = std::env::var("ADDRESS").expect("ADDRESS env var not specified");
         return Ok(HttpResponse::Found()
             .append_header((header::LOCATION, format!("{}/maps", address)))
