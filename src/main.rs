@@ -186,7 +186,7 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::binaries::upload)
             .service(actix_files::Files::new("/", "./content"))
     })
-    .bind("0.0.0.0:8080")?
+    .bind(format!("0.0.0.0:{}", env::var("WEB_PORT").unwrap_or("8080".to_string())))?
     .run()
     .await
 }
