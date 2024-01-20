@@ -108,13 +108,15 @@ impl crate::packets::BodyContents for MapResp {
 
 #[derive(Clone, Debug)]
 pub struct MapResp6 {
-    planes: Vec<PlaneDef>,
+    pub planes: Vec<PlaneDef>,
 }
 
 impl crate::packets::BodyContents for MapResp6 {
     const ID: u8 = 0x14;
 
     fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
+        w.write_i16::<LittleEndian>((self.planes.len() -1) as i16)
+            .unwrap();
         for plane in &self.planes {
             plane.write(w, version);
         }
@@ -122,28 +124,32 @@ impl crate::packets::BodyContents for MapResp6 {
 }
 #[derive(Clone, Debug)]
 pub struct PlaneDef {
-    plane_name: String,
-    plane_file_name: String,
-    unk: i32,
-    unk1: i32,
-    d6m_filename: String,
-    unk2: i32,
-    unk3: i32,
-    plane_images: Vec<PlaneImage>,
+    pub plane_name: String,
+    pub plane_file_name: String,
+    pub map_len: i32,
+    pub map_hash: i32,
+    pub d6m_filename: String,
+    pub img_len: i32,
+    pub img_hash: i32,
+    pub plane_images: Vec<PlaneImage>,
 }
 
 impl PlaneDef {
     fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
         w.write_all(self.plane_name.as_bytes()).unwrap();
+        w.write_u8(0).unwrap();
         w.write_all(self.plane_file_name.as_bytes()).unwrap();
-        w.write_i32::<LittleEndian>(self.unk).unwrap();
-        w.write_i32::<LittleEndian>(self.unk1).unwrap();
+        w.write_u8(0).unwrap();
+        w.write_i32::<LittleEndian>(self.map_len).unwrap();
+        w.write_i32::<LittleEndian>(self.map_hash).unwrap();
         w.write_all(self.d6m_filename.as_bytes()).unwrap();
-        w.write_i32::<LittleEndian>(self.unk2).unwrap();
-        w.write_i32::<LittleEndian>(self.unk3).unwrap();
+        w.write_u8(0).unwrap();
+        w.write_i32::<LittleEndian>(self.img_len).unwrap();
+        w.write_i32::<LittleEndian>(self.img_hash).unwrap();
         for image in &self.plane_images {
             image.write(w, version);
         }
+        w.write_u8(0).unwrap();
     }
 }
 
@@ -164,6 +170,7 @@ impl PlaneImage {
                 break;
             }
             name.push(c as char);
+            println!("name so far {}", name);
         }
         if name == "" {
             return None;
@@ -207,8 +214,8 @@ impl PlaneDef {
             }
             plane_file_name.push(c as char);
         }
-        let unk = r.read_i32::<LittleEndian>().unwrap();
-        let unk1 = r.read_i32::<LittleEndian>().unwrap();
+        let map_len = r.read_i32::<LittleEndian>().unwrap();
+        let map_hash = r.read_i32::<LittleEndian>().unwrap();
         let mut d6m_filename: String = "".to_owned();
         loop {
             let c = r.read_u8().unwrap();
@@ -217,8 +224,8 @@ impl PlaneDef {
             }
             d6m_filename.push(c as char);
         }
-        let unk2 = r.read_i32::<LittleEndian>().unwrap();
-        let unk3 = r.read_i32::<LittleEndian>().unwrap();
+        let img_len = r.read_i32::<LittleEndian>().unwrap();
+        let img_hash = r.read_i32::<LittleEndian>().unwrap();
 
         let mut plane_images = vec![];
         loop {
@@ -231,11 +238,11 @@ impl PlaneDef {
         PlaneDef {
             plane_name,
             plane_file_name,
-            unk,
-            unk1,
+            map_len,
+            map_hash,
             d6m_filename,
-            unk2,
-            unk3,
+            img_len,
+            img_hash,
             plane_images,
         }
     }

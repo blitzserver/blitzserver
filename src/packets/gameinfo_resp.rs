@@ -17,9 +17,9 @@ pub struct GameInfoResp {
     pub nation_teams: std::collections::HashMap<i32, u8>,
     pub turn_statuses: std::collections::HashMap<i32, u8>,
     pub conn_statuses: std::collections::HashMap<i32, u8>,
-    pub remaining: Vec<u8>,
     pub turn_number: u32,
     pub turnkey: u32,
+    pub remaining: Vec<u8>,
 }
 
 const DISCIPLES_BIT_ID: u32 = 0b10000000;
@@ -51,7 +51,7 @@ impl GameInfoResp {
         let unk4 = r.read_u16::<LittleEndian>().unwrap();
         let mut nation_statuses: std::collections::HashMap<i32, u8> =
             std::collections::HashMap::new();
-        for i in 1..=250 {
+        for i in 1..500 {
             match r.read_u8() {
                 Ok(d) if d != 0 => {
                     nation_statuses.insert(i, d);
@@ -67,7 +67,7 @@ impl GameInfoResp {
         let mut nation_teams: std::collections::HashMap<i32, u8> = std::collections::HashMap::new();
 
         if game_state == 1 {
-            for i in 1..=250 {
+            for i in 1..500 {
                 match r.read_u8() {
                     Ok(team) if team > 0 => {
                         nation_teams.insert(i, team);
@@ -75,7 +75,7 @@ impl GameInfoResp {
                     _ => {}
                 }
             }
-            for i in 1..=250 {
+            for i in 1..500 {
                 match r.read_u8() {
                     Ok(disc) if disc > 0 => {
                         nation_discs.insert(i, disc);
@@ -84,7 +84,7 @@ impl GameInfoResp {
                 }
             }
         } else {
-            for i in 1..=250 {
+            for i in 0..500 {
                 match r.read_u8() {
                     Ok(status) if status != 0 => {
                         turn_statuses.insert(i, status);
@@ -92,7 +92,7 @@ impl GameInfoResp {
                     _ => {}
                 }
             }
-            for i in 1..=250 {
+            for i in 0..500 {
                 match r.read_u8() {
                     Ok(1) => {
                         conn_statuses.insert(i, 1);
@@ -101,6 +101,9 @@ impl GameInfoResp {
                 }
             }
         }
+        let turn_number = r.read_u32::<LittleEndian>().unwrap();
+        r.read_u8().unwrap();
+        let turnkey = r.read_u32::<LittleEndian>().unwrap();
 
         let mut remaining = vec![];
         r.read_to_end(&mut remaining).unwrap();
@@ -110,7 +113,6 @@ impl GameInfoResp {
             game_name: name,
             era: era.into(),
             unk2,
-            remaining,
             disciples,
             renaming,
             unk3,
@@ -121,8 +123,9 @@ impl GameInfoResp {
             nation_discs,
             nation_teams,
             conn_statuses,
-            turn_number: 0,
-            turnkey: 0,
+            turn_number,
+            turnkey,
+            remaining,
         }
     }
 }
@@ -149,21 +152,21 @@ impl crate::packets::BodyContents for GameInfoResp {
             None => w.write_u32::<LittleEndian>(0xffffffff).unwrap(),
         };
 
-        w.write_all(&[0, 0]).unwrap();
-        for i in 1..=250 {
+        w.write_u8(0).unwrap();
+        for i in 0..500 {
             match self.nation_statuses.get(&i) {
                 Some(d) => w.write_u8(*d).unwrap(),
                 _ => w.write_u8(0).unwrap(),
             }
         }
         if self.game_state == 1 {
-            for i in 1..251 {
+            for i in 0..500 {
                 match self.nation_teams.get(&i) {
                     Some(t) => w.write_u8(*t).unwrap(),
                     _ => w.write_u8(0).unwrap(),
                 }
             }
-            for i in 1..250 {
+            for i in 0..500 {
                 match self.nation_discs.get(&i) {
                     Some(t) => {
                         w.write_u8(*t).unwrap();
@@ -171,16 +174,17 @@ impl crate::packets::BodyContents for GameInfoResp {
                     _ => w.write_u8(0).unwrap(),
                 }
             }
-            w.write_all(&[0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00])
-                .unwrap();
+            w.write_u32::<LittleEndian>(0).unwrap();
+            w.write_u8(0).unwrap();
+            w.write_i32::<LittleEndian>(-1).unwrap();
         } else {
-            for i in 1..251 {
+            for i in 0..500 {
                 match self.turn_statuses.get(&i) {
                     Some(t) => w.write_u8(*t).unwrap(),
                     _ => w.write_u8(0).unwrap(),
                 }
             }
-            for i in 1..250 {
+            for i in 0..500 {
                 match self.conn_statuses.get(&i) {
                     Some(t) => {
                         w.write_u8(*t).unwrap();

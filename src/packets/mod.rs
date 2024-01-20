@@ -86,7 +86,7 @@ pub use uploadpretender_req::UploadPretenderReq;
 
 use self::astralpacket_resp::AstralPacketResp;
 use self::dmfile_req::DmFileReq;
-use self::map_resp::MapResp6;
+use self::map_resp::{MapResp6, PlaneDef};
 
 #[derive(Error, Debug)]
 pub enum PacketError {
@@ -112,7 +112,10 @@ impl Packet {
         let mut reader = &body_buf[..];
         let body = if header.compression == CompressionType::Zlib {
             let _len = reader.read_u32::<LittleEndian>().unwrap();
-            Body::from_reader(&mut std::io::BufReader::new(ZlibDecoder::new(reader)), version)
+            Body::from_reader(
+                &mut std::io::BufReader::new(ZlibDecoder::new(reader)),
+                version,
+            )
         } else {
             Body::from_reader(&mut reader, version)
         };
@@ -197,12 +200,14 @@ pub enum Body {
 impl Body {
     pub fn from_reader<R: std::io::BufRead>(r: &mut R, version: Option<u16>) -> Body {
         match (version, r.read_u8().unwrap()) {
-            (_, UploadPretenderReq::ID) => Body::UploadPretenderReq(UploadPretenderReq::from_reader(r)),
+            (_, UploadPretenderReq::ID) => {
+                Body::UploadPretenderReq(UploadPretenderReq::from_reader(r))
+            }
             (_, HeartbeatReq::ID) => Body::HeartbeatReq(HeartbeatReq::from_reader(r)),
             (_, GameInfoReq::ID) => Body::GameInfoReq(GameInfoReq::from_reader(r)),
             (_, GameInfoResp::ID) => Body::GameInfoResp(GameInfoResp::from_reader(r)),
             (_, AstralPacketResp::ID) => {
-                 Body::AstralPacketResp(AstralPacketResp::from_reader(r, version))
+                Body::AstralPacketResp(AstralPacketResp::from_reader(r, version))
             }
             (_, AstralPacketReq::ID) => Body::AstralPacketReq(AstralPacketReq::from_reader(r)),
             (_, StartGameReq::ID) => Body::StartGameReq(StartGameReq::from_reader(r)),
@@ -219,10 +224,12 @@ impl Body {
             (Some(v), MapResp::ID) if v > 561 => Body::MapResp6(MapResp6::from_reader(r)),
             (_, MapFileReq::ID) => Body::MapFileReq(MapFileReq::from_reader(r)),
             (_, MapFileResp::ID) => Body::MapFileResp(MapFileResp::from_reader(r)),
-            (_, MapImageFileReq::ID) => Body::MapImageFileReq(MapImageFileReq::from_reader(r)),
+            (v, MapImageFileReq::ID) => Body::MapImageFileReq(MapImageFileReq::from_reader(r, v)),
             (_, MapImageFileResp::ID) => Body::MapImageFileResp(MapImageFileResp::from_reader(r)),
             (_, MapWinterFileReq::ID) => Body::MapWinterFileReq(MapWinterFileReq::from_reader(r)),
-            (_, MapWinterFileResp::ID) => Body::MapWinterFileResp(MapWinterFileResp::from_reader(r)),
+            (_, MapWinterFileResp::ID) => {
+                Body::MapWinterFileResp(MapWinterFileResp::from_reader(r))
+            }
             (_, Submit2hReq::ID) => Body::Submit2hReq(Submit2hReq::from_reader(r)),
             (_, Submit2hResp::ID) => Body::Submit2hResp(Submit2hResp::from_reader(r)),
             (_, TwoHReq::ID) => Body::TwoHReq(TwoHReq::from_reader(r)),
@@ -231,7 +238,9 @@ impl Body {
             (_, DmFileResp::ID) => Body::DmFileResp(DmFileResp::from_reader(r)),
             (_, ModFileReq::ID) => Body::ModFileReq(ModFileReq::from_reader(r)),
             (_, ModFileResp::ID) => Body::ModFileResp(ModFileResp::from_reader(r)),
-            (_, NationsSelectedReq::ID) => Body::NationsSelectedReq(NationsSelectedReq::from_reader(r)),
+            (_, NationsSelectedReq::ID) => {
+                Body::NationsSelectedReq(NationsSelectedReq::from_reader(r))
+            }
             (_, SetTeamReq::ID) => Body::SetTeamReq(SetTeamReq::from_reader(r)),
             (_, SetDiscReq::ID) => Body::SetDiscReq(SetDiscReq::from_reader(r)),
             (_, d) => {
@@ -265,7 +274,7 @@ impl Body {
             Self::TrnResp(p) => p.write(w, version),
             Self::MapReq(p) => p.write(w, version),
             Self::MapResp(p) => p.write(w, version),
-            Self::MapResp6(p) => unimplemented!("Not serializing yet"),
+            Self::MapResp6(p) => p.write(w, version),
             Self::MapFileReq(p) => p.write(w, version),
             Self::MapFileResp(p) => p.write(w, version),
             Self::MapImageFileReq(p) => p.write(w, version),
@@ -350,4 +359,48 @@ fn deserialize_packet() {
             }
         }
     }
+}
+
+#[test]
+fn roundtrip_mapresp() {
+    let packet = MapResp6 {
+        planes: vec![
+            PlaneDef {
+                plane_name: "Pantokrator's Realm".to_string(),
+                plane_file_name: "__randommap_asdasd.map".to_string(),
+                map_len: 3244,
+                map_hash: 1596100683,
+                d6m_filename: "__randommap_asdasd.d6m".to_string(),
+                img_len: 39911894,
+                img_hash: 2075252347,
+                plane_images: vec![],
+            },
+            PlaneDef {
+                plane_name: "The Realm Beneath".to_string(),
+                plane_file_name: "__under_asdasd.map".to_string(),
+                map_len: 2887,
+                map_hash: -1245367038,
+                d6m_filename: "__under_asdasd.d6m".to_string(),
+                img_len: 15728918,
+                img_hash: -1793153284,
+                plane_images: vec![],
+            },
+            PlaneDef {
+                plane_name: "The Void".to_string(),
+                plane_file_name: "nexus.map".to_string(),
+                map_len: 491,
+                map_hash: -1786016874,
+                d6m_filename: "nexus.tga".to_owned(),
+                img_len: 1862835,
+                img_hash: 1491253869,
+                plane_images: vec![],
+            },
+        ],
+    };
+    println!("Packet {:?}", packet);
+    let mut bytes = vec![];
+    packet.write_packet(&mut bytes, Some(600));
+    println!("Res {:?}", bytes);
+    let res = Packet::from_reader(&mut &bytes[..], Some(600)).unwrap();
+    println!("Res {:?}", res);
 }

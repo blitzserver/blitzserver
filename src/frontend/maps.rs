@@ -1,5 +1,7 @@
 use super::AppData;
-use crate::models::{File, Map, NewFile, NewMap};
+use crate::models::maps::{PlaneImage, MapSummary};
+use crate::models::Map;
+use crate::util::calculate_crc;
 use actix_multipart::Multipart;
 use actix_web::http::header;
 use actix_web::{get, post, web, HttpResponse, Result};
@@ -7,9 +9,9 @@ use askama::Template;
 use futures::{StreamExt, TryStreamExt};
 use libvips::ops;
 use regex::Regex;
-use std::convert::TryFrom;
 use std::io::Write;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, Read};
+use std::path::Path;
 
 #[derive(Template)]
 #[template(path = "maps/details.html")]
@@ -55,7 +57,7 @@ pub async fn image(
 #[derive(Template)]
 #[template(path = "maps/list.html")]
 struct ListMapsTemplate<'a> {
-    maps: &'a [Map],
+    maps: &'a [MapSummary],
     errors: &'a [String],
 }
 
@@ -121,7 +123,7 @@ async fn download((app_data, mapid): (web::Data<AppData>, web::Path<i32>)) -> Re
 #[get("/maps")]
 async fn list(app_data: web::Data<AppData>) -> Result<HttpResponse> {
     let sqlx_db = app_data.sqlx_pool.clone();
-    let result_maps = Map::get_available_maps(0, true, &sqlx_db).await.unwrap();
+    let result_maps = MapSummary::get_map_list(&sqlx_db).await.unwrap();
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (ListMapsTemplate {
             errors: &vec![],
@@ -135,20 +137,11 @@ async fn list(app_data: web::Data<AppData>) -> Result<HttpResponse> {
 async fn upload_post(
     (app_data, mut payload): (web::Data<AppData>, Multipart),
 ) -> Result<HttpResponse> {
-    let mut new_map = NewMap {
-        name: String::new(),
-        mapfile_id: 0,
-        tgafile_id: 0,
-        winterfile_id: None,
-        province_count: 0,
-        uw_count: 0,
-        min_version: 0,
-    };
     let sqlx_db = app_data.sqlx_pool.clone();
 
     let mut errors: Vec<String> = vec![];
     {
-        while let Ok(Some(mut field)) = payload.try_next().await {
+        'outer: while let Ok(Some(mut field)) = payload.try_next().await {
             if errors.len() > 0 {
                 continue;
             }
@@ -159,14 +152,22 @@ async fn upload_post(
                     while let Some(bytes) = field.next().await {
                         contents.extend_from_slice(&bytes.unwrap());
                     }
-                    let mut archive = match zip::ZipArchive::new(std::io::Cursor::new(&contents)) {
-                        Err(e) => {
-                            errors.push("Uploaded map is not a .zip archive".to_string());
-                            break;
-                        }
-                        Ok(f) => {
-                            println!("Found map zip");
-                            f
+                    let Ok(mut archive) = zip::ZipArchive::new(std::io::Cursor::new(&contents))
+                    else {
+                        errors.push("Uploaded map is not a .zip archive".to_string());
+                        break 'outer;
+                    };
+
+                    let central_dir = {
+                        let Ok(first) = archive.by_index(0) else {
+                            errors.push("Zip is empty".to_owned());
+                            break 'outer;
+                        };
+                        if first.is_dir() {
+                            first.name().to_owned()
+                        } else {
+                            errors.push("Zip should contain a single folder, with the map files inside it, similar to how it looks in your .dominions6/maps directory".to_string());
+                            break 'outer;
                         }
                     };
 
@@ -177,60 +178,92 @@ async fn upload_post(
                         }
                     }
                     mapfiles.sort();
-                    let name_capture = Regex::new("#dom2title (.+?)\n").unwrap();
-                    let img_capture = Regex::new("#imagefile (.+?)\n").unwrap();
+                    let name_capture = Regex::new("#dom2title (.+)").unwrap();
+                    let mut map = crate::models::maps::Map {
+                        name: "Unnamed Map".to_owned(),
+                        planes: vec![],
+                    };
                     for plane_filename in mapfiles {
-                        let base_plane_file = archive.by_name(&plane_filename).unwrap();
-                        let reader = std::io::BufReader::new(base_plane_file);
-                        let mut name = "Unnamed Plane".to_owned();
-                        let mut imgfilename = "".to_owned();
-                        for line in reader.lines().flatten() {
-                            if let Some(capture) = name_capture.captures(&line) {
-                                name = capture.get(1).unwrap().as_str().to_owned();
-                            }
-                            if let Some(capture) = img_capture.captures(&line) {
-                                imgfilename = capture.get(1).unwrap().as_str().to_owned();
+                        let mut plane = crate::models::maps::Plane {
+                            name: "".to_string(),
+                            images: vec![],
+                            bytes: vec![],
+                            hash: 0,
+                        };
+
+                        {
+                            let base_plane_file = archive.by_name(&plane_filename).unwrap();
+                            let reader = std::io::BufReader::new(base_plane_file);
+                            plane.name = plane_filename.strip_prefix(&central_dir).unwrap().to_owned();
+                            for line in reader.lines().flatten() {
+                                if let Some(capture) = name_capture.captures(&line) {
+                                    map.name = capture.get(1).unwrap().as_str().to_owned();
+                                }
                             }
                         }
-                    }
-                    /*
-                    let new_file = NewFile::new(content_type.get_filename().unwrap(), &contents);
-                    match crate::files::MapFile::try_from(&contents[..]) {
-                        Ok(mfd) => {
-                            if tga_name.is_some() && *tga_name.as_ref().unwrap() != mfd.tga_filename
+                        {
+                            let mut base_plane_file = archive.by_name(&plane_filename).unwrap();
+                            base_plane_file.read_to_end(&mut plane.bytes).unwrap();
+                        }
+                        {
+                            let base_plane_file = archive.by_name(&plane_filename).unwrap();
+                            plane.hash = calculate_crc(base_plane_file);
+                        }
+                        let mapwithoutext = Path::new(&plane.name).file_stem().unwrap();
+                        let planeimage_regex =
+                            Regex::new(&format!(r#"{}([a-zA-Z]+?)?\.(tga|d6m|rgb)"#, mapwithoutext.to_string_lossy())).unwrap();
+                        let names = archive
+                            .file_names()
+                            .map(|filename| {
+                                println!("Regex {:?}", planeimage_regex);
+                                let fname: &str = &filename.strip_prefix(&central_dir).unwrap();
+                                planeimage_regex.captures(fname)
+                            })
+                            .flatten()
+                            .map(|c| c.get(0).unwrap().as_str().to_owned())
+                            .collect::<Vec<String>>();
+                        for name in names {
+                            let hash = {
+                                let img = match archive.by_name(&format!("{}{}", &central_dir, &name)) {
+                                    Err(_) => {
+                                        errors.push(format!("Missing file in archive {}", name));
+                                        break 'outer;
+                                    }
+                                    Ok(i) => i,
+                                };
+                                calculate_crc(img)
+                            };
+                            let mut thing = PlaneImage {
+                                filename: name.clone(),
+                                hash,
+                                bytes: vec![],
+                            };
                             {
-                                errors.push(
-                                    "#imagefile in .map does not match filename of uploaded image"
-                                        .to_owned(),
-                                );
-                            } else if winter_name.is_some() == mfd.winter_filename.is_some()
-                                && mfd.winter_filename != mfd.winter_filename
-                            {
-                                errors.push("#winterimagefile in .map does not match filename of uploaded winter image".to_owned());
-                            } else {
-                                new_map.name = mfd.map_name.clone();
-                                new_map.province_count = mfd.prov_count;
-                                new_map.uw_count = mfd.uwprov_count;
-                                new_map.min_version = mfd.min_version;
-                                map_file_data = Some(mfd);
-                            }
+                                let mut img = match archive.by_name(&format!("{}{}", &central_dir, &name)) {
+                                    Err(_) => {
+                                        errors.push(format!("Missing file in archive {}", name));
+                                        break 'outer;
+                                    }
+                                    Ok(i) => i,
+                                };
+                                img.read_to_end(&mut thing.bytes).unwrap();
+                            };
+                            plane.images.push(thing);
                         }
-                        Err(e) => {
-                            errors.push(e.to_string());
-                            break;
-                        }
+                        map.planes.push(plane);
                     }
-                    // == DONE
-                    let file: File = new_file.insert(&sqlx_db).await.unwrap();
-                    new_map.mapfile_id = file.id;
-                    */
+                    if let Err(e) = map.insert(sqlx_db.acquire().await.unwrap()).await {
+                        println!("Failed to create new map {:?}", e);
+                        errors.push(format!("Failed inserting map: {:?}", e));
+                        break 'outer;
+                    }
                 }
                 _ => {}
             };
         }
     }
     if errors.len() > 0 {
-        let result_maps = Map::get_available_maps(0, true, &sqlx_db).await.unwrap();
+        let result_maps = MapSummary::get_map_list(&sqlx_db).await.unwrap();
         return Ok(HttpResponse::Ok().content_type("text/html").body(
             (ListMapsTemplate {
                 errors: &errors,

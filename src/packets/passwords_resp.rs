@@ -27,7 +27,7 @@ impl PasswordsResp {
 impl crate::packets::BodyContents for PasswordsResp {
     const ID: u8 = 0x6;
     fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
-        for i in 1..249 {
+        for i in 1..=500 {
             match self.nations_protected.get(&i) {
                 Some(_) => w.write_u8(1).unwrap(),
                 None => w.write_u8(0).unwrap(),

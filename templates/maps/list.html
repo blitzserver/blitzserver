@@ -28,10 +28,10 @@
 			<h3>Maps</h3>
 			<div class="striped-table">
 				{% for map in maps %}
-				<div class="bg-selector" style="background-image: url('/images/maps/{{map.id}}_600.webp')">
-          <img src="/images/maps/{{map.id}}_600.webp" loading="lazy"/>
-          <a href="/map/{{map.id}}">{{map.name}} ({{map.province_count}}+{{map.uw_count}})</a>
-					<a download="{{map.name}}.zip" class="btn" href="/map/{{map.id}}/download">Download</a>
+				<div class="bg-selector" style="">
+          <img src="" loading="lazy"/>
+          <a href="/map/{{map.map_id}}">{{map.name}}</a>
+					<a download="{{map.name}}.zip" class="btn" href="/map/{{map.map_id}}/download">Download</a>
 				</div>
 				{% endfor %}
 			</div>

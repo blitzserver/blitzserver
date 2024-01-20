@@ -1,0 +1,142 @@
+use sqlx::{Postgres, pool::PoolConnection, Acquire, Connection, Executor};
+
+use crate::packets::{map_resp::{MapResp6, PlaneDef}, MapResp};
+
+#[derive(Debug)]
+pub struct PlaneImage {
+    pub filename: String,
+    pub hash: u32,
+    pub bytes: Vec<u8>,
+}
+#[derive(Debug)]
+pub struct Plane {
+    pub name: String,
+    pub hash: u32,
+    pub bytes: Vec<u8>,
+    pub images: Vec<PlaneImage>,
+}
+
+#[derive(Debug)]
+pub struct Map {
+    pub name: String,
+    pub planes: Vec<Plane>,
+}
+
+pub struct MapSummary {
+    pub map_id: i32,
+    pub name: String
+}
+impl MapSummary {
+    pub async fn get_map_list<'q, D>(
+        db: D
+    ) -> Result<Vec<MapSummary>, sqlx::error::Error>
+    where
+        D: sqlx::Executor<'q, Database = Postgres>
+    {
+        sqlx::query_as!(MapSummary, "SELECT map_id, name FROM maps_dom6").fetch_all(db).await
+    }
+}
+
+impl Map {
+    pub async fn get_mapresp<'q, D>(game_id: i32, db: D) -> Result<MapResp6, sqlx::error::Error> 
+        where D: Executor<'q, Database = Postgres>
+    {
+        let mapstuff = sqlx::query!(r#"
+            SELECT 
+                pf.filename m_filename, mp.hash m_hash, length(pf.filebinary) m_length,
+                if.filename i_filename, mi.hash i_hash, length(if.filebinary) i_length
+            FROM games g
+            INNER JOIN maps_dom6 dm ON dm.map_id=g.maps_dom6_id
+            INNER JOIN map_planes mp ON mp.map_id=dm.map_id
+            INNER JOIN files pf ON pf.id=mp.map_file_id
+            INNER JOIN map_plane_images mi ON mp.map_file_id=mi.map_file_id AND mp.map_id=mi.map_id
+            INNER JOIN files if ON if.id=mi.image_file_id
+            WHERE g.id=$1
+            "#
+            , game_id).fetch_all(db).await?;
+
+        return Ok(MapResp6 {
+            planes: mapstuff.iter().map(|ms| {
+                PlaneDef {
+                    plane_name: "Unnamed Plane".to_owned(),
+                    plane_file_name: ms.m_filename.clone(),
+                    map_len: ms.m_length.unwrap(),
+                    map_hash: ms.m_hash,
+                    d6m_filename: ms.i_filename.clone(),
+                    img_len: ms.i_length.unwrap(),
+                    img_hash: ms.i_hash,
+                    plane_images: vec![]
+                }
+            }).collect::<Vec<_>>()
+        })
+    }
+    pub async fn insert<'q>(&self, mut db: PoolConnection<Postgres>) -> Result<(), sqlx::error::Error>
+    {
+        let mut transaction = db.begin().await?;
+        let map = sqlx::query!(
+            r#"
+        INSERT INTO maps_dom6 ("name") VALUES ($1) RETURNING *
+        "#,
+            self.name
+        )
+        .fetch_one(&mut *transaction)
+        .await?;
+        let planes = sqlx::query!(
+            r#"
+            WITH unnested AS (
+                SELECT UNNEST($2::text[]) filename, UNNEST($3::BYTEA[]) contents, UNNEST($4::INTEGER[]) hash
+            ),
+            file AS (
+                INSERT INTO files (filename, filebinary) SELECT filename, contents FROM unnested ON CONFLICT (filename,digest(filebinary, 'sha1'::text)) DO UPDATE SET filename=EXCLUDED.filename RETURNING *
+            ),
+            new_planes AS (
+                INSERT INTO map_planes (map_id, map_file_id, hash) SELECT $1, f.id, u.hash
+                FROM file f
+                INNER JOIN unnested u ON u.filename=f.filename
+                RETURNING *
+            )
+            SELECT filename, id
+            FROM new_planes p 
+            INNER JOIN file f ON f.id=p.map_file_id
+            WHERE p.map_id=$1
+            "#,
+            map.map_id, 
+            &self.planes.iter().map(|p| p.name.clone()).collect::<Vec<_>>()[..], 
+            &self.planes.iter().map(|p| p.bytes.clone()).collect::<Vec<_>>()[..], 
+            &self.planes.iter().map(|p| p.hash as i32).collect::<Vec<_>>()[..], 
+        )
+        .fetch_all(&mut *transaction)
+        .await?;
+        println!("Planes {:?}", planes);
+        for plane in &self.planes {
+            let image = sqlx::query!(r#"
+                WITH unnested AS (
+                    SELECT UNNEST($3::INTEGER[]) hash, UNNEST($4::TEXT[]) filename, UNNEST($5::BYTEA[]) contents
+                ),
+                file AS (
+                    INSERT INTO files (filename, filebinary) 
+                    SELECT filename, contents 
+                    FROM unnested
+                    ON CONFLICT (filename,digest(filebinary, 'sha1'::text)) DO UPDATE SET filename=EXCLUDED.filename RETURNING *
+                )
+                INSERT INTO map_plane_images (map_id, map_file_id, hash, image_file_id) 
+                    SELECT $1, $2, hash, id 
+                    FROM file f
+                    INNER JOIN unnested u ON u.filename=f.filename
+                    RETURNING *"#,
+                map.map_id,
+                planes.iter().find(|p| p.filename == plane.name).unwrap().id, 
+                &plane.images.iter().map(|i| i.hash as i32).collect::<Vec<_>>()[..],
+                &plane.images.iter().map(|i| i.filename.clone()).collect::<Vec<_>>()[..],
+                &plane.images.iter().map(|i| i.bytes.clone()).collect::<Vec<_>>()[..],
+                )
+                .fetch_all(&mut *transaction)
+                .await?;
+            println!("Images {:?}", image );
+        }
+        
+        transaction.commit().await?;
+
+        return Ok(());
+    }
+}

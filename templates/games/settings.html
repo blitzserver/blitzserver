@@ -7,12 +7,12 @@
     <input formmethod="GET" type="submit" formaction="/game/{{game.id}}#settings" formnovalidate value="Search" />
     <div class="select-sort">
       {% for map in maps %}
-      <input class="bg-selector" {% if map.id==settings.map %} checked="checked" {% endif %} name="map"
-        id="map-{{map.id}}" type="radio" value="{{map.id}}" />
+      <input class="bg-selector" {% if map.map_id==settings.map %} checked="checked" {% endif %} name="map"
+        id="map-{{map.map_id}}" type="radio" value="{{map.map_id}}" />
       <div {% if !map.name.contains(settings.mapfilter) %} hidden {% endif %} class="bg-selector">
-        <img src="/images/maps/{{map.id}}_600.webp" loading="lazy" />
-        <label for="map-{{map.id}}"> {{map.name}} ({{map.province_count}}+{{map.uw_count}})</label>
-        <a class="btn" href="/map/{{map.id}}">Goto</a>
+        <img src="" loading="lazy" />
+        <label for="map-{{map.map_id}}"> {{map.name}}</label>
+        <a class="btn" href="/map/{{map.map_id}}">Goto</a>
       </div>
       {% endfor %}
       <br>

@@ -1,11 +1,14 @@
 pub mod player;
 pub mod binary;
+pub mod maps;
 
 use std::env;
 use chrono::NaiveDateTime;
 pub use player::{NewPlayer, Player};
 use sqlx::Postgres;
 use thiserror::Error;
+
+use self::maps::MapSummary;
 
 pub struct Era;
 impl Era {
@@ -20,6 +23,7 @@ pub struct Game {
     pub name: String,
     pub era: i32,
     pub map_id: i32,
+    pub maps_dom6_id: Option<i32>,
     pub port: Option<i32>,
     pub timer: Option<i32>,
     pub thrones_t1: i32,
@@ -142,7 +146,7 @@ impl Game {
             clustered              = $23,
             storyevents            = $24,
             newailvl               = $25,
-            map_id                 = $26,
+            maps_dom6_id           = $26,
             masterpass             = $27,
             private                = $28,
             require_password       = $29,
@@ -179,7 +183,7 @@ impl Game {
                 self.clustered,
                 self.storyevents,
                 self.newailvl,
-                self.map_id,
+                self.maps_dom6_id,
                 self.masterpass,
                 self.private,
                 self.require_password,

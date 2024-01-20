@@ -74,8 +74,8 @@
               {% when Some with (map) %}
               <tr>
                 <td>{{map.name}}</td>
-                <td><a class="btn" href="{{format!("/map/{}", map.id)}}">Goto</a></td>
-                <td><a download="{{map.name}}.zip" class="btn" href="{{format!("/map/{}/download", map.id)}}">Download</a></td>
+                <td><a class="btn" href="{{format!("/map/{}", map.map_id)}}">Goto</a></td>
+                <td><a download="{{map.name}}.zip" class="btn" href="{{format!("/map/{}/download", map.map_id)}}">Download</a></td>
               </tr>
               {% else %}
               {% endmatch %}

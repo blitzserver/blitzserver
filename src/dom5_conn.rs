@@ -1,5 +1,5 @@
-use crate::{models::{Player, Mod}, packets::astralpacket_resp::AstralPacketResp};
-use std::io::Read;
+use crate::{models::{Player, Mod, self}, packets::astralpacket_resp::AstralPacketResp};
+use std::{io::Read, collections::HashMap};
 use crate::packets::{ MapImageFileResp, ModFileResp, TwoHResp, DmFileResp, MapWinterFileResp,  Submit2hResp, MapFileResp, TrnResp, MapResp, TwoHCrcResp, BodyContents, PasswordsResp, PAResp, DisconnectResp, GameInfoResp, LoadingMessageResp, Packet };
 use std::io::BufReader;
 use std::net::TcpStream;
@@ -457,29 +457,36 @@ impl Dom5Conn {
                          * Map crcs
                          */
                         crate::packets::Body::MapReq(pkt) => {
-                            match crate::models::Map::get_crcs(self.game_id, &self.db_pool) {
-                                Ok(((map_filename, map_len, map_crc), (tga_filename, tga_len, tga_crc), winter_stuff)) => {
-                                    MapResp {
-                                        map_name: map_filename,
-                                        image_name: tga_filename,
-                                        winter_name: winter_stuff.as_ref().map(|w| w.0.clone()),
-                                        map_len: map_len as u32,
-                                        image_len: tga_len as u32,
-                                        winter_len: winter_stuff.as_ref().map(|w| w.1 as u32),
-                                        map_crc: map_crc as u32,
-                                        image_crc: tga_crc as u32,
-                                        winter_crc: winter_stuff.as_ref().map(|w| w.2 as u32)
-                                    }.write_packet(&mut self.stream, None);
+                            match client_version {
+                                Some(v) if v >= 600 => {
+                                    models::maps::Map::get_mapresp(self.game_id, &self.db_pool).await.unwrap().write_packet(&mut self.stream, None);
                                 }
-                                Err(e) => {
-                                    log::error!("Unable to get map crcs: {:?}", e);
+                                _ => {
+                                    match crate::models::Map::get_crcs(self.game_id, &self.db_pool) {
+                                        Ok(((map_filename, map_len, map_crc), (tga_filename, tga_len, tga_crc), winter_stuff)) => {
+                                            MapResp {
+                                                map_name: map_filename,
+                                                image_name: tga_filename,
+                                                winter_name: winter_stuff.as_ref().map(|w| w.0.clone()),
+                                                map_len: map_len as u32,
+                                                image_len: tga_len as u32,
+                                                winter_len: winter_stuff.as_ref().map(|w| w.1 as u32),
+                                                map_crc: map_crc as u32,
+                                                image_crc: tga_crc as u32,
+                                                winter_crc: winter_stuff.as_ref().map(|w| w.2 as u32)
+                                            }.write_packet(&mut self.stream, None);
+                                        }
+                                        Err(e) => {
+                                            log::error!("Unable to get map crcs: {:?}", e);
+                                        }
+                                    }
                                 }
                             }
                         }
                         /*
                          * Client wants the .map for the currently active map
                          */
-                        crate::packets::Body::MapFileReq(_) => {
+                        crate::packets::Body::MapFileReq(p) => {
                             match (
                                 sqlx::query!(r#"SELECT f.filebinary
                                 FROM games g
@@ -498,24 +505,57 @@ impl Dom5Conn {
                                     (e1, e2) => {
                                         log::error!("Failed to fetch map info: {:?}, {:?}", e1, e2);
                                     }
-                                }
+                            }
                         }
                         /*
                          * Client wants the normal image file for the currently
                          * active map.
                          */
-                        crate::packets::Body::MapImageFileReq(_) => {
-                            match sqlx::query!(r#"SELECT f.filebinary
-                                FROM games g
-                                    INNER JOIN maps m ON m.id=g.map_id
-                                    INNER JOIN files f ON f.id=m.tgafile_id
-                                WHERE g.id=$1"#, self.game_id).fetch_one(&self.db_pool).await {
-                                    Ok(m) => 
-                                        MapImageFileResp {
-                                            image_contents: m.filebinary,
-                                        }.write_packet(&mut self.stream, None),
-                                    Err(e) => log::error!("Failed to get TGA for game {}: {:?}", self.game_id, e)
+                        crate::packets::Body::MapImageFileReq(p) => {
+                            match client_version {
+                                Some(v) if v >= 600 => {
+                                    match sqlx::query!(r#"
+                                    SELECT filebinary as "filebinary!"
+                                    FROM games g
+                                    INNER JOIN maps_dom6 md ON md.map_id=g.maps_dom6_id
+                                    INNER JOIN map_plane_images pi ON pi.map_id=md.map_id
+                                    INNER JOIN files f ON f.id=pi.image_file_id AND f.filename=$2
+                                    WHERE g.id=$1
+                                    UNION ALL
+                                    SELECT filebinary as "filebinary!"
+                                    FROM games g
+                                    INNER JOIN maps_dom6 md ON md.map_id=g.maps_dom6_id
+                                    INNER JOIN map_planes pl ON pl.map_id=md.map_id
+                                    INNER JOIN files f ON f.id=pl.map_file_id AND f.filename=$2
+                                    WHERE g.id=$1
+                                    "#,
+                                    self.game_id,
+                                    p.filename
+                                    ).fetch_one(&self.db_pool).await {
+                                        Ok(record) => {
+                                            MapImageFileResp {
+                                                image_contents: record.filebinary
+                                            }.write_packet(&mut self.stream, Some(v))
+                                        },
+                                        Err(e) => {
+                                            log::error!("Failed to fetch map image for dom6 client {:?}", e);
+                                        }
+                                    }
                                 }
+                                _ => {
+                                    match sqlx::query!(r#"SELECT f.filebinary
+                                        FROM games g
+                                            INNER JOIN maps m ON m.id=g.map_id
+                                            INNER JOIN files f ON f.id=m.tgafile_id
+                                        WHERE g.id=$1"#, self.game_id).fetch_one(&self.db_pool).await {
+                                        Ok(m) => 
+                                            MapImageFileResp {
+                                                image_contents: m.filebinary,
+                                            }.write_packet(&mut self.stream, None),
+                                        Err(e) => log::error!("Failed to get TGA for game {}: {:?}", self.game_id, e)
+                                    }
+                                }
+                            }
                         }
                         /*
                          * Client wants the winter image file for the currently

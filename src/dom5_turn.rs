@@ -134,62 +134,39 @@ impl Dom5Turn {
     }
     fn populate_maps(&mut self) -> Result<(), Dom5TurnErr> {
         smol::block_on(async {
-            let mut map_dir = std::env::current_dir()
+            let mapstuff = sqlx::query!(r#"
+                SELECT m.name as "name!", mf.filename as "filename!", mf.filebinary as "filebinary!"
+                FROM games g
+                INNER JOIN maps_dom6 m ON m.map_id=g.maps_dom6_id
+                INNER JOIN map_planes mp ON mp.map_id=m.map_id
+                INNER JOIN files mf ON mf.id=mp.map_file_id
+                WHERE g.id=$1
+                UNION ALL
+                SELECT m.name as "name!", mf.filename as "filename!", mf.filebinary as "filebinary!"
+                FROM games g
+                INNER JOIN maps_dom6 m ON m.map_id=g.maps_dom6_id
+                INNER JOIN map_planes mp ON mp.map_id=m.map_id
+                INNER JOIN map_plane_images mi ON mi.map_file_id=mp.map_file_id
+                INNER JOIN files mf ON mf.id=mi.image_file_id
+                WHERE g.id=$1
+                "#,
+                self.game_id
+            ).fetch_all(&self.db_pool).await?;
+            let map_dir = std::env::current_dir()
                 .map_err(Dom5TurnErr::UncleanModDir)?
                 .join("tmp")
                 .join("games")
                 .join(self.game_id.to_string())
-                .join("maps");
-            let mut map_record = sqlx::query!(
-                r#"SELECT 
-                mf.filename as mfn, 
-                mf.filebinary as mfb,
-                tf.filename as tfn,
-                tf.filebinary as tfb,
-                wf.filename as "wfn?",
-                wf.filebinary as "wfb?",
-                b.foldered_maps as "foldered_maps"
-                FROM games g
-                INNER JOIN maps m ON m.id=g.map_id
-                INNER JOIN files mf ON mf.id=m.mapfile_id
-                INNER JOIN files tf ON tf.id=m.tgafile_id
-                INNER JOIN binaries b ON b.binary_id=g.binary_id
-                LEFT JOIN files wf ON wf.id=m.winterfile_id
-                WHERE g.id=$1"#,
-                self.game_id
-            )
-            .fetch_one(&self.db_pool)
-            .await?;
-            let startprovs = sqlx::query!("SELECT p.nationid, p.startprov FROM players p WHERE p.game_id=$1 AND p.startprov IS NOT NULL", self.game_id).fetch_all(&self.db_pool).await?;
-            for sp in startprovs {
-                map_record.mfb.append(
-                    &mut format!(
-                        "\n#specstart {} {}\n",
-                        sp.nationid,
-                        sp.startprov.unwrap_or(0)
-                    )
-                    .into_bytes(),
-                );
-            }
-            if map_record.foldered_maps {
-                map_dir = map_dir.join(map_record.mfn.split(".").next().unwrap());
-            }
+                .join("maps")
+                .join(format!("{}.map", &mapstuff.first().unwrap().name));
             if !map_dir.exists() {
                 std::fs::create_dir_all(&map_dir).map_err(Dom5TurnErr::UncleanMapDir)?;
             }
-            std::fs::File::create(&map_dir.join(&map_record.mfn))
+            for f in mapstuff {
+            std::fs::File::create(&map_dir.join(&f.filename))
                 .map_err(Dom5TurnErr::UncleanMapDir)?
-                .write_all(&map_record.mfb)
+                .write_all(&f.filebinary)
                 .map_err(Dom5TurnErr::UncleanMapDir)?;
-            std::fs::File::create(&map_dir.join(&map_record.tfn))
-                .map_err(Dom5TurnErr::UncleanMapDir)?
-                .write_all(&map_record.tfb)
-                .map_err(Dom5TurnErr::UncleanMapDir)?;
-            if let (Some(wfn), Some(wfb)) = (map_record.wfn.as_ref(), map_record.wfb.as_ref()) {
-                std::fs::File::create(&map_dir.join(wfn))
-                    .map_err(Dom5TurnErr::UncleanMapDir)?
-                    .write_all(wfb)
-                    .map_err(Dom5TurnErr::UncleanMapDir)?;
             }
             Ok(())
         })
@@ -525,11 +502,10 @@ impl Dom5Turn {
                      _1 as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1)
                 INSERT INTO subjobs (job_id, label) VALUES ($1, 'dom5 processing turn') RETURNING *", job_id, subjob.subjob_id).fetch_one(&self.db_pool).await?;
             let game = sqlx::query!(
-                r#"SELECT g.*,MAX(t.turn_number) as "turn?",f.filename as mapfilename FROM games g
+                r#"SELECT g.*,MAX(t.turn_number) as "turn?",m.name as mapfilename FROM games g
                                     LEFT JOIN turns t ON t.game_id=g.id AND t.archived != TRUE
-                                    LEFT JOIN maps m ON g.map_id=m.id
-                                    LEFT JOIN files f ON f.id=m.mapfile_id
-                                    WHERE g.id=$1 GROUP BY g.id, f.filename"#,
+                                    LEFT JOIN maps_dom6 m ON g.maps_dom6_id=m.map_id
+                                    WHERE g.id=$1 GROUP BY g.id, m.name"#,
                 self.game_id
             )
             .fetch_one(&self.db_pool)
@@ -632,7 +608,8 @@ impl Dom5Turn {
                 .to_string(),
                 "-T".to_owned(),
                 "--mapfile".to_owned(),
-                game.mapfilename,
+                format!("{}.map", game.mapfilename),
+                "--noundercaves".to_owned(),
                 "-g".to_owned(),
                 game.name.clone(),
             ]);
@@ -783,6 +760,7 @@ impl Dom5Turn {
                 Body::FtherlndContents(ref fth) => (
                     match fth.get_settings().winner() {
                         -1 => None,
+                        0 => None,
                         w => Some(w as i32),
                     },
                     fth.get_kingdoms(),
@@ -802,7 +780,7 @@ impl Dom5Turn {
                 self.game_id,
                 turn_number,
                 ftherlnd.header.turnkey as i32,
-                winner.unwrap_or(0)
+                winner
             )
             .execute(&mut *transaction)
             .await?;

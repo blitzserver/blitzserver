@@ -7,6 +7,7 @@ use std::io::Write;
 
 use crate::discord::DiscordManager;
 use crate::dom5_turn::Dom5Turn;
+use crate::models::maps::MapSummary;
 use crate::models::{
     AdminLog, Disciple, DiscordConfig, EmailConfig, Game, Map, MapProvince, Mod, Nation,
     NewAdminLog, NewGame, Player, PlayerTurn, Turn,
@@ -94,7 +95,7 @@ impl From<(&Game, &[Mod])> for GameSettings {
             clustered: game.clustered as i32,
             storyevents: game.storyevents,
             newailvl: game.newailvl,
-            map: game.map_id,
+            map: game.maps_dom6_id.unwrap_or(1),
             mapfilter: "".to_string(),
             modfilter: "".to_string(),
             cmods: mods.iter().map(|m| m.id).collect(),
@@ -270,7 +271,7 @@ struct GameDetailsTemplate<'a> {
     disciples: &'a Vec<Disciple>,
     nations: &'a Vec<Nation>,
     mods: &'a Vec<Mod>,
-    maps: &'a Vec<Map>,
+    maps: &'a Vec<MapSummary>,
     provinces: &'a Vec<MapProvince>,
     authed: AuthStatus,
     logs: Vec<GameJobDisplay>,
@@ -587,9 +588,9 @@ impl<'a> GameDetailsTemplate<'a> {
             }
         }
     }
-    fn get_current_map(&self) -> Option<&Map> {
+    fn get_current_map(&self) -> Option<&MapSummary> {
         if self.settings.map != 0 {
-            self.maps.iter().find(|m| m.id == self.settings.map)
+            self.maps.iter().find(|m| m.map_id == self.settings.map)
         } else {
             None
         }
@@ -827,16 +828,16 @@ async fn details(
     } else {
         (&game, &game.get_mods(&sqlx_db).await.unwrap()[..]).into()
     };
-    let (maps, mods): (Vec<Map>, Vec<Mod>) = if authed == AuthStatus::AuthSuccess {
+    let (maps, mods): (Vec<MapSummary>, Vec<Mod>) = if authed == AuthStatus::AuthSuccess {
         (
             sqlx::query_as!(
-                Map,
-                "SELECT * 
-                    FROM maps m 
+                MapSummary,
+                "SELECT  map_id, name
+                    FROM maps_dom6 m 
                     WHERE 
                         m.name ILIKE $1 OR 
-                        EXISTS (SELECT g.* FROM games g WHERE g.id=$2 AND g.map_id=m.id)
-                    ORDER BY (SELECT COUNT(*) FROM games g WHERE g.map_id=m.id) DESC",
+                        EXISTS (SELECT g.* FROM games g WHERE g.id=$2 AND g.maps_dom6_id=m.map_id)
+                    ORDER BY (SELECT COUNT(*) FROM games g WHERE g.maps_dom6_id=m.map_id) DESC",
                 format!("%{}%", game_settings.mapfilter),
                 game.id
             )
@@ -866,11 +867,11 @@ async fn details(
     } else {
         (
             sqlx::query_as!(
-                Map,
+                MapSummary,
                 "SELECT m.* 
-                FROM maps m
+                FROM maps_dom6 m
                 INNER JOIN games g ON
-                    g.map_id=m.id AND
+                    g.maps_dom6_id =m.map_id AND
                     g.id=$1",
                 game.id
             )
@@ -916,7 +917,8 @@ async fn details(
     WHERE j.game_id=$1 
     GROUP BY j.job_id
     ORDER BY j.started_at DESC"#, game.id, payload.log_output).fetch_all(&sqlx_db).await.unwrap();
-    let map = maps.iter().find(|m| m.id == game.map_id).unwrap();
+    let map = maps.iter().find(|m| m.map_id == game.map_id).unwrap();
+    /*
     let mut provinces = map.get_provinces(&sqlx_db).await.unwrap_or(vec![]);
     if provinces.len() == 0 {
         let (_, tga, _) = Map::get_files(map.id, &sqlx_db).await.unwrap();
@@ -936,6 +938,7 @@ async fn details(
         let new_provinces = crate::files::MapFile::load_provinces(&img).unwrap();
         provinces = map.insert_provinces(new_provinces, &sqlx_db).await.unwrap();
     }
+    */
     let staling_players: Vec<i32> = sqlx::query!(
         r#"
         WITH tt AS (SELECT MAX(turn_number) as tt FROM turns WHERE game_id=$1 AND archived!=TRUE)
@@ -984,7 +987,7 @@ async fn details(
             staling_players,
             settings,
             authed,
-            provinces: &provinces,
+            provinces: &vec![],
             email_form: (*email_form).clone(),
             email_configs: &email_configs,
             turn_number: turns.len() as i32,
@@ -1285,7 +1288,7 @@ async fn settings_post(
     game.clustered = body.clustered > 0;
     game.storyevents = body.storyevents;
     game.newailvl = body.newailvl;
-    game.map_id = body.map;
+    game.maps_dom6_id = Some(body.map);
     game.masterpass = body.masterpass;
     game.private = body.private > 0;
     game.require_password = body.require_password > 0;
