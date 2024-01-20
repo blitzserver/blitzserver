@@ -917,7 +917,7 @@ async fn details(
     WHERE j.game_id=$1 
     GROUP BY j.job_id
     ORDER BY j.started_at DESC"#, game.id, payload.log_output).fetch_all(&sqlx_db).await.unwrap();
-    let map = maps.iter().find(|m| m.map_id == game.map_id).unwrap();
+    // let map = maps.iter().find(|m| m.map_id == game.map_id).unwrap();
     /*
     let mut provinces = map.get_provinces(&sqlx_db).await.unwrap_or(vec![]);
     if provinces.len() == 0 {
