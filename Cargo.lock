@@ -1869,7 +1869,7 @@ dependencies = [
 [[package]]
 name = "image"
 version = "0.23.14"
-source = "git+https://github.com/Moggers/image.git?branch=sgi#8600557aefde8796da87ac6b9d7241bd3e132c67"
+source = "git+ssh://git@github.com/Moggers/image.git?branch=sgi#8600557aefde8796da87ac6b9d7241bd3e132c67"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -2118,7 +2118,7 @@ dependencies = [
 [[package]]
 name = "libvips"
 version = "1.4.3"
-source = "git+https://github.com/blitzserver/libvips-rust-bindings.git#e7b591d76c522ec8477b3332c485b0dfde1bd128"
+source = "git+ssh://git@github.com/blitzserver/libvips-rust-bindings.git#e7b591d76c522ec8477b3332c485b0dfde1bd128"
 dependencies = [
  "num-derive 0.3.3",
  "num-traits",
@@ -3164,7 +3164,7 @@ dependencies = [
 [[package]]
 name = "serde_dom5"
 version = "0.1.0"
-source = "git+https://github.com/blitzserver/serde_dom5#6f5927030eda49b662faf5ad9117714201106fb7"
+source = "git+ssh://git@github.com/blitzserver/serde_dom5#6f5927030eda49b662faf5ad9117714201106fb7"
 dependencies = [
  "bincode",
  "derive_more",
