@@ -675,7 +675,7 @@ dependencies = [
 
 [[package]]
 name = "blitzserver"
-version = "0.9.13"
+version = "1.0.0-rc.4"
 dependencies = [
  "actix-files",
  "actix-multipart",
@@ -683,7 +683,7 @@ dependencies = [
  "actix-web",
  "askama",
  "async-std",
- "base64 0.21.4",
+ "base64 0.20.0",
  "bincode",
  "byteorder",
  "chrono",
