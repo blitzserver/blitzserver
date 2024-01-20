@@ -15,10 +15,8 @@ impl<'a> ListTemplate<'a> {
     pub fn get_upload_location() -> String {
         return format!(
             "{}/binaries",
-            std::env::var("UPLOAD_ADDRESS").unwrap_or(
-                std::env::var("ADDRESS")
-                    .expect("GAMES_ADDRESS env varnot specified, needed for map upload form")
-            )
+            std::env::var("UPLOAD_ADDRESS")
+                .expect("GAMES_ADDRESS env varnot specified, needed for binary upload form")
         );
     }
 }
@@ -31,6 +29,7 @@ pub async fn list(app_data: Data<AppData>) -> Result<ActixHtmlNode> {
         binaries: &binaries,
     }))
 }
+
 
 #[post("/binaries")]
 pub async fn upload((app_data, mut payload): (Data<AppData>, Multipart)) -> Result<HttpResponse> {
@@ -61,9 +60,18 @@ pub async fn upload((app_data, mut payload): (Data<AppData>, Multipart)) -> Resu
                     .find(|fname| binary_match.is_match(fname))
                     .unwrap();
 
-                let command = std::process::Command::new(tmp_path.join(&fname)).arg("--version").output().unwrap();
+                let command = std::process::Command::new(tmp_path.join(&fname))
+                    .arg("--version")
+                    .output()
+                    .unwrap();
                 let stdout = std::str::from_utf8(&command.stdout).unwrap();
-                let version = regex::Regex::new("Dominions ., version (.+?) ").unwrap().captures(stdout).unwrap().get(1).unwrap().as_str();
+                let version = regex::Regex::new("Dominions ., version (.+?) ")
+                    .unwrap()
+                    .captures(stdout)
+                    .unwrap()
+                    .get(1)
+                    .unwrap()
+                    .as_str();
                 Binary::new(&version, &filename, &contents, &fname, &db)
                     .await
                     .unwrap();
@@ -83,7 +91,7 @@ fn list_view(data: ListTemplate) -> ActixHtmlNode {
         Some(html! {
             <div class="games-list">
                 <div class="pane">
-                    <form enctype="multipart/form-data" action="/binaries" method="post">
+                    <form enctype="multipart/form-data" action={ListTemplate::get_upload_location()} method="post">
                         <h3>Upload Binary</h3>
                         <div class="input-group">
                             <label>Archive</label>
