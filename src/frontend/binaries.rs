@@ -60,6 +60,8 @@ pub async fn upload((app_data, mut payload): (Data<AppData>, Multipart)) -> Resu
                     .find(|fname| binary_match.is_match(fname))
                     .unwrap();
 
+                std::thread::sleep(std::time::Duration::from_secs(1));
+
                 let command = std::process::Command::new(tmp_path.join(&fname))
                     .arg("--version")
                     .output()
