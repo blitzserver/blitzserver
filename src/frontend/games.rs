@@ -1087,11 +1087,11 @@ async fn create_post(
     new_game.name = params.name;
     new_game.password = params.password.clone();
     new_game.masterpass = Some(params.password);
-    new_game.map_id = sqlx::query!("SELECT id FROM maps ORDER BY id DESC LIMIT 1")
+    new_game.map_id = sqlx::query!("SELECT map_id FROM maps_dom6 ORDER BY map_id DESC LIMIT 1")
         .fetch_one(&sqlx_db)
         .await
         .unwrap()
-        .id;
+        .map_id;
 
     let game: Game = new_game.insert(&sqlx_db).await.unwrap();
 
