@@ -11,6 +11,18 @@ struct ListTemplate<'a> {
     binaries: &'a [Binary],
 }
 
+impl<'a> ListTemplate<'a> {
+    pub fn get_upload_location() -> String {
+        return format!(
+            "{}/binaries",
+            std::env::var("UPLOAD_ADDRESS").unwrap_or(
+                std::env::var("ADDRESS")
+                    .expect("GAMES_ADDRESS env varnot specified, needed for map upload form")
+            )
+        );
+    }
+}
+
 #[get("/binaries")]
 pub async fn list(app_data: Data<AppData>) -> Result<ActixHtmlNode> {
     let db = app_data.sqlx_pool.clone();

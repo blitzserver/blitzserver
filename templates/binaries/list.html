@@ -2,7 +2,7 @@
 {% block body %}
 <div>
  <div class="pane">
-			<form enctype="multipart/form-data" action="/binaries" method="post">
+			<form enctype="multipart/form-data" action="{{Self::get_upload_location()}}" method="post">
 				<h3>Upload Binary</h3>
 				<div class="input-group">
           <label>Name</label>
