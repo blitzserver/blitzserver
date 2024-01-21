@@ -158,7 +158,7 @@ impl Dom5Turn {
                 .join("games")
                 .join(self.game_id.to_string())
                 .join("maps")
-                .join(format!("{}.map", &mapstuff.first().unwrap().name));
+                .join(&mapstuff.first().unwrap().filename);
             if !map_dir.exists() {
                 std::fs::create_dir_all(&map_dir).map_err(Dom5TurnErr::UncleanMapDir)?;
             }
@@ -502,10 +502,12 @@ impl Dom5Turn {
                      _1 as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1)
                 INSERT INTO subjobs (job_id, label) VALUES ($1, 'dom5 processing turn') RETURNING *", job_id, subjob.subjob_id).fetch_one(&self.db_pool).await?;
             let game = sqlx::query!(
-                r#"SELECT g.*,MAX(t.turn_number) as "turn?",m.name as mapfilename FROM games g
+                r#"SELECT DISTINCT ON (g.id) g.*,MAX(t.turn_number) as "turn?",f.filename as mapfilename FROM games g
                                     LEFT JOIN turns t ON t.game_id=g.id AND t.archived != TRUE
                                     LEFT JOIN maps_dom6 m ON g.maps_dom6_id=m.map_id
-                                    WHERE g.id=$1 GROUP BY g.id, m.name"#,
+                                    LEFT JOIN map_planes mp ON mp.map_id=m.map_id
+                                    LEFT JOIN files f ON f.id=mp.map_file_id
+                                    WHERE g.id=$1 GROUP BY g.id, f.filename"#,
                 self.game_id
             )
             .fetch_one(&self.db_pool)
@@ -608,7 +610,7 @@ impl Dom5Turn {
                 .to_string(),
                 "-T".to_owned(),
                 "--mapfile".to_owned(),
-                format!("{}.map", game.mapfilename),
+                game.mapfilename,
                 "--noundercaves".to_owned(),
                 "-g".to_owned(),
                 game.name.clone(),
