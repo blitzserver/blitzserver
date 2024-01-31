@@ -123,6 +123,8 @@ impl Dom5Conn {
                                 SELECT 
                                     g.name, 
                                     renaming, 
+                                    research_9_slow,
+                                    formal_diplo,
                                     era, 
                                     teamgame, 
                                     g.next_turn, 
@@ -152,6 +154,9 @@ impl Dom5Conn {
                                 ) {
                                     (Ok(game_record), Ok(disciple_records), Ok(player_status_records)) => {
                                         Ok(GameInfoResp {
+                                            limited_research: game_record.research_9_slow,
+                                            diplo_off: game_record.formal_diplo == 0,
+                                            diplo_weak: game_record.formal_diplo == 1,
                                             unk1: 0,
                                             game_state: game_record.turn_number.map(|_| 2).unwrap_or(1) as u8,
                                             game_name: game_record.name,
@@ -194,7 +199,7 @@ impl Dom5Conn {
                                             turnkey: match game_record.turn_number {
                                                 Some(t) => crate::models::Turn::get_turnkey(self.game_id, t, &self.db_pool).map_err(Dom5ConnErr::TurnError)? as u32,
                                                 None => 0
-                                            }
+                                            },
                                         })
                                     },
                                     _ => {
@@ -223,7 +228,7 @@ impl Dom5Conn {
                 let mut client_version: Option<u16> = None;
                 let peer_addr = self.stream.peer_addr();
                 let mut buffered_conn = BufReader::new(self.stream.try_clone().unwrap());
-                while let Ok(packet) = Packet::from_reader(&mut buffered_conn, client_version) {
+                while let Ok(packet) = Packet::from_reader(&mut buffered_conn, client_version, crate::packets::Protocol::GAME) {
                     log::info!("{:?} ===> {:?}", peer_addr, packet);
                     match packet.body {
                         /*

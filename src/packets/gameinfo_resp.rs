@@ -1,5 +1,9 @@
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
+const LIMITED_RESEARCH: u32 = 0b1000000000000;
+const DIPLO_OFF: u32 = 0b100000000000000000;
+const DIPLO_WEAK: u32 = 0b10000000000000000;
+
 #[derive(Clone, Debug)]
 pub struct GameInfoResp {
     pub unk1: u32,
@@ -18,8 +22,11 @@ pub struct GameInfoResp {
     pub turn_statuses: std::collections::HashMap<i32, u8>,
     pub conn_statuses: std::collections::HashMap<i32, u8>,
     pub turn_number: u32,
+    pub limited_research: bool,
     pub turnkey: u32,
     pub remaining: Vec<u8>,
+    pub diplo_off: bool,
+    pub diplo_weak: bool,
 }
 
 const DISCIPLES_BIT_ID: u32 = 0b10000000;
@@ -126,6 +133,9 @@ impl GameInfoResp {
             turn_number,
             turnkey,
             remaining,
+            limited_research: (unk2 & LIMITED_RESEARCH) > 0,
+            diplo_off: (unk2 & DIPLO_OFF) > 0,
+            diplo_weak: (unk2 & DIPLO_WEAK) > 0,
         }
     }
 }
@@ -138,7 +148,14 @@ impl crate::packets::BodyContents for GameInfoResp {
         w.write(self.game_name.as_bytes()).unwrap();
         w.write(&[0u8]).unwrap(); // Null terminator
         w.write(&[self.era as u8]).unwrap();
-        let mut unk_bit_map = 0x840;
+        let mut unk_bit_map = 0x840
+            | if self.limited_research {
+                LIMITED_RESEARCH
+            } else {
+                0
+            }
+            | if self.diplo_off { DIPLO_OFF } else { 0 }
+            | if self.diplo_weak { DIPLO_WEAK } else { 0 };
         if self.disciples {
             unk_bit_map = unk_bit_map | DISCIPLES_BIT_ID;
         }

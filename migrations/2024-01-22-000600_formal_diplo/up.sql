@@ -1,0 +1,3 @@
+-- Your SQL goes here
+ALTER TABLE games ADD COLUMN formal_diplo INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE games ADD COLUMN research_9_slow BOOLEAN NOT NULL DEFAULT false;

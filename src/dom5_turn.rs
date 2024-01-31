@@ -1,6 +1,7 @@
 use crate::files::saves::DomSaveReadError;
 use crate::models::binary::Binary;
 use encoding::{all::ISO_8859_1, DecoderTrap, Encoding};
+use itertools::Itertools;
 use nonblock::NonBlockingReader;
 use serde::Deserialize;
 use serde_dom5::ftherlnd_contents::FtherlndContents;
@@ -72,6 +73,8 @@ pub enum Dom5TurnErr {
     FtherlndMixup,
     #[error("Missing trn file")]
     MissingTrn(std::io::Error),
+    #[error("Turn already reaped")]
+    AlreadyReaped
 }
 
 impl Dom5Turn {
@@ -584,6 +587,18 @@ impl Dom5Turn {
                 game.supplies.to_string(),
                 "--startprov".to_string(),
                 game.startprov.to_string(),
+                if !game.research_9_slow {
+                    println!("Setting no rest");
+                    "--nolvl9rest"
+                } else {
+                    println!("Not setting no rest");
+                    ""
+                }.to_owned(),
+                match game.formal_diplo {
+                    0 => "--nodiplo",
+                    1 => "--weakdiplo",
+                    _ => ""
+                }.to_owned(),
                 if game.scoregraphs {
                     "--scoregraphs"
                 } else {
@@ -638,6 +653,7 @@ impl Dom5Turn {
                 .await
                 .unwrap();
             println!("Extracted");
+            println!("Startup command {}", &arguments.iter().join(" "));
             let mut child = AutokilledProc(
                 std::process::Command::new(path)
                     .env(
@@ -867,7 +883,15 @@ impl Dom5Turn {
                 .execute(&mut *transaction)
                 .await?;
             }
-            transaction.commit().await?;
+            let job = sqlx::query!("
+            SELECT reaped FROM jobs WHERE job_id=$1",
+            job_id).fetch_one(&self.db_pool).await?;
+            if job.reaped {
+                transaction.rollback().await?;
+                return Err(Dom5TurnErr::AlreadyReaped);
+            } else {
+                transaction.commit().await?;
+            }
 
             sqlx::query!(
                 "

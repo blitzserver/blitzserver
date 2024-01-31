@@ -63,7 +63,10 @@ pub struct Game {
     pub max_stales: Option<i32>,
     pub motd: Option<String>,
     pub conq_all: bool,
-    pub binary_id: Option<i32>
+    pub binary_id: Option<i32>,
+    pub formal_diplo: i32,
+    pub research_9_slow: bool
+    
 }
 
 #[derive(derive_more::From, derive_more::Into)]
@@ -106,6 +109,8 @@ pub struct SqlxGame {
     pub last_activity: chrono::NaiveDateTime,
     pub require_password: bool,
     pub select_start: i32,
+    pub formal_diplo: i32,
+    pub research_9_slow: bool
 }
 
 struct GameNationCount {
@@ -118,8 +123,8 @@ impl Game {
         where D: sqlx::Executor<'q, Database = Postgres> {
         sqlx::query_as!(Game, "
         WITH 
-            removed_mods AS (DELETE FROM game_mods WHERE game_id=$34 AND mod_id != ANY($35)),
-            updated_mods AS (INSERT INTO game_mods (game_id, mod_id) VALUES($34, UNNEST($35::integer[])) ON CONFLICT (game_id, mod_id) DO NOTHING)
+            removed_mods AS (DELETE FROM game_mods WHERE game_id=$36 AND mod_id != ANY($37)),
+            updated_mods AS (INSERT INTO game_mods (game_id, mod_id) VALUES($36, UNNEST($37::integer[])) ON CONFLICT (game_id, mod_id) DO NOTHING)
         UPDATE games SET 
             era                    = $1,
             thrones_t1             = $2,
@@ -153,9 +158,11 @@ impl Game {
             select_start           = $30,
             cataclysm              = $31,
             max_stales             = $32,
-            conq_all               = $33
+            conq_all               = $33,
+            formal_diplo           = $34,
+            research_9_slow        = $35
         WHERE
-            id                     = $34
+            id                     = $36
         RETURNING *
         " , 
                 self.era,
@@ -191,6 +198,8 @@ impl Game {
                 self.cataclysm,
                 self.max_stales,
                 self.conq_all,
+                self.formal_diplo,
+                self.research_9_slow,
                 self.id,
                 mod_ids).fetch_one(db).await
     }

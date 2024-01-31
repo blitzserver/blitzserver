@@ -88,6 +88,13 @@
           <option {% if settings.research_rand==1 %} selected {% endif %} value="1">Randomly Allocated</option>
         </select>
       </div>
+      <div class="input-group">
+        <label for="research_9_slow">Level 9 Research</label>
+        <select name="research_9_slow">
+          <option {% if settings.research_9_slow==0 %} selected {% endif %} value="0">Whole Level</option>
+          <option {% if settings.research_9_slow==1 %} selected {% endif %} value="1">Individual Spell/Ritual</option>
+        </select>
+      </div>
     </div>
   </div>
   <div>
@@ -273,6 +280,14 @@
       <div class="input-group">
         <label for="max_stales">Maximum Stales</label>
         <input name="max_stales" type="number" value="{{self.max_stales_str()}}" />
+      </div>
+      <div class="input-group">
+        <label for="formal_diplo">Formal Diplomacy</label>
+        <select name="formal_diplo">
+          <option {% if settings.formal_diplo==0 %} selected="selected" {% endif %} value="0">Disabled</option>
+          <option {% if settings.formal_diplo==1 %} selected="selected" {% endif %} value="1">Weak</option>
+          <option {% if settings.formal_diplo==2 %} selected="selected" {% endif %} value="2">Binding</option>
+        </select>
       </div>
     </div>
   </div>

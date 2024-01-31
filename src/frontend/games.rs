@@ -64,6 +64,8 @@ struct GameSettings {
     #[serde(default,                   deserialize_with ="from_str_opt") ] cataclysm:              Option<i32>,
     #[serde(default,                   deserialize_with ="from_str_opt") ] max_stales:             Option<i32>,
     #[serde(default,                   deserialize_with ="from_str")     ] conq_all:               i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] formal_diplo:           i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] research_9_slow:        i32,
 //Markertotellwhethertheformisonitsfirstload
     #[serde(default)]loaded:Option<String>,
 }
@@ -107,6 +109,8 @@ impl From<(&Game, &[Mod])> for GameSettings {
             cataclysm: game.cataclysm,
             max_stales: game.max_stales,
             conq_all: game.conq_all as i32,
+            formal_diplo: game.formal_diplo as i32,
+            research_9_slow: game.research_9_slow as i32,
         }
     }
 }
@@ -1296,6 +1300,8 @@ async fn settings_post(
     game.cataclysm = body.cataclysm;
     game.max_stales = body.max_stales;
     game.conq_all = body.conq_all > 0;
+    game.formal_diplo = body.formal_diplo;
+    game.research_9_slow = body.research_9_slow > 0;
     game = game.update(&body.cmods, &sqlx_db).await.unwrap();
     let mods = game.get_mods(&sqlx_db).await.unwrap();
     if mods.len() != old_mods.len()
