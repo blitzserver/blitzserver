@@ -128,11 +128,18 @@ pub async fn upload_post(
                             {
                                 mod_name = Some(ModDefinition {
                                     name: modname_captures.get(1).unwrap().as_str().to_owned(),
+                                    // 3084600890/./Worthy_Heroes/Worthy_Heroes.tga
                                     icon_filename: icon_filename_captures.map_or(
                                         "".to_string(),
                                         |c| {
-                                            std::path::Path::new(&fname).parent().unwrap().join(c.get(1)
-                                                .map_or("".to_string(), |c| c.as_str().to_owned())).to_string_lossy().to_string()
+                                            std::path::Path::new(&fname)
+                                                .parent()
+                                                .unwrap()
+                                                .join(c.get(1).map_or("".to_string(), |c| {
+                                                    c.as_str().to_owned()
+                                                }))
+                                                .to_string_lossy()
+                                                .to_string()
                                         },
                                     ),
                                     dm_filename: archive_file.name().to_owned(),
@@ -149,9 +156,10 @@ pub async fn upload_post(
                                     None
                                 } else {
                                     let path = std::path::PathBuf::from(&icon_filename);
-                                    let cleaned = path.strip_prefix("./").unwrap_or(&path);
+                                    let cleaned = path.to_string_lossy().to_string().replace("./", "");
+                                    println!("Icon location {:?}", cleaned);
                                     let contents: Vec<u8> = archive
-                                        .by_name(cleaned.to_str().unwrap())
+                                        .by_name(&cleaned)
                                         .unwrap()
                                         .bytes()
                                         .collect::<std::io::Result<Vec<u8>>>()

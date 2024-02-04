@@ -3,28 +3,50 @@ use std::{ffi::OsStr, os::unix::prelude::OsStrExt, path::Path};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 #[derive(Debug, Clone)]
+pub struct DmFileDef {
+    pub filename: String,
+    pub folder: String,
+    pub hash: u32,
+}
+
+#[derive(Debug, Clone)]
 pub struct AstralPacketResp {
-    pub dmfiles: Vec<(String, u32)>,
+    pub dmfiles: Vec<DmFileDef>,
 }
 
 impl AstralPacketResp {
     pub fn from_reader<R: std::io::Read>(r: &mut R, version: Option<u16>) -> AstralPacketResp {
-        let mut dmfiles = vec![];
         let mut name_bytes: Vec<u8> = vec![];
-        loop {
-            let mut unk: [u8; 6] = [0; 6];
+        let len = r.read_u16::<LittleEndian>().unwrap();
+        let mut dmfiles = Vec::new();
+        for i in 0..=len {
+            let mut unk = [0u8; 4];
             r.read_exact(&mut unk).unwrap();
-            let c = r.read_u8().unwrap();
-            if c != 0 {
-                name_bytes.push(c);
-            } else {
-                break;
+            let mut folder_name = String::new();
+            let mut file_name = String::new();
+            loop {
+                let c = r.read_u8().unwrap();
+                if c != 0 {
+                    file_name.push(c as char);
+                } else {
+                    break;
+                }
             }
+            loop {
+                let c = r.read_u8().unwrap();
+                if c != 0 {
+                    folder_name.push(c as char);
+                } else {
+                    break;
+                }
+            }
+            let hash = r.read_u32::<LittleEndian>().unwrap();
+            dmfiles.push(DmFileDef {
+                folder: folder_name,
+                filename: file_name,
+                hash,
+            });
         }
-        let hash = r.read_u32::<LittleEndian>().unwrap();
-        let name = String::from_utf8_lossy(&name_bytes);
-        dmfiles.push((name.to_string(), hash));
-
         AstralPacketResp { dmfiles }
     }
 }
@@ -37,16 +59,19 @@ impl crate::packets::BodyContents for AstralPacketResp {
         } else {
             w.write_u16::<LittleEndian>(self.dmfiles.len() as u16)
                 .unwrap();
-            for (name, hash) in &self.dmfiles {
+            for def in &self.dmfiles {
                 w.write_all(&[0x6, 0x0, 0x17, 0x0]).unwrap();
-                let p = std::path::Path::new(name);
-                w.write_all(p.file_name().unwrap().as_bytes()).unwrap();
+                w.write_all(def.filename.as_bytes()).unwrap();
                 w.write_u8(0).unwrap();
-                if let Some(cversion) = version && cversion > 561 {
-                    w.write_all(p.parent().unwrap().file_name().unwrap().as_bytes()).unwrap();
+                if let Some(cversion) = version
+                    && cversion > 561
+                {
+                    // FIXME: Dom6 barfs if we put mods in folders as the client never creates the
+                    // folder when asking for the DM file
+                    // w.write_all(def.folder.as_bytes()).unwrap();
                     w.write_u8(0).unwrap();
                 }
-                w.write_u32::<LittleEndian>(*hash).unwrap();
+                w.write_u32::<LittleEndian>(def.hash).unwrap();
             }
         }
     }

@@ -659,13 +659,12 @@ impl Dom5Conn {
                          * enabled for the game as reported by the astral packet.
                          */
                         crate::packets::Body::DmFileReq(pkt) => {
-                            match sqlx::query!("SELECT gm.mod_id, m.file_id,m.dm_filename FROM game_mods gm LEFT JOIN mods m ON m.id=gm.mod_id WHERE game_id=$1", self.game_id).fetch_all(&self.db_pool).await {
+                            match sqlx::query!("SELECT gm.mod_id, m.file_id,m.dm_filename FROM game_mods gm LEFT JOIN mods m ON m.id=gm.mod_id WHERE game_id=$1 AND m.dm_filename ILIKE $2", self.game_id, format!("%{}", pkt.filename)).fetch_one(&self.db_pool).await {
                                 Err(e) => {
-                                    log::error!("Unable to find mod list for game {}", self.game_id);
-                                    self.send_message("Somethings wrong with the mods. Contact the admin!");
+                                    log::error!("Unable to find mod with dm file {} in game {}", pkt.filename, self.game_id);
+                                    self.send_message(&format!("Somethings wrong with the mods finding DM file {}. Contact the admin!", pkt.filename));
                                 }
-                                Ok(mods) => {
-                                    for m in mods {
+                                Ok(m) => {
                                         let mod_dir= std::env::current_dir()
                                             .unwrap()
                                             .join("tmp")
@@ -695,29 +694,20 @@ impl Dom5Conn {
                                                 continue;
                                             }
                                         }
-                                        if std::path::Path::new(&m.dm_filename).file_name().unwrap().to_str().unwrap() == pkt.filename {
-                                            match std::fs::File::open(mod_dir.join(m.dm_filename)) {
-                                                Err(e) => {
-                                                    log::error!("Unable to find dm file for mod that should have it: {:?}", e);
-                                                    self.send_message("Somethings wrong with the mods. Contact the admin!");
-                                                    continue;
-                                                }
-                                                Ok(mut file) => {
-                                                    let mut contents = vec![];
-                                                    file.read_to_end(&mut contents).unwrap();
-                                                    DmFileResp {
-                                                        contents
-                                                    }.write_packet(&mut self.stream, None);
-                                                }
-                                            }
-                                        } else {
-                                            log::error!("Failed to find dm file for dmreq {}", pkt.filename);
-                                            self.send_message("Somethings wrong with the mods. Contact the admin!");
-                                        }
+                                        let Some(location) = walkdir::WalkDir::new(&mod_dir).into_iter().flatten().filter(|e| e.file_name().to_string_lossy() == pkt.filename).next() else {
+                                                log::error!("Unable to find dm file {} for mod that should have it {}", pkt.filename, m.mod_id);
+                                                self.send_message("Somethings wrong with the mods. Contact the admin!");
+                                                continue;
+                                        };
+                                        let mut contents = vec![];
+                                        let mut file = std::fs::File::open(location.path()).unwrap();
+                                        file.read_to_end(&mut contents).unwrap();
+                                        DmFileResp {
+                                            contents
+                                        }.write_packet(&mut self.stream, None);
                                     }
                                 }
                             }
-                        }
                         crate::packets::Body::ModFileReq(pkt) => {
                             match sqlx::query!("SELECT gm.mod_id, m.file_id,m.dm_filename FROM game_mods gm LEFT JOIN mods m ON m.id=gm.mod_id WHERE game_id=$1", self.game_id).fetch_all(&self.db_pool).await {
                                 Err(e) => {
@@ -726,16 +716,18 @@ impl Dom5Conn {
                                 }
                                 Ok(mods) => {
                                     match mods.into_iter().flat_map(|m| {
+                                        let containing_folder = std::path::PathBuf::from(m.dm_filename).parent().map(|p| p.to_string_lossy().to_string()).unwrap_or("".to_owned());
                                         std::fs::File::open(std::env::current_dir()
                                             .unwrap()
                                             .join("tmp")
                                             .join("mods")
                                             .join(m.mod_id.to_string())
+                                            .join(containing_folder)
                                             .join(&pkt.filename))
                                     }).next() {
                                         Some(mut file) => {
                                             let mut contents = vec![];
-                                            file.read_to_end(&mut contents);
+                                            file.read_to_end(&mut contents).unwrap();
                                             ModFileResp::new(contents).write_packet(&mut self.stream, None);
                                         }
                                         None => {

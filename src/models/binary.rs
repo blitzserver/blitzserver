@@ -9,7 +9,7 @@ pub struct Binary {
     pub executable_path: String,
     pub version: String,
     pub version_number: i32,
-    pub foldered_maps: bool
+    pub foldered_maps: bool,
 }
 
 impl Binary {
@@ -43,16 +43,24 @@ impl Binary {
             .await
     }
 
-    pub async fn extract_to_tmp<'q, D>(game_id: i32, db: D) -> Result<PathBuf, sqlx::error::Error>
+    pub async fn extract_to_tmp<'q, D>(game_id: i32, db: &D) -> Result<PathBuf, sqlx::error::Error>
     where
-        D: Executor<'q, Database = Postgres>,
+        for<'a> &'a D: Executor<'q, Database = Postgres>,
     {
-        let binary = sqlx::query_file!("src/sql/get_binary_contents.sql", game_id)
+        let binary = sqlx::query_file!("src/sql/get_binary_version.sql", game_id)
             .fetch_one(db)
             .await
             .unwrap();
-        let binary_path = format!("/tmp/{}", binary.version);
-        if !Path::new(&binary_path).exists() {
+        let binary_path = std::env::current_dir()
+            .unwrap()
+            .join("tmp")
+            .join("binaries")
+            .join(binary.version);
+        if !binary_path.exists() {
+            let binary = sqlx::query_file!("src/sql/get_binary_contents.sql", game_id)
+                .fetch_one(db)
+                .await
+                .unwrap();
             let mut zip = ZipArchive::new(std::io::Cursor::new(&binary.filebinary)).unwrap();
             zip.extract(Path::new(&binary_path)).unwrap();
         }

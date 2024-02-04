@@ -120,7 +120,6 @@ impl Packet {
     ) -> PacketResult<Packet> {
         let header = Header::from_reader(r)?;
         let mut body_buf: Vec<u8> = vec![0u8; header.length as usize];
-        println!("Header is {:?}", header);
         if let Err(e) = r.read_exact(&mut body_buf) {
             println!("Warn; ran out of bytes? {:?}", e);
         }

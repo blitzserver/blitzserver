@@ -8,6 +8,8 @@ pub use player::{NewPlayer, Player};
 use sqlx::Postgres;
 use thiserror::Error;
 
+use crate::packets::astralpacket_resp::DmFileDef;
+
 use self::maps::MapSummary;
 
 pub struct Era;
@@ -123,7 +125,7 @@ impl Game {
         where D: sqlx::Executor<'q, Database = Postgres> {
         sqlx::query_as!(Game, "
         WITH 
-            removed_mods AS (DELETE FROM game_mods WHERE game_id=$36 AND mod_id != ANY($37)),
+            removed_mods AS (DELETE FROM game_mods WHERE game_id=$36),
             updated_mods AS (INSERT INTO game_mods (game_id, mod_id) VALUES($36, UNNEST($37::integer[])) ON CONFLICT (game_id, mod_id) DO NOTHING)
         UPDATE games SET 
             era                    = $1,
@@ -918,7 +920,7 @@ impl Mod {
     pub fn get_crcs(
         game_id: i32,
         db_pool: &sqlx::postgres::PgPool,
-    ) -> Result<Vec<(String, u32)>, ModError> {
+    ) -> Result<Vec<DmFileDef>, ModError> {
         smol::block_on(async {
             match sqlx::query!(
                 r#"
@@ -931,8 +933,19 @@ impl Mod {
             {
                 Ok(mod_records) => Ok(mod_records
                     .into_iter()
-                    .map(|mod_record| match mod_record.crc {
-                        Some(crc) => (mod_record.dm_filename, crc as u32),
+                    .map(|mod_record| {
+
+                        let path = std::path::PathBuf::from(&mod_record.dm_filename);
+                        let filename: String = path.file_name().unwrap().to_string_lossy().to_string();
+                        let folder: String = path.parent().unwrap().to_string_lossy().to_string();
+                        return match mod_record.crc {
+                        Some(crc) => {
+                            return DmFileDef {
+                                filename,
+                                folder,
+                                hash: crc as u32
+                            }
+                        },
                         None => smol::block_on(async {
                             if let Ok(file_record) = sqlx::query!(
                                 r#"SELECT filebinary FROM files WHERE id=$1"#,
@@ -962,13 +975,21 @@ impl Mod {
                                         e
                                     );
                                 }
-                                (mod_record.dm_filename, hash as u32)
+                                return DmFileDef {
+                                    filename,
+                                    folder,
+                                    hash: mod_record.crc.unwrap() as u32
+                                }
                             } else {
-                                (mod_record.dm_filename, 0 as u32)
+                                return DmFileDef {
+                                    filename,
+                                    folder,
+                                    hash: 0
+                                }
                             }
                         }),
-                    })
-                    .collect::<Vec<(String, u32)>>()),
+                    }})
+                    .collect::<Vec<DmFileDef>>()),
                 Err(e) => Err(ModError::CrcError),
             }
         })
