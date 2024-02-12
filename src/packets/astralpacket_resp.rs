@@ -66,9 +66,7 @@ impl crate::packets::BodyContents for AstralPacketResp {
                 if let Some(cversion) = version
                     && cversion > 561
                 {
-                    // FIXME: Dom6 barfs if we put mods in folders as the client never creates the
-                    // folder when asking for the DM file
-                    // w.write_all(def.folder.as_bytes()).unwrap();
+                    w.write_all(def.folder.as_bytes()).unwrap();
                     w.write_u8(0).unwrap();
                 }
                 w.write_u32::<LittleEndian>(def.hash).unwrap();

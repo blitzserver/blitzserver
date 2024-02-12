@@ -321,6 +321,9 @@ impl Dom5Turn {
                 .await
                 .unwrap();
             println!("Extracted");
+            if let Some(subjob_id) = subjob_id {
+                sqlx::query!("UPDATE subjobs SET meta=$1 WHERE subjob_id=$2", &arguments.join(" "), subjob_id).execute(&self.db_pool).await.unwrap();
+            }
             let mut proc = AutokilledProc(
                 std::process::Command::new(path)
                     .stdout(std::process::Stdio::piped())
@@ -652,6 +655,7 @@ impl Dom5Turn {
             let path = Binary::extract_to_tmp(self.game_id, &self.db_pool)
                 .await
                 .unwrap();
+            sqlx::query!("UPDATE subjobs SET meta=$1 WHERE subjob_id=$2", &arguments.iter().join(" "), subjob.subjob_id).execute(&self.db_pool).await.unwrap();
             println!("Extracted");
             println!("Startup command {}", &arguments.iter().join(" "));
             let mut child = AutokilledProc(

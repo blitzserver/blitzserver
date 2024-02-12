@@ -694,7 +694,10 @@ impl Dom5Conn {
                                                 continue;
                                             }
                                         }
-                                        let Some(location) = walkdir::WalkDir::new(&mod_dir).into_iter().flatten().filter(|e| e.file_name().to_string_lossy() == pkt.filename).next() else {
+                                        let Some(location) = walkdir::WalkDir::new(&mod_dir).into_iter().flatten().filter(|e| {
+                                            let filename = e.file_name().to_string_lossy();
+                                            return filename == pkt.filename;
+                                        }).next() else {
                                                 log::error!("Unable to find dm file {} for mod that should have it {}", pkt.filename, m.mod_id);
                                                 self.send_message("Somethings wrong with the mods. Contact the admin!");
                                                 continue;
