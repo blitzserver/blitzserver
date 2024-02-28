@@ -6,7 +6,7 @@
 			<h3>Upload Map</h3>
       <form method="post" action="{{Self::get_upload_location()}}" enctype="multipart/form-data">
 				<div class="input-group">
-					<label for="map">Map File (.map)</label>
+					<label for="map">Map Archive (.zip)</label>
 					<input class="btn-file" required type="file" name="map"/>
 				</div>
 				{% if self.errors.len() > 0 %}

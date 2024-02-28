@@ -158,17 +158,15 @@ async fn upload_post(
                         break 'outer;
                     };
 
-                    let central_dir = {
-                        let Ok(first) = archive.by_index(0) else {
-                            errors.push("Zip is empty".to_owned());
-                            break 'outer;
-                        };
-                        if first.is_dir() {
-                            first.name().to_owned()
-                        } else {
-                            errors.push("Zip should contain a single folder, with the map files inside it, similar to how it looks in your .dominions6/maps directory".to_string());
-                            break 'outer;
-                        }
+                    let Some(central_dir) = archive.file_names()
+                            .find(|f| f.contains(".map"))
+                            .map(|f| 
+                                 std::path::PathBuf::from(f.to_owned()).parent()
+                                     .map(|f| f.to_string_lossy().to_string()).unwrap_or("".to_owned())
+                             )
+                            else {
+                        errors.push("Zip does not contain any .map files".to_owned());
+                        break 'outer;
                     };
 
                     let mut mapfiles = vec![];
