@@ -1,5 +1,5 @@
 use super::AppData;
-use crate::models::maps::{PlaneImage, MapSummary};
+use crate::models::maps::{MapSummary, PlaneImage};
 use crate::models::Map;
 use crate::util::calculate_crc;
 use actix_multipart::Multipart;
@@ -158,13 +158,11 @@ async fn upload_post(
                         break 'outer;
                     };
 
-                    let Some(central_dir) = archive.file_names()
-                            .find(|f| f.contains(".map"))
-                            .map(|f| 
-                                 std::path::PathBuf::from(f.to_owned()).parent()
-                                     .map(|f| f.to_string_lossy().to_string()).unwrap_or("".to_owned())
-                             )
-                            else {
+                    let Some(central_dir) = archive
+                        .file_names()
+                        .find(|f| f.contains(".map"))
+                        .map(|f| std::path::PathBuf::from(f.to_owned()).parent().map(|p| p.to_owned()))
+                    else {
                         errors.push("Zip does not contain any .map files".to_owned());
                         break 'outer;
                     };
@@ -192,7 +190,14 @@ async fn upload_post(
                         {
                             let base_plane_file = archive.by_name(&plane_filename).unwrap();
                             let reader = std::io::BufReader::new(base_plane_file);
-                            plane.name = plane_filename.strip_prefix(&central_dir).unwrap().to_owned();
+                            plane.name = plane_filename.clone();
+                            if let Some(cd) = &central_dir {
+                                plane.name = plane
+                                    .name
+                                    .strip_prefix(&cd.to_string_lossy().to_string())
+                                    .unwrap()
+                                    .to_owned();
+                            }
                             for line in reader.lines().flatten() {
                                 if let Some(capture) = name_capture.captures(&line) {
                                     map.name = capture.get(1).unwrap().as_str().to_owned();
@@ -208,23 +213,36 @@ async fn upload_post(
                             plane.hash = calculate_crc(base_plane_file);
                         }
                         let mapwithoutext = Path::new(&plane.name).file_stem().unwrap();
-                        let planeimage_regex =
-                            Regex::new(&format!(r#"{}([a-zA-Z]+?)?\.(tga|d6m|rgb)"#, mapwithoutext.to_string_lossy())).unwrap();
+                        let planeimage_regex = Regex::new(&format!(
+                            r#"{}([a-zA-Z]+?)?\.(tga|d6m|rgb)"#,
+                            mapwithoutext.to_string_lossy()
+                        ))
+                        .unwrap();
                         let names = archive
                             .file_names()
                             .map(|filename| {
                                 println!("Regex {:?}", planeimage_regex);
-                                let fname: &str = &filename.strip_prefix(&central_dir).unwrap();
-                                planeimage_regex.captures(fname)
+                                let fname = match &central_dir {
+                                    Some(cd) => filename
+                                        .strip_prefix(&cd.to_string_lossy().to_string())
+                                        .unwrap()
+                                        .to_owned(),
+                                    None => filename.to_owned(),
+                                };
+                                planeimage_regex.captures(&fname).map(|c| c.get(0).unwrap().as_str().to_owned())
                             })
                             .flatten()
-                            .map(|c| c.get(0).unwrap().as_str().to_owned())
                             .collect::<Vec<String>>();
                         for name in names {
                             let hash = {
-                                let img = match archive.by_name(&format!("{}{}", &central_dir, &name)) {
+                                let hash_file = match &central_dir {
+                                    Some(cd) => cd.join(&name).to_string_lossy().to_string(),
+                                    None => name.clone(),
+                                };
+                                let img = match archive.by_name(&hash_file) {
                                     Err(_) => {
-                                        errors.push(format!("Missing file in archive {}", name));
+                                        errors
+                                            .push(format!("Missing file in archive {}", hash_file));
                                         break 'outer;
                                     }
                                     Ok(i) => i,
@@ -237,9 +255,13 @@ async fn upload_post(
                                 bytes: vec![],
                             };
                             {
-                                let mut img = match archive.by_name(&format!("{}{}", &central_dir, &name)) {
+                                let hash_file = match &central_dir {
+                                    Some(cd) => cd.join(&name).to_string_lossy().to_string(),
+                                    None => name,
+                                };
+                                let mut img = match archive.by_name(&hash_file) {
                                     Err(_) => {
-                                        errors.push(format!("Missing file in archive {}", name));
+                                        errors.push(format!("Missing file in archive {}", hash_file));
                                         break 'outer;
                                     }
                                     Ok(i) => i,
