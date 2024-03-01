@@ -158,10 +158,12 @@ async fn upload_post(
                         break 'outer;
                     };
 
-                    let Some(central_dir) = archive
-                        .file_names()
-                        .find(|f| f.contains(".map"))
-                        .map(|f| std::path::PathBuf::from(f.to_owned()).parent().map(|p| p.to_owned()))
+                    let Some(central_dir) =
+                        archive.file_names().find(|f| f.contains(".map")).map(|f| {
+                            std::path::PathBuf::from(f.to_owned())
+                                .parent()
+                                .map(|p| p.to_owned())
+                        })
                     else {
                         errors.push("Zip does not contain any .map files".to_owned());
                         break 'outer;
@@ -190,14 +192,11 @@ async fn upload_post(
                         {
                             let base_plane_file = archive.by_name(&plane_filename).unwrap();
                             let reader = std::io::BufReader::new(base_plane_file);
-                            plane.name = plane_filename.clone();
-                            if let Some(cd) = &central_dir {
-                                plane.name = plane
-                                    .name
-                                    .strip_prefix(&cd.to_string_lossy().to_string())
-                                    .unwrap()
-                                    .to_owned();
-                            }
+                            plane.name = std::path::PathBuf::from(&plane_filename)
+                                .file_name()
+                                .unwrap()
+                                .to_string_lossy()
+                                .to_string();
                             for line in reader.lines().flatten() {
                                 if let Some(capture) = name_capture.captures(&line) {
                                     map.name = capture.get(1).unwrap().as_str().to_owned();
@@ -222,14 +221,14 @@ async fn upload_post(
                             .file_names()
                             .map(|filename| {
                                 println!("Regex {:?}", planeimage_regex);
-                                let fname = match &central_dir {
-                                    Some(cd) => filename
-                                        .strip_prefix(&cd.to_string_lossy().to_string())
-                                        .unwrap()
-                                        .to_owned(),
-                                    None => filename.to_owned(),
-                                };
-                                planeimage_regex.captures(&fname).map(|c| c.get(0).unwrap().as_str().to_owned())
+                                let fname = std::path::PathBuf::from(filename)
+                                    .file_name()
+                                    .unwrap()
+                                    .to_string_lossy()
+                                    .to_string();
+                                planeimage_regex
+                                    .captures(&fname)
+                                    .map(|c| c.get(0).unwrap().as_str().to_owned())
                             })
                             .flatten()
                             .collect::<Vec<String>>();
@@ -261,7 +260,8 @@ async fn upload_post(
                                 };
                                 let mut img = match archive.by_name(&hash_file) {
                                     Err(_) => {
-                                        errors.push(format!("Missing file in archive {}", hash_file));
+                                        errors
+                                            .push(format!("Missing file in archive {}", hash_file));
                                         break 'outer;
                                     }
                                     Ok(i) => i,

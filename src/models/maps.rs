@@ -52,6 +52,7 @@ impl Map {
             INNER JOIN map_plane_images mi ON mp.map_file_id=mi.map_file_id AND mp.map_id=mi.map_id
             INNER JOIN files if ON if.id=mi.image_file_id
             WHERE g.id=$1
+            ORDER BY pf.filename ASC
             "#
             , game_id).fetch_all(db).await?;
 
