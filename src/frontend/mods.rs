@@ -110,7 +110,7 @@ pub async fn upload_post(
                     Ok(mut archive) => {
                         let valid_filenames = archive
                             .file_names()
-                            .filter(|fname| fname.split(".").find(|f| f == &"dm").is_some())
+                            .filter(|fname| fname.ends_with(".dm"))
                             .map(|fname| fname.to_owned())
                             .collect::<Vec<String>>();
                         for fname in valid_filenames {
@@ -156,7 +156,8 @@ pub async fn upload_post(
                                     None
                                 } else {
                                     let path = std::path::PathBuf::from(&icon_filename);
-                                    let cleaned = path.to_string_lossy().to_string().replace("./", "");
+                                    let cleaned =
+                                        path.to_string_lossy().to_string().replace("./", "");
                                     println!("Icon location {:?}", cleaned);
                                     let contents: Vec<u8> = archive
                                         .by_name(&cleaned)
@@ -182,7 +183,7 @@ pub async fn upload_post(
                             _ => {
                                 return Ok(HttpResponse::Ok().content_type("text/html").body(
                                     (ListModsTemplate {
-                                        errors: &vec!["Unable to find mod in zip".to_string()],
+                                        errors: &vec!["Unable to find mod in zip (make sure there's a file that ends in .dm)".to_string()],
                                         mods: sqlx::query_as!(Mod, "SELECT * FROM mods")
                                             .fetch_all(&sqlx_db)
                                             .await

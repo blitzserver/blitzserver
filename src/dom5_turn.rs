@@ -6,10 +6,10 @@ use nonblock::NonBlockingReader;
 use serde::Deserialize;
 use serde_dom5::ftherlnd_contents::FtherlndContents;
 use serde_dom5::game_settings::GameSettings;
+use serde_dom5::kingdom::KingdomType;
 use serde_dom5::{Body, SaveFile};
 use std::io::{Read, Seek, Write};
 use thiserror::Error;
-use serde_dom5::kingdom::KingdomType;
 
 pub struct AutokilledProc(std::process::Child);
 
@@ -74,7 +74,7 @@ pub enum Dom5TurnErr {
     #[error("Missing trn file")]
     MissingTrn(std::io::Error),
     #[error("Turn already reaped")]
-    AlreadyReaped
+    AlreadyReaped,
 }
 
 impl Dom5Turn {
@@ -137,7 +137,8 @@ impl Dom5Turn {
     }
     fn populate_maps(&mut self) -> Result<(), Dom5TurnErr> {
         smol::block_on(async {
-            let mapstuff = sqlx::query!(r#"
+            let mapstuff = sqlx::query!(
+                r#"
                 SELECT m.name as "name!", mf.filename as "filename!", mf.filebinary as "filebinary!"
                 FROM games g
                 INNER JOIN maps_dom6 m ON m.map_id=g.maps_dom6_id
@@ -154,22 +155,24 @@ impl Dom5Turn {
                 WHERE g.id=$1
                 "#,
                 self.game_id
-            ).fetch_all(&self.db_pool).await?;
-            let map_dir = std::env::current_dir()
+            )
+            .fetch_all(&self.db_pool)
+            .await?;
+            let mut map_dir = std::env::current_dir()
                 .map_err(Dom5TurnErr::UncleanModDir)?
                 .join("tmp")
                 .join("games")
                 .join(self.game_id.to_string())
-                .join("maps")
-                .join(&mapstuff.first().unwrap().filename);
+                .join("maps");
+            map_dir = map_dir.join(&mapstuff.first().unwrap().filename);
             if !map_dir.exists() {
                 std::fs::create_dir_all(&map_dir).map_err(Dom5TurnErr::UncleanMapDir)?;
             }
             for f in mapstuff {
-            std::fs::File::create(&map_dir.join(&f.filename))
-                .map_err(Dom5TurnErr::UncleanMapDir)?
-                .write_all(&f.filebinary)
-                .map_err(Dom5TurnErr::UncleanMapDir)?;
+                std::fs::File::create(&map_dir.join(&f.filename))
+                    .map_err(Dom5TurnErr::UncleanMapDir)?
+                    .write_all(&f.filebinary)
+                    .map_err(Dom5TurnErr::UncleanMapDir)?;
             }
             Ok(())
         })
@@ -322,7 +325,14 @@ impl Dom5Turn {
                 .unwrap();
             println!("Extracted");
             if let Some(subjob_id) = subjob_id {
-                sqlx::query!("UPDATE subjobs SET meta=$1 WHERE subjob_id=$2", &arguments.join(" "), subjob_id).execute(&self.db_pool).await.unwrap();
+                sqlx::query!(
+                    "UPDATE subjobs SET meta=$1 WHERE subjob_id=$2",
+                    &arguments.join(" "),
+                    subjob_id
+                )
+                .execute(&self.db_pool)
+                .await
+                .unwrap();
             }
             let mut proc = AutokilledProc(
                 std::process::Command::new(path)
@@ -596,12 +606,14 @@ impl Dom5Turn {
                 } else {
                     println!("Not setting no rest");
                     ""
-                }.to_owned(),
+                }
+                .to_owned(),
                 match game.formal_diplo {
                     0 => "--nodiplo",
                     1 => "--weakdiplo",
-                    _ => ""
-                }.to_owned(),
+                    _ => "",
+                }
+                .to_owned(),
                 if game.scoregraphs {
                     "--scoregraphs"
                 } else {
@@ -655,7 +667,14 @@ impl Dom5Turn {
             let path = Binary::extract_to_tmp(self.game_id, &self.db_pool)
                 .await
                 .unwrap();
-            sqlx::query!("UPDATE subjobs SET meta=$1 WHERE subjob_id=$2", &arguments.iter().join(" "), subjob.subjob_id).execute(&self.db_pool).await.unwrap();
+            sqlx::query!(
+                "UPDATE subjobs SET meta=$1 WHERE subjob_id=$2",
+                &arguments.iter().join(" "),
+                subjob.subjob_id
+            )
+            .execute(&self.db_pool)
+            .await
+            .unwrap();
             println!("Extracted");
             println!("Startup command {}", &arguments.iter().join(" "));
             let mut child = AutokilledProc(
@@ -887,9 +906,13 @@ impl Dom5Turn {
                 .execute(&mut *transaction)
                 .await?;
             }
-            let job = sqlx::query!("
+            let job = sqlx::query!(
+                "
             SELECT reaped FROM jobs WHERE job_id=$1",
-            job_id).fetch_one(&self.db_pool).await?;
+                job_id
+            )
+            .fetch_one(&self.db_pool)
+            .await?;
             if job.reaped {
                 transaction.rollback().await?;
                 return Err(Dom5TurnErr::AlreadyReaped);
