@@ -675,7 +675,7 @@ dependencies = [
 
 [[package]]
 name = "blitzserver"
-version = "1.0.0-rc.17"
+version = "1.0.0-rc.22"
 dependencies = [
  "actix-files",
  "actix-multipart",
@@ -3165,7 +3165,7 @@ dependencies = [
 [[package]]
 name = "serde_dom5"
 version = "0.1.0"
-source = "git+ssh://git@github.com/blitzserver/serde_dom5#6f5927030eda49b662faf5ad9117714201106fb7"
+source = "git+ssh://git@github.com/blitzserver/serde_dom5#7ad54d6f4a468d8cd069550b309194c4b23cfbcf"
 dependencies = [
  "bincode",
  "derive_more",

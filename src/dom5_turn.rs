@@ -800,7 +800,6 @@ impl Dom5Turn {
             let (winner, kingdoms) = match ftherlnd.body {
                 Body::FtherlndContents(ref fth) => (
                     match fth.get_settings().winner() {
-                        -1 => None,
                         0 => None,
                         w => Some(w as i32),
                     },
@@ -875,7 +874,9 @@ impl Dom5Turn {
                     KingdomType::Defeated => defeated_nationids.push(*nation_id as i32),
                     // Kingdom types we shall ignore
                     KingdomType::Special => {}
-                    KingdomType::Unknown => {}
+                    KingdomType::Unknown(d) => {
+                        log::warn!("Unknown nation status for {}, {}", *nation_id as i32, d);
+                    }
                 }
             }
             // Bulk insert player_turns without files
