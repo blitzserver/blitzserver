@@ -800,6 +800,7 @@ impl Dom5Turn {
             let (winner, kingdoms) = match ftherlnd.body {
                 Body::FtherlndContents(ref fth) => (
                     match fth.get_settings().winner() {
+                        255 => None,
                         0 => None,
                         w => Some(w as i32),
                     },
