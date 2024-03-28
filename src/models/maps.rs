@@ -97,13 +97,12 @@ impl Map {
             "#, map_id).fetch_all(db).await?;
         let mut buf: Vec<u8> = vec![];
         let mut zipfile = ZipWriter::new(std::io::Cursor::new(&mut buf));
-            let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
         for file in &files {
             println!("File {:?}. {:?} {:?}, {:?}", file.m_filename, file.i_filename, file.m_filebinary.len(), file.i_filebinary.len());
-            zipfile.start_file(&file.m_filename, options).unwrap();
+            zipfile.start_file(&file.m_filename, FileOptions::default()).unwrap();
             zipfile.write(&file.m_filebinary).unwrap();
-            zipfile.start_file(&file.i_filename, options).unwrap();
+            zipfile.start_file(&file.i_filename, FileOptions::default()).unwrap();
             zipfile.write(&file.i_filebinary).unwrap();
         }
         zipfile.finish().unwrap();
