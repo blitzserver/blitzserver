@@ -83,8 +83,8 @@ impl Map {
     pub async fn get_archive<'q, D>(map_id: i32, db: D) -> Result<MapArchive, sqlx::error::Error>
         where D: Executor<'q, Database = Postgres>
     {
-        let files = sqlx::query!(" SELECT 
-                dm.name name,
+        let files = sqlx::query!(r#" SELECT 
+                dm."name" "name",
                 pf.filename m_filename, pf.filebinary m_filebinary,
                 if.filename i_filename, if.filebinary i_filebinary
             FROM maps_dom6 dm 
@@ -94,7 +94,7 @@ impl Map {
             INNER JOIN files if ON if.id=mi.image_file_id
             WHERE dm.map_id=$1
             ORDER BY pf.filename ASC
-            ", map_id).fetch_all(db).await?;
+            "#, map_id).fetch_all(db).await?;
         let mut buf: Vec<u8> = vec![];
         let mut zipfile = ZipWriter::new(std::io::Cursor::new(&mut buf));
             let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
