@@ -75,49 +75,20 @@ impl<'a> ListMapsTemplate<'a> {
 
 #[get("/map/{id}/download")]
 async fn download((app_data, mapid): (web::Data<AppData>, web::Path<i32>)) -> Result<HttpResponse> {
-    let mut bytes: Vec<u8> = vec![];
-    let mut map_archive = zip::ZipWriter::new(std::io::Cursor::new(&mut bytes));
-
     let db = app_data.sqlx_pool.clone();
-    let (mapfile, tgafile, winterfile) = Map::get_files(*mapid, &db).await.unwrap();
-    map_archive
-        .start_file(
-            mapfile.filename,
-            zip::write::FileOptions::default()
-                .compression_method(zip::CompressionMethod::Stored)
-                .unix_permissions(0o755),
-        )
-        .unwrap();
-    map_archive.write_all(&mapfile.filebinary).unwrap();
-    map_archive
-        .start_file(
-            tgafile.filename,
-            zip::write::FileOptions::default()
-                .compression_method(zip::CompressionMethod::Stored)
-                .unix_permissions(0o755),
-        )
-        .unwrap();
-    map_archive.write_all(&tgafile.filebinary).unwrap();
-    if let Some(winterfile) = winterfile {
-        map_archive
-            .start_file(
-                &winterfile.filename,
-                zip::write::FileOptions::default()
-                    .compression_method(zip::CompressionMethod::Stored)
-                    .unix_permissions(0o755),
-            )
-            .unwrap();
-        map_archive.write_all(&winterfile.filebinary).unwrap();
-    }
-    drop(map_archive);
 
+    let archive = crate::models::maps::Map::get_archive(*mapid, &db)
+        .await
+        .unwrap();
+    println!("Fetched");
     Ok(HttpResponse::Ok()
         .content_type("application/zip")
         .append_header(header::CacheControl(vec![
             header::CacheDirective::Public,
             header::CacheDirective::MaxAge(86400u32),
         ]))
-        .body(bytes))
+        .append_header(header::ContentDisposition::attachment(archive.filename))
+        .body(archive.file_binary))
 }
 
 #[get("/maps")]

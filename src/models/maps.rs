@@ -1,4 +1,7 @@
+use std::io::Write;
+
 use sqlx::{Postgres, pool::PoolConnection, Acquire, Connection, Executor};
+use zip::{ZipArchive, ZipWriter, write::FileOptions};
 
 use crate::packets::{map_resp::{MapResp6, PlaneDef}, MapResp};
 
@@ -20,6 +23,12 @@ pub struct Plane {
 pub struct Map {
     pub name: String,
     pub planes: Vec<Plane>,
+}
+
+#[derive(Debug)]
+pub struct MapArchive {
+    pub filename: String,
+    pub file_binary: Vec<u8>
 }
 
 pub struct MapSummary {
@@ -69,6 +78,39 @@ impl Map {
                     plane_images: vec![]
                 }
             }).collect::<Vec<_>>()
+        })
+    }
+    pub async fn get_archive<'q, D>(map_id: i32, db: D) -> Result<MapArchive, sqlx::error::Error>
+        where D: Executor<'q, Database = Postgres>
+    {
+        let files = sqlx::query!(" SELECT 
+                dm.name name,
+                pf.filename m_filename, pf.filebinary m_filebinary,
+                if.filename i_filename, if.filebinary i_filebinary
+            FROM maps_dom6 dm 
+            INNER JOIN map_planes mp ON mp.map_id=dm.map_id
+            INNER JOIN files pf ON pf.id=mp.map_file_id
+            INNER JOIN map_plane_images mi ON mp.map_file_id=mi.map_file_id AND mp.map_id=mi.map_id
+            INNER JOIN files if ON if.id=mi.image_file_id
+            WHERE dm.map_id=$1
+            ORDER BY pf.filename ASC
+            ", map_id).fetch_all(db).await?;
+        let mut buf: Vec<u8> = vec![];
+        let mut zipfile = ZipWriter::new(std::io::Cursor::new(&mut buf));
+            let options = zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored);
+
+        for file in &files {
+            println!("File {:?}. {:?} {:?}, {:?}", file.m_filename, file.i_filename, file.m_filebinary.len(), file.i_filebinary.len());
+            zipfile.start_file(&file.m_filename, options).unwrap();
+            zipfile.write(&file.m_filebinary).unwrap();
+            zipfile.start_file(&file.i_filename, options).unwrap();
+            zipfile.write(&file.i_filebinary).unwrap();
+        }
+        zipfile.finish().unwrap();
+        drop(zipfile);
+        return Ok(MapArchive {
+            filename: format!("{}.zip", files[0].name),
+            file_binary: buf,
         })
     }
     pub async fn insert<'q>(&self, mut db: PoolConnection<Postgres>) -> Result<(), sqlx::error::Error>
