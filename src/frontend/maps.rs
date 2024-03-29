@@ -59,8 +59,10 @@ pub async fn image(
         .await
         .unwrap();
     let pathbuf = PathBuf::from(image.filename);
-    let mut image = match pathbuf.extension().map(|e| e.to_str()).flatten() {
+    let image = match pathbuf.extension().map(|e| e.to_str()).flatten() {
         Some("d6m") => {
+            None
+                /*
             let d6m: D6mFile = bincode::deserialize(&image.bytes).unwrap();
             let dat: Vec<u8> = d6m
                 .heights
@@ -76,8 +78,12 @@ pub async fn image(
             )
             .unwrap();
             libvips::ops::flip(&image, ops::Direction::Vertical).unwrap()
+            */
         }
-        _ => VipsImage::new_from_buffer(&image.bytes, "").unwrap(),
+        _ => Some(VipsImage::new_from_buffer(&image.bytes, "").unwrap())
+    };
+    let Some(mut image) = image else {
+        return Ok(HttpResponse::NotFound().finish());
     };
     if let Some(width) = query.width {
         image = libvips::ops::thumbnail_image(&image, width).unwrap();
