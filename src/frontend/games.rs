@@ -1159,7 +1159,7 @@ async fn list(
         })
         .map(|g| AbandonedGame {
             id: g.id,
-            map_id: g.map_id,
+            map_id: g.maps_dom6_id.unwrap_or(0),
             name: g.name.clone(),
             address: format!(
                 "{}:{}",
@@ -1187,7 +1187,7 @@ async fn list(
         .map(|g| ActiveGame {
             id: g.id,
             fail_count: g.fail_count.unwrap_or(0) as i32,
-            map_id: g.map_id,
+            map_id: g.maps_dom6_id.unwrap_or(0),
             turn_status: g.turn_status,
             hosting: g.current_job.is_some(),
             turn_summary: turn_summaries
@@ -1208,7 +1208,7 @@ async fn list(
         .map(|g| PendingGame {
             id: g.id,
             fail_count: g.fail_count.unwrap_or(0) as i32,
-            map_id: g.map_id,
+            map_id: g.maps_dom6_id.unwrap_or(0),
             joined: g.playing.is_some(),
             players: match player_counts.contains_key(&g.id) {
                 true => player_counts[&g.id],

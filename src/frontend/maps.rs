@@ -2,21 +2,30 @@ use super::AppData;
 use crate::models::maps::{MapSummary, PlaneImage};
 use crate::models::Map;
 use crate::util::calculate_crc;
+use ::image::ImageFormat;
 use actix_multipart::Multipart;
 use actix_web::http::header;
 use actix_web::{get, post, web, HttpResponse, Result};
 use askama::Template;
 use futures::{StreamExt, TryStreamExt};
-use libvips::ops;
+use libvips::bindings::VipsFormat;
+use libvips::{ops, VipsImage};
 use regex::Regex;
 use std::io::Write;
 use std::io::{BufRead, Read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Template)]
 #[template(path = "maps/details.html")]
 pub struct MapDetailsTemplate<'a> {
     map: &'a Map,
+}
+
+#[derive(serde::Deserialize)]
+struct ThumbQuery {
+    crop_x: Option<i32>,
+    crop_y: Option<i32>,
+    width: Option<i32>
 }
 
 #[get("/map/{id}")]
@@ -33,25 +42,35 @@ pub async fn details(
         .body((MapDetailsTemplate { map: &map }).render().unwrap()))
 }
 
-#[get("/images/maps/{id}.jpg")]
+#[get("/maps/{path_id}/planes/{plane_id}/thumb.webp")]
 pub async fn image(
-    (app_data, path_id): (web::Data<AppData>, web::Path<i32>),
+    (app_data, path, query): (
+        web::Data<AppData>,
+        web::Path<(i32, i32)>,
+        web::Query<ThumbQuery>,
+    ),
 ) -> Result<HttpResponse> {
+    let (map_id, plane_id) = path.into_inner();
     let db = app_data.sqlx_pool.clone();
-    let (_, image, _) = Map::get_files(*path_id, &db).await.unwrap();
-    let mut jpg_bytes: Vec<u8> = Vec::new();
-    let reader = crate::image::io::Reader::with_format(
-        std::io::Cursor::new(image.filebinary),
-        crate::image::ImageFormat::Tga,
-    )
-    .decode()
-    .unwrap();
-    reader
-        .write_to(&mut jpg_bytes, crate::image::ImageFormat::Jpeg)
+    let image = crate::models::maps::Map::get_plane_image(map_id, plane_id, &db)
+        .await
         .unwrap();
+    let mut image = VipsImage::new_from_buffer(&image.bytes, "").unwrap();
+    if let Some(width) = query.width {
+        image = libvips::ops::thumbnail_image(&image, width).unwrap();
+    }
+    if let (Some(crop_x), Some(crop_y)) = (query.crop_x, query.crop_y) {
+        image = libvips::ops::smartcrop(&image, std::cmp::min(image.get_width(), crop_x), std::cmp::min(crop_y, image.get_height())).unwrap();
+    }
+
+    let buffer = libvips::ops::webpsave_buffer(&image).unwrap();
     Ok(HttpResponse::Ok()
-        .content_type("application/jpg")
-        .body(jpg_bytes))
+        .append_header(header::CacheControl(vec![
+            header::CacheDirective::Public,
+            header::CacheDirective::MaxAge(31536000u32),
+        ]))
+        .content_type("image/webp")
+        .body(buffer))
 }
 
 #[derive(Template)]
@@ -268,53 +287,5 @@ async fn upload_post(
         return Ok(HttpResponse::Found()
             .append_header((header::LOCATION, format!("{}/maps", address)))
             .finish());
-    }
-}
-
-pub async fn map_thumb_handler(
-    req: actix_web::dev::ServiceRequest,
-) -> actix_web::Result<actix_web::dev::ServiceResponse> {
-    let app_data = req
-        .app_data::<actix_web::web::Data<crate::frontend::AppData>>()
-        .unwrap();
-    let db_pool = app_data.sqlx_pool.clone();
-    let (http_req, _payload) = req.into_parts();
-    let map_id_regex = regex::Regex::new(r#"/images/maps/([0-9]+)_([0-9]+).webp"#).unwrap();
-    if let Some(captures) = map_id_regex.captures(http_req.path()) {
-        let id_i32: i32 = captures.get(1).unwrap().as_str().parse().unwrap();
-        let desired_width: f64 = captures.get(2).unwrap().as_str().parse().unwrap();
-        let map = sqlx::query!(
-            "
-        SELECT m.id, filebinary, filename
-        FROM maps m 
-        LEFT JOIN files f ON f.id=m.tgafile_id
-        WHERE m.id=$1",
-            id_i32
-        )
-        .fetch_one(&db_pool)
-        .await
-        .unwrap();
-        let mut vips_image = ops::magickload_buffer(&map.filebinary).unwrap();
-        let cur_width = vips_image.get_width() as f64;
-        let scale = desired_width / cur_width;
-        vips_image = ops::resize(&vips_image, scale).unwrap();
-        vips_image = ops::autorot(&vips_image).unwrap();
-        let file_loc = format!("./images/maps/{}_{}.webp", map.id, desired_width);
-        let mut options = ops::WebpsaveOptions::default();
-        options.preset = ops::ForeignWebpPreset::Icon;
-        options.q = 100;
-        ops::webpsave_with_opts(&vips_image, &file_loc, &options).unwrap();
-        let mut webp_file = std::fs::File::open(file_loc).unwrap();
-        let mut buff = vec![];
-        webp_file.read_to_end(&mut buff).unwrap();
-        Ok(actix_web::dev::ServiceResponse::new(
-            http_req,
-            HttpResponse::Ok().content_type("image/webp").body(buff),
-        ))
-    } else {
-        Ok(actix_web::dev::ServiceResponse::new(
-            http_req,
-            HttpResponse::NotFound().finish(),
-        ))
     }
 }

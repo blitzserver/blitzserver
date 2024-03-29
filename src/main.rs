@@ -145,10 +145,6 @@ async fn main() -> std::io::Result<()> {
                 serde_qs::actix::QsQueryConfig::default()
                     .qs_config(serde_qs::Config::new(10, false)),
             )
-            .service(
-                actix_files::Files::new("/images/maps", "./images/maps")
-                    .default_handler(crate::frontend::maps::map_thumb_handler),
-            )
             .service(index)
             .service(styles)
             .service(frontend::maps::details)

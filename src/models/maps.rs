@@ -80,6 +80,22 @@ impl Map {
             }).collect::<Vec<_>>()
         })
     }
+    pub async fn get_plane_image<'q, D>(map_id: i32, plane_id: i32, db: D) -> Result<PlaneImage, sqlx::error::Error>
+        where D: Executor<'q, Database = Postgres>
+    {
+        let stuff = sqlx::query!(r#"SELECT mp.hash, f.filename, f.filebinary
+        FROM maps_dom6 m
+        INNER JOIN map_plane_images mp ON mp.map_id=m.map_id
+        INNER JOIN files f ON f.id=mp.image_file_id
+        WHERE m.map_id=$1
+        ORDER BY map_file_id ASC LIMIT 1 OFFSET $2
+        "#, map_id, plane_id as i64).fetch_one(db).await?;
+        return Ok(PlaneImage {
+            filename: stuff.filename,
+            hash: stuff.hash as u32,
+            bytes: stuff.filebinary
+        })
+    }
     pub async fn get_archive<'q, D>(map_id: i32, db: D) -> Result<MapArchive, sqlx::error::Error>
         where D: Executor<'q, Database = Postgres>
     {
