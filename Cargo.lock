@@ -683,7 +683,7 @@ dependencies = [
  "actix-web",
  "askama",
  "async-std",
- "base64 0.20.0",
+ "base64 0.21.4",
  "bincode",
  "byteorder",
  "chrono",
@@ -705,7 +705,7 @@ dependencies = [
  "mime",
  "nonblock",
  "notify",
- "num-derive 0.3.3",
+ "num-derive 0.4.1",
  "num-traits",
  "num_enum",
  "r2d2",
@@ -713,6 +713,7 @@ dependencies = [
  "rand",
  "regex",
  "reqwest",
+ "safe-transmute",
  "serde",
  "serde_dom5",
  "serde_json",
@@ -3067,6 +3068,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ad4cc8da4ef723ed60bced201181d83791ad433213d8c24efffda1eec85d741"
 
 [[package]]
+name = "safe-transmute"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98a01dab6acf992653be49205bdd549f32f17cb2803e8eacf1560bf97259aae8"
+
+[[package]]
 name = "same-file"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3166,7 +3173,7 @@ dependencies = [
 [[package]]
 name = "serde_dom5"
 version = "0.1.0"
-source = "git+ssh://git@github.com/blitzserver/serde_dom5#7ad54d6f4a468d8cd069550b309194c4b23cfbcf"
+source = "git+ssh://git@github.com/blitzserver/serde_dom5#fbde9acb46f5d9a7abf575df9f11d1b91274316f"
 dependencies = [
  "bincode",
  "derive_more",

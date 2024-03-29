@@ -7,10 +7,13 @@ use actix_multipart::Multipart;
 use actix_web::http::header;
 use actix_web::{get, post, web, HttpResponse, Result};
 use askama::Template;
+use core::slice;
 use futures::{StreamExt, TryStreamExt};
 use libvips::bindings::VipsFormat;
 use libvips::{ops, VipsImage};
 use regex::Regex;
+use serde::Deserialize;
+use serde_dom5::D6mFile;
 use std::io::Write;
 use std::io::{BufRead, Read};
 use std::path::{Path, PathBuf};
@@ -25,7 +28,7 @@ pub struct MapDetailsTemplate<'a> {
 struct ThumbQuery {
     crop_x: Option<i32>,
     crop_y: Option<i32>,
-    width: Option<i32>
+    width: Option<i32>,
 }
 
 #[get("/map/{id}")]
@@ -55,12 +58,37 @@ pub async fn image(
     let image = crate::models::maps::Map::get_plane_image(map_id, plane_id, &db)
         .await
         .unwrap();
-    let mut image = VipsImage::new_from_buffer(&image.bytes, "").unwrap();
+    let pathbuf = PathBuf::from(image.filename);
+    let mut image = match pathbuf.extension().map(|e| e.to_str()).flatten() {
+        Some("d6m") => {
+            let d6m: D6mFile = bincode::deserialize(&image.bytes).unwrap();
+            let dat: Vec<u8> = d6m
+                .heights
+                .into_iter()
+                .map(|d| if d > 0 { 255 } else { 0 })
+                .collect();
+            let image = VipsImage::new_from_memory(
+                &dat,
+                d6m.header.width,
+                d6m.header.height,
+                1,
+                ops::BandFormat::Uchar,
+            )
+            .unwrap();
+            libvips::ops::flip(&image, ops::Direction::Vertical).unwrap()
+        }
+        _ => VipsImage::new_from_buffer(&image.bytes, "").unwrap(),
+    };
     if let Some(width) = query.width {
         image = libvips::ops::thumbnail_image(&image, width).unwrap();
     }
     if let (Some(crop_x), Some(crop_y)) = (query.crop_x, query.crop_y) {
-        image = libvips::ops::smartcrop(&image, std::cmp::min(image.get_width(), crop_x), std::cmp::min(crop_y, image.get_height())).unwrap();
+        image = libvips::ops::smartcrop(
+            &image,
+            std::cmp::min(image.get_width(), crop_x),
+            std::cmp::min(crop_y, image.get_height()),
+        )
+        .unwrap();
     }
 
     let buffer = libvips::ops::webpsave_buffer(&image).unwrap();
