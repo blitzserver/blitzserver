@@ -61,26 +61,24 @@ pub async fn image(
     let pathbuf = PathBuf::from(image.filename);
     let image = match pathbuf.extension().map(|e| e.to_str()).flatten() {
         Some("d6m") => {
-            None
-                /*
             let d6m: D6mFile = bincode::deserialize(&image.bytes).unwrap();
-            let dat: Vec<u8> = d6m
-                .heights
-                .into_iter()
-                .map(|d| if d > 0 { 255 } else { 0 })
-                .collect();
+            let dat: Vec<u8> = d6m.heights.into_iter().fold(vec![], |mut acc, d| {
+                acc.push(0u8);
+                acc.push(((d >> 15 & 1 ^ 1) * 200) as u8);
+                acc.push(((d >> 15 & 1) * 200) as u8);
+                acc
+            });
             let image = VipsImage::new_from_memory(
                 &dat,
                 d6m.header.width,
                 d6m.header.height,
-                1,
+                3,
                 ops::BandFormat::Uchar,
             )
             .unwrap();
-            libvips::ops::flip(&image, ops::Direction::Vertical).unwrap()
-            */
+            Some(libvips::ops::flip(&image, ops::Direction::Vertical).unwrap())
         }
-        _ => Some(VipsImage::new_from_buffer(&image.bytes, "").unwrap())
+        _ => Some(VipsImage::new_from_buffer(&image.bytes, "").unwrap()),
     };
     let Some(mut image) = image else {
         return Ok(HttpResponse::NotFound().finish());
