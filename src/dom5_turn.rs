@@ -584,6 +584,13 @@ impl Dom5Turn {
                 game.hof_size.to_string(),
                 "--globals".to_string(),
                 game.global_size.to_string(),
+                "--mercsize".to_string(),
+                game.mercslots.to_string(),
+                if !game.cheat_detection {
+                    "--nocheatdet".to_string()
+                } else {
+                    "".to_string()
+                },
                 "--indepstr".to_string(),
                 game.indepstr.to_string(),
                 "--magicsites".to_string(),

@@ -115,6 +115,10 @@
           <option {% if settings.artrest==1 %} selected {% endif %} value="1">Limited</option>
         </select>
       </div>
+      <div class="input-group">
+        <label for="mercslots">Merc Slots</label>
+        <input value="{{settings.mercslots}}" type="number" name="mercslots" />
+      </div>
     </div>
   </div>
   <div>
@@ -287,6 +291,13 @@
           <option {% if settings.formal_diplo==0 %} selected="selected" {% endif %} value="0">Disabled</option>
           <option {% if settings.formal_diplo==1 %} selected="selected" {% endif %} value="1">Weak</option>
           <option {% if settings.formal_diplo==2 %} selected="selected" {% endif %} value="2">Binding</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label for="cheat_detection">Cheat Detection</label>
+        <select name="cheat_detection">
+          <option {% if settings.cheat_detection ==0 %} selected="selected" {% endif %} value="0">Disabled</option>
+          <option {% if settings.cheat_detection ==1 %} selected="selected" {% endif %} value="1">Enabled</option>
         </select>
       </div>
     </div>
