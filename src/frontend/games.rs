@@ -606,6 +606,7 @@ struct ActiveGame {
     address: String,
     turn_summary: crate::models::TurnSummary,
     map_id: i32,
+    plane_count: i32,
     hosting: bool,
     fail_count: i32,
     turn_status: Option<i32>,
@@ -641,6 +642,7 @@ struct PendingGame {
     address: String,
     players: i32,
     map_id: i32,
+    plane_count: i32,
     hosting: bool,
     fail_count: i32,
     joined: bool,
@@ -650,6 +652,7 @@ struct AbandonedGame {
     name: String,
     address: String,
     map_id: i32,
+    plane_count: i32,
     auto_archive_in: String,
 }
 struct ArchivedGame {
@@ -1127,7 +1130,7 @@ async fn list(
     let mut results = sqlx::query!(r#"
         WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),
         topturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)
-        SELECT g.*,COUNT(j.*) as fail_count, MAX(cj.job_id) as "current_job?", MAX(p.nationid) AS "playing?", MIN(pt.status) as "turn_status?"
+        SELECT g.*,mp.plane_count, COUNT(j.*) as fail_count, MAX(cj.job_id) as "current_job?", MAX(p.nationid) AS "playing?", MIN(pt.status) as "turn_status?"
         FROM games g 
         LEFT JOIN topturn tt ON tt.game_id=g.id
         LEFT JOIN players p ON p.id=ANY($1) AND p.game_id=g.id
@@ -1135,8 +1138,9 @@ async fn list(
         LEFT JOIN last_success ls ON ls.game_id=g.id 
         LEFT JOIN jobs j ON j.job_id>ls.job_id AND j.game_id=g.id AND j.reaped IS TRUE
         LEFT JOIN jobs cj ON cj.game_id=g.id AND cj.finished_at IS NULL
+        LEFT JOIN LATERAL (SELECT COUNT(*) plane_count FROM map_planes mp WHERE g.maps_dom6_id=mp.map_id) mp ON 1=1
         WHERE g.private!=TRUE
-        GROUP BY g.id
+        GROUP BY g.id, mp.plane_count
         ORDER BY MIN(pt.status), MAX(p.nationid), g.id
         "#, &watch_player_ids.into_iter().collect::<Vec<i32>>()[..]).fetch_all(&sqlx_db).await.unwrap();
     let player_counts = crate::models::Game::get_player_count(
@@ -1160,6 +1164,7 @@ async fn list(
         .map(|g| AbandonedGame {
             id: g.id,
             map_id: g.maps_dom6_id.unwrap_or(0),
+            plane_count: g.plane_count.unwrap_or(1) as i32,
             name: g.name.clone(),
             address: format!(
                 "{}:{}",
@@ -1188,6 +1193,7 @@ async fn list(
             id: g.id,
             fail_count: g.fail_count.unwrap_or(0) as i32,
             map_id: g.maps_dom6_id.unwrap_or(0),
+            plane_count: g.plane_count.unwrap_or(1) as i32,
             turn_status: g.turn_status,
             hosting: g.current_job.is_some(),
             turn_summary: turn_summaries
@@ -1209,6 +1215,7 @@ async fn list(
             id: g.id,
             fail_count: g.fail_count.unwrap_or(0) as i32,
             map_id: g.maps_dom6_id.unwrap_or(0),
+            plane_count: g.plane_count.unwrap_or(1) as i32,
             joined: g.playing.is_some(),
             players: match player_counts.contains_key(&g.id) {
                 true => player_counts[&g.id],

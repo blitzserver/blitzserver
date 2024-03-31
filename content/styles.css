@@ -1237,3 +1237,33 @@ button:hover .eye:before {
   color: var(--col-danger);
   cursor: help;
 }
+
+.map-thumb .map-thumb-radios {
+  float: right;
+  position: absolute;
+  padding-left: 5px;
+}
+.map-thumb .map-thumb-radios label {
+  color: red;
+  cursor: pointer;
+  text-decoration: underline;
+  opacity: 0;
+  margin-left: -2px;
+  margin-right: -2px;
+  padding-left: 3px;
+  padding-right: 3px;
+}
+.map-thumb .map-thumb-radios label:hover {
+  opacity: initial;
+}
+.map-thumb input[type="radio"] {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+}
+.map-thumb input[type="radio"]:checked + img {
+  display: initial;
+}
+.map-thumb .map-thumb-img {
+  display: none;
+}

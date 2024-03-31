@@ -1,0 +1,11 @@
+<div class="map-thumb">
+  <div class="map-thumb-radios">
+    {% for i in 0..game.plane_count %}
+      <label for="map-radio-{{game.map_id}}-{{i}}">{{i}}</label>
+    {% endfor %}
+  </div>
+    {% for i in 0..game.plane_count %}
+    <input type="radio" name="map-radio-{{game.map_id}}" id="map-radio-{{game.map_id}}-{{i}}" {% if i == 0 %} checked {% endif %} />
+      <img class="map-thumb-img" src="/maps/{{game.map_id}}/planes/{{i}}/thumb.webp?width=100" />
+    {% endfor %}
+</div>
