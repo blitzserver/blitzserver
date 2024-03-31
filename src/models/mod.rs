@@ -429,7 +429,7 @@ impl Default for NewGame {
             research_rand: true,
             hof_size: 10,
             global_size: 5,
-            indepstr: 5,
+            indepstr: 4,
             magicsites: 60,
             eventrarity: 1,
             richness: 100,
