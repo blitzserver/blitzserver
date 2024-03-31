@@ -30,11 +30,12 @@ extern crate tungstenite;
 extern crate url;
 extern crate zip;
 
-use actix_session::SessionMiddleware;
 use actix_session::storage::CookieSessionStore;
+use actix_session::SessionMiddleware;
 use actix_web::http::header;
 use actix_web::{get, middleware, App, HttpResponse, HttpServer, Result};
 use dotenv::dotenv;
+use libvips::VipsApp;
 use std::env;
 
 pub mod discord;
@@ -121,6 +122,7 @@ async fn main() -> std::io::Result<()> {
     }
     .monitor()
     .await;
+    let _app = VipsApp::new("Test Libvips", true).expect("Cannot initialize libvips");
 
     HttpServer::new(move || {
         // TODO: Hack here, we create the map thumbnail dir VERY ahead of time since the file
@@ -129,9 +131,11 @@ async fn main() -> std::io::Result<()> {
         if !maps_dir.exists() {
             std::fs::create_dir_all(&maps_dir).unwrap();
         }
-        let secret_key = actix_web::cookie::Key::from(env::var("COOKIE_KEY")
-            .expect("Missing COOKIE_KEY phrase, needed for signed cookies!")
-            .as_bytes());
+        let secret_key = actix_web::cookie::Key::from(
+            env::var("COOKIE_KEY")
+                .expect("Missing COOKIE_KEY phrase, needed for signed cookies!")
+                .as_bytes(),
+        );
 
         App::new()
             .wrap(middleware::Logger::default())
@@ -139,7 +143,7 @@ async fn main() -> std::io::Result<()> {
             .data(app_data.clone())
             .wrap(SessionMiddleware::new(
                 CookieSessionStore::default(),
-                secret_key
+                secret_key,
             ))
             .app_data(
                 serde_qs::actix::QsQueryConfig::default()
@@ -182,7 +186,10 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::binaries::upload)
             .service(actix_files::Files::new("/", "./content"))
     })
-    .bind(format!("0.0.0.0:{}", env::var("WEB_PORT").unwrap_or("8080".to_string())))?
+    .bind(format!(
+        "0.0.0.0:{}",
+        env::var("WEB_PORT").unwrap_or("8080".to_string())
+    ))?
     .run()
     .await
 }

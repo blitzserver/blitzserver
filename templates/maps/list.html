@@ -29,7 +29,7 @@
 			<div class="striped-table">
 				{% for map in maps %}
 				<div class="bg-selector" style="">
-          <img src="/maps/{{map.map_id}}/planes/0/thumb.webp?crop_x=9999&crop_y=300" loading="lazy"/>
+          <img src="/maps/{{map.map_id}}/planes/0/thumb.webp?width=600" loading="lazy"/>
           <a href="/map/{{map.map_id}}">{{map.name}}</a>
 					<a download="{{map.name}}.zip" class="btn" href="/map/{{map.map_id}}/download">Download</a>
 				</div>

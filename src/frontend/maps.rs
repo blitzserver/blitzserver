@@ -7,6 +7,7 @@ use actix_multipart::Multipart;
 use actix_web::http::header;
 use actix_web::{get, post, web, HttpResponse, Result};
 use askama::Template;
+use async_std::future;
 use core::slice;
 use futures::{StreamExt, TryStreamExt};
 use libvips::bindings::VipsFormat;
@@ -59,50 +60,57 @@ pub async fn image(
         .await
         .unwrap();
     let pathbuf = PathBuf::from(image.filename);
-    let image = match pathbuf.extension().map(|e| e.to_str()).flatten() {
+    let mut image = match pathbuf.extension().map(|e| e.to_str()).flatten() {
         Some("d6m") => {
             let d6m: D6mFile = bincode::deserialize(&image.bytes).unwrap();
-            let dat: Vec<u8> = d6m.heights.into_iter().fold(vec![], |mut acc, d| {
-                acc.push(0u8);
-                acc.push(((d >> 15 & 1 ^ 1) * 200) as u8);
-                acc.push(((d >> 15 & 1) * 200) as u8);
-                acc
-            });
-            let image = VipsImage::new_from_memory(
-                &dat,
-                d6m.header.width,
-                d6m.header.height,
-                3,
-                ops::BandFormat::Uchar,
-            )
-            .unwrap();
-            Some(libvips::ops::flip(&image, ops::Direction::Vertical).unwrap())
+            let mut img =
+                crate::image::RgbImage::new(d6m.header.width as u32, d6m.header.height as u32);
+            for (i, d) in d6m.heights.into_iter().enumerate() {
+                img.put_pixel(
+                    (i % d6m.header.width as usize) as u32,
+                    (d6m.header.height - 1 - (i as i32 / d6m.header.width)) as u32,
+                    crate::image::Rgb([
+                        0u8,
+                        ((d >> 15 & 1 ^ 1) * 200) as u8,
+                        ((d >> 15 & 1) * 200) as u8,
+                    ]),
+                );
+            }
+            img
         }
-        _ => Some(VipsImage::new_from_buffer(&image.bytes, "").unwrap()),
-    };
-    let Some(mut image) = image else {
-        return Ok(HttpResponse::NotFound().finish());
+        Some("tga") => {
+            let mut image = crate::image::io::Reader::new(std::io::Cursor::new(&image.bytes));
+            image.set_format(ImageFormat::Tga);
+            image.decode().unwrap().to_rgb8()
+        }
+        Some("rgb") => {
+            let mut image = crate::image::io::Reader::new(std::io::Cursor::new(&image.bytes));
+            image.set_format(ImageFormat::Sgi);
+            image.decode().unwrap().to_rgb8()
+        }
+        _ => {
+            let image = crate::image::io::Reader::new(std::io::Cursor::new(&image.bytes));
+            image.decode().unwrap().to_rgb8()
+        }
     };
     if let Some(width) = query.width {
-        image = libvips::ops::thumbnail_image(&image, width).unwrap();
-    }
-    if let (Some(crop_x), Some(crop_y)) = (query.crop_x, query.crop_y) {
-        image = libvips::ops::smartcrop(
+        let aspect_ratio = image.height() as f32 / image.width() as f32;
+        image = crate::image::imageops::resize(
             &image,
-            std::cmp::min(image.get_width(), crop_x),
-            std::cmp::min(crop_y, image.get_height()),
-        )
-        .unwrap();
+            width as u32,
+            (width as f32 * aspect_ratio) as u32,
+            crate::image::imageops::FilterType::Lanczos3,
+        );
     }
-
-    let buffer = libvips::ops::webpsave_buffer(&image).unwrap();
+    let mut stuff = vec![];
+    image.write_to(&mut stuff, ImageFormat::Jpeg).unwrap();
     Ok(HttpResponse::Ok()
         .append_header(header::CacheControl(vec![
             header::CacheDirective::Public,
             header::CacheDirective::MaxAge(31536000u32),
         ]))
-        .content_type("image/webp")
-        .body(buffer))
+        .content_type("image/jpeg")
+        .body(stuff))
 }
 
 #[derive(Template)]

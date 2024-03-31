@@ -10,7 +10,7 @@
       <input class="bg-selector" {% if map.map_id==settings.map %} checked="checked" {% endif %} name="map"
         id="map-{{map.map_id}}" type="radio" value="{{map.map_id}}" />
       <div {% if !map.name.contains(settings.mapfilter) %} hidden {% endif %} class="bg-selector">
-        <img src="/maps/{{map.map_id}}/planes/0/thumb.webp?crop_x=99999&crop_y=300" loading="lazy" />
+        <img src="/maps/{{map.map_id}}/planes/0/thumb.webp?width=600" loading="lazy" />
         <label for="map-{{map.map_id}}"> {{map.name}}</label>
         <a class="btn" href="/map/{{map.map_id}}">Goto</a>
       </div>
