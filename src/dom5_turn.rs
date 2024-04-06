@@ -1,5 +1,9 @@
 use crate::files::saves::DomSaveReadError;
+use crate::files::MapFile;
 use crate::models::binary::Binary;
+use crate::models::maps::{Plane, PlaneImage};
+use crate::models::Map;
+use crate::util::calculate_crc;
 use encoding::{all::ISO_8859_1, DecoderTrap, Encoding};
 use itertools::Itertools;
 use nonblock::NonBlockingReader;
@@ -8,6 +12,7 @@ use serde_dom5::ftherlnd_contents::FtherlndContents;
 use serde_dom5::game_settings::GameSettings;
 use serde_dom5::kingdom::KingdomType;
 use serde_dom5::{Body, SaveFile};
+use std::convert::TryFrom;
 use std::io::{Read, Seek, Write};
 use thiserror::Error;
 
@@ -139,14 +144,14 @@ impl Dom5Turn {
         smol::block_on(async {
             let mapstuff = sqlx::query!(
                 r#"
-                SELECT m.name as "name!", mf.filename as "filename!", mf.filebinary as "filebinary!"
+                SELECT g.name as "game_name!", m.is_randommap "is_randommap!", m.name as "name!", mf.filename as "filename!", mf.filebinary as "filebinary!"
                 FROM games g
                 INNER JOIN maps_dom6 m ON m.map_id=g.maps_dom6_id
                 INNER JOIN map_planes mp ON mp.map_id=m.map_id
                 INNER JOIN files mf ON mf.id=mp.map_file_id
                 WHERE g.id=$1
                 UNION ALL
-                SELECT m.name as "name!", mf.filename as "filename!", mf.filebinary as "filebinary!"
+                SELECT g.name as "game_name!", m.is_randommap "is_randommap!", m.name as "name!", mf.filename as "filename!", mf.filebinary as "filebinary!"
                 FROM games g
                 INNER JOIN maps_dom6 m ON m.map_id=g.maps_dom6_id
                 INNER JOIN map_planes mp ON mp.map_id=m.map_id
@@ -161,12 +166,24 @@ impl Dom5Turn {
             let mut map_dir = std::env::current_dir()
                 .map_err(Dom5TurnErr::UncleanModDir)?
                 .join("tmp")
-                .join("games")
-                .join(self.game_id.to_string())
-                .join("maps");
-            map_dir = map_dir.join(&mapstuff.first().unwrap().filename);
-            if !map_dir.exists() {
-                std::fs::create_dir_all(&map_dir).map_err(Dom5TurnErr::UncleanMapDir)?;
+                .join("games");
+            if let Some(firstmapfile) = mapstuff.first() {
+                if firstmapfile.is_randommap {
+                    map_dir = map_dir
+                        .join(self.game_id.to_string())
+                        .join("savedgames")
+                        .join(&firstmapfile.game_name);
+                } else {
+                    map_dir = map_dir
+                        .join(self.game_id.to_string())
+                        .join("maps")
+                        .join(&firstmapfile.filename);
+                }
+                if !map_dir.exists() {
+                    std::fs::create_dir_all(&map_dir).map_err(Dom5TurnErr::UncleanMapDir)?;
+                }
+            } else {
+                return Ok(());
             }
             for f in mapstuff {
                 std::fs::File::create(&map_dir.join(&f.filename))
@@ -518,16 +535,17 @@ impl Dom5Turn {
                      _1 as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1)
                 INSERT INTO subjobs (job_id, label) VALUES ($1, 'dom5 processing turn') RETURNING *", job_id, subjob.subjob_id).fetch_one(&self.db_pool).await?;
             let game = sqlx::query!(
-                r#"SELECT DISTINCT ON (g.id) g.*,MAX(t.turn_number) as "turn?",f.filename as mapfilename FROM games g
+                r#"SELECT DISTINCT ON (g.id) g.*,MAX(t.turn_number) as "turn?",f.filename as "mapfilename?" FROM games g
                                     LEFT JOIN turns t ON t.game_id=g.id AND t.archived != TRUE
                                     LEFT JOIN maps_dom6 m ON g.maps_dom6_id=m.map_id
                                     LEFT JOIN map_planes mp ON mp.map_id=m.map_id
                                     LEFT JOIN files f ON f.id=mp.map_file_id
-                                    WHERE g.id=$1 GROUP BY g.id, f.filename"#,
+                                    WHERE g.id=$1 
+                                    GROUP BY g.id, f.filename"#,
                 self.game_id
             )
             .fetch_one(&self.db_pool)
-            .await?;
+            .await.unwrap();
             let disciples = sqlx::query!(
                 "SELECT
                 is_disciple, team, nation_id
@@ -646,12 +664,22 @@ impl Dom5Turn {
                 }
                 .to_string(),
                 "-T".to_owned(),
-                "--mapfile".to_owned(),
-                game.mapfilename,
-                "--noundercaves".to_owned(),
                 "-g".to_owned(),
                 game.name.clone(),
             ]);
+            match game.mapfilename.as_ref() {
+                Some(mapfilename) => arguments.append(&mut vec![
+                    "--mapfile".to_owned(),
+                    mapfilename.to_string(),
+                    "--noundercaves".to_owned(),
+                ]),
+                None => {
+                    arguments.append(&mut vec![
+                        "--randmap".to_string(),
+                        format!("{}", game.provs_per_player),
+                    ]);
+                }
+            }
             match game.newailvl {
                 0 => arguments.append(&mut vec!["--nonewai".to_string()]),
                 l => arguments.append(&mut vec!["--newailvl".to_string(), l.to_string()]),
@@ -794,6 +822,69 @@ impl Dom5Turn {
                 .join(self.game_id.to_string())
                 .join("savedgames")
                 .join(&game.name);
+            if game.mapfilename.is_none() {
+                let abovemapfilenanme = format!("__randommap_{}.map", game.name);
+                let aboved6mfilenanme = format!("__randommap_{}.d6m", game.name);
+                let undermapfilenanme = format!("__under_{}.map", game.name);
+                let underd6mfilenanme = format!("__under_{}.d6m", game.name);
+                if let (
+                    Ok(mut abovegroundmap),
+                    Ok(mut undergroundmap),
+                    Ok(mut abovegroundd6m),
+                    Ok(mut undergroundd6m),
+                ) = (
+                    std::fs::File::open(save_dir.join(&abovemapfilenanme)),
+                    std::fs::File::open(save_dir.join(&undermapfilenanme)),
+                    std::fs::File::open(save_dir.join(&aboved6mfilenanme)),
+                    std::fs::File::open(save_dir.join(&underd6mfilenanme)),
+                ) {
+                    let mut mapbuf = vec![];
+                    abovegroundmap.read_to_end(&mut mapbuf).unwrap();
+                    let abovemap = MapFile::try_from(&mapbuf[..]).unwrap();
+                    let mut underbuf = vec![];
+                    undergroundmap.read_to_end(&mut underbuf).unwrap();
+                    let mut abovebytes = vec![];
+                    abovegroundd6m.read_to_end(&mut abovebytes).unwrap();
+                    let mut underbytes = vec![];
+                    undergroundd6m.read_to_end(&mut underbytes).unwrap();
+
+                    let map = crate::models::maps::Map {
+                        is_randommap: true,
+                        name: abovemap.map_name.clone(),
+                        planes: vec![
+                            Plane {
+                                name: abovemapfilenanme,
+                                hash: calculate_crc(&mapbuf[..]),
+                                bytes: mapbuf,
+                                images: vec![PlaneImage {
+                                    filename: aboved6mfilenanme,
+                                    hash: calculate_crc(&abovebytes[..]),
+                                    bytes: abovebytes,
+                                }],
+                            },
+                            Plane {
+                                name: undermapfilenanme,
+                                hash: calculate_crc(&underbuf[..]),
+                                bytes: underbuf,
+                                images: vec![PlaneImage {
+                                    filename: underd6mfilenanme,
+                                    hash: calculate_crc(&underbytes[..]),
+                                    bytes: underbytes,
+                                }],
+                            },
+                        ],
+                    };
+                    let map_id = map.insert(&mut transaction).await.unwrap();
+                    sqlx::query!(
+                        "UPDATE games SET maps_dom6_id=$1 WHERE id=$2 RETURNING * ",
+                        map_id,
+                        self.game_id
+                    )
+                    .fetch_all(&mut *transaction)
+                    .await
+                    .unwrap();
+                }
+            }
             let mut contents = Vec::new();
             let mut file = if let Ok(f) = std::fs::File::open(save_dir.join("ftherlnd")) {
                 f

@@ -3,19 +3,35 @@
   <input class="hidden" formmethod="POST" type="submit" value="Search" />
   <div>
     <h3>Map</h3>
-    <input name="mapfilter" type="search" value="{{settings.mapfilter}}" placeholder="Search" />
-    <input formmethod="GET" type="submit" formaction="/game/{{game.id}}#settings" formnovalidate value="Search" />
-    <div class="select-sort">
-      {% for map in maps %}
-      <input class="bg-selector" {% if map.map_id==settings.map %} checked="checked" {% endif %} name="map"
-        id="map-{{map.map_id}}" type="radio" value="{{map.map_id}}" />
-      <div {% if !map.name.contains(settings.mapfilter) %} hidden {% endif %} class="bg-selector">
-        <img src="/maps/{{map.map_id}}/planes/0/thumb.webp?width=600" loading="lazy" />
-        <label for="map-{{map.map_id}}"> {{map.name}}</label>
-        <a class="btn" href="/map/{{map.map_id}}">Goto</a>
+    <input {% if settings.generated_map==0 %} checked {% endif %} type="radio" id="uploaded-map" name="generated_map" value="0" />
+    <input {% if settings.generated_map==1 %} checked {% endif %} " type="radio" id="generated-map" name="generated_map" value="1" />
+    <div class="input-group">
+      <label class="btn btn-block" for="generated-map">Generated Map</label>
+      <label class="btn btn-block" for="uploaded-map">Uploaded Map</label>
+    </div>
+    <div id="map-section-generated">
+      <div class="settings-group">
+        <div class="input-group">
+          <label for="provs_per_player">Provinces Per Player</label>
+          <input type="number" value="{{settings.provs_per_player}}" name="provs_per_player" />
+        </div>
       </div>
-      {% endfor %}
-      <br>
+    </div>
+    <div id="map-section-uploaded">
+      <input name="mapfilter" type="search" value="{{settings.mapfilter}}" placeholder="Search" />
+      <input formmethod="GET" type="submit" formaction="/game/{{game.id}}#settings" formnovalidate value="Search" />
+      <div class="select-sort">
+        {% for map in maps %}
+        <input class="bg-selector" {% if map.map_id==settings.map %} checked="checked" {% endif %} name="map"
+          id="map-{{map.map_id}}" type="radio" value="{{map.map_id}}" />
+        <div {% if !map.name.contains(settings.mapfilter) %} hidden {% endif %} class="bg-selector">
+          <img src="/maps/{{map.map_id}}/planes/0/thumb.webp?width=600" loading="lazy" />
+          <label for="map-{{map.map_id}}"> {{map.name}}</label>
+          <a class="btn" href="/map/{{map.map_id}}">Goto</a>
+        </div>
+        {% endfor %}
+        <br>
+      </div>
     </div>
   </div>
   <div>
@@ -296,8 +312,8 @@
       <div class="input-group">
         <label for="cheat_detection">Cheat Detection</label>
         <select name="cheat_detection">
-          <option {% if settings.cheat_detection ==0 %} selected="selected" {% endif %} value="0">Disabled</option>
-          <option {% if settings.cheat_detection ==1 %} selected="selected" {% endif %} value="1">Enabled</option>
+          <option {% if settings.cheat_detection==0 %} selected="selected" {% endif %} value="0">Disabled</option>
+          <option {% if settings.cheat_detection==1 %} selected="selected" {% endif %} value="1">Enabled</option>
         </select>
       </div>
     </div>

@@ -22,6 +22,7 @@ pub struct Plane {
 #[derive(Debug)]
 pub struct Map {
     pub name: String,
+    pub is_randommap: bool,
     pub planes: Vec<Plane>,
 }
 
@@ -34,6 +35,7 @@ pub struct MapArchive {
 pub struct MapSummary {
     pub map_id: i32,
     pub name: String,
+    pub is_randommap: bool,
     pub planes: Option<Vec<Option<i32>>>
 }
 impl MapSummary {
@@ -43,7 +45,7 @@ impl MapSummary {
     where
         D: sqlx::Executor<'q, Database = Postgres>
     {
-        sqlx::query_as!(MapSummary, r#"SELECT m.map_id, m.name, ARRAY_AGG(prov_count) "planes?: Vec<Option<i32>>" FROM maps_dom6 m LEFT JOIN map_planes mp ON mp.map_id=m.map_id GROUP BY m.map_id"#).fetch_all(db).await
+        sqlx::query_as!(MapSummary, r#"SELECT m.map_id, m.is_randommap, m.name, ARRAY_AGG(prov_count) "planes?: Vec<Option<i32>>" FROM maps_dom6 m LEFT JOIN map_planes mp ON mp.map_id=m.map_id WHERE is_randommap IS FALSE GROUP BY m.map_id"#).fetch_all(db).await
     }
 }
 
@@ -117,7 +119,6 @@ impl Map {
 
         let options = FileOptions::default().large_file(true);
         for file in &files {
-            println!("File {:?}. {:?} {:?}, {:?}", file.m_filename, file.i_filename, file.m_filebinary.len(), file.i_filebinary.len());
             zipfile.start_file(&file.m_filename, options).unwrap();
             zipfile.write_all(&file.m_filebinary).unwrap();
             zipfile.start_file(&file.i_filename, options).unwrap();
@@ -130,14 +131,16 @@ impl Map {
             file_binary: buf,
         })
     }
-    pub async fn insert<'q>(&self, mut db: PoolConnection<Postgres>) -> Result<(), sqlx::error::Error>
+    pub async fn insert<'q, E>(&self, mut db: E) -> Result<i32, sqlx::error::Error>
+        where E: 'q + sqlx::Acquire<'q, Database = sqlx::Postgres>
     {
         let mut transaction = db.begin().await?;
         let map = sqlx::query!(
             r#"
-        INSERT INTO maps_dom6 ("name") VALUES ($1) RETURNING *
+        INSERT INTO maps_dom6 ("name", "is_randommap") VALUES ($1, $2) RETURNING *
         "#,
-            self.name
+            self.name, 
+            self.is_randommap
         )
         .fetch_one(&mut *transaction)
         .await?;
@@ -167,7 +170,6 @@ impl Map {
         )
         .fetch_all(&mut *transaction)
         .await?;
-        println!("Planes {:?}", planes);
         for plane in &self.planes {
             let image = sqlx::query!(r#"
                 WITH unnested AS (
@@ -192,11 +194,10 @@ impl Map {
                 )
                 .fetch_all(&mut *transaction)
                 .await?;
-            println!("Images {:?}", image );
         }
         
         transaction.commit().await?;
 
-        return Ok(());
+        return Ok(map.map_id);
     }
 }

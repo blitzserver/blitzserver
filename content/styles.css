@@ -633,6 +633,21 @@ input:checked + .bg-selector {
 	text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
 	color: var(--col-primary);
 }
+#generated-map:checked ~ #map-section-uploaded {
+  display: none;
+}
+#uploaded-map:checked ~ #map-section-generated {
+  display: none;
+}
+#generated-map:checked~.input-group [for="generated-map"] {
+  background: var(--col-cyan-pale);
+}
+#uploaded-map:checked~.input-group [for="uploaded-map"] {
+  background: var(--col-cyan-pale);
+}
+input[type="radio"][name="generated_map"] {
+  display: none;
+}
 .select-sort {
 	max-height: 500px;
 	overflow-y: auto;

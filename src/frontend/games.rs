@@ -70,6 +70,8 @@ struct GameSettings {
     #[serde(default,                   deserialize_with ="from_str")     ] research_9_slow:        i32,
     #[serde(default,                   deserialize_with ="from_str")     ] cheat_detection:        i32,
     #[serde(default,                   deserialize_with ="from_str")     ] mercslots:              i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] generated_map:          i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] provs_per_player:       i32,
 //Markertotellwhethertheformisonitsfirstload
     #[serde(default)]loaded:Option<String>,
 }
@@ -117,6 +119,8 @@ impl From<(&Game, &[Mod])> for GameSettings {
             research_9_slow: game.research_9_slow as i32,
             cheat_detection: game.cheat_detection as i32,
             mercslots: game.mercslots,
+            generated_map: !game.maps_dom6_id.is_some() as i32,
+            provs_per_player: game.provs_per_player,
         }
     }
 }
@@ -885,12 +889,14 @@ async fn details(
         (
             sqlx::query_as!(
                 MapSummary,
-                r#"SELECT  m.map_id, name, ARRAY_AGG(mp.prov_count) as "planes?: Vec<Option<i32>>"
+                r#"SELECT  m.map_id, m.is_randommap, name, ARRAY_AGG(mp.prov_count ORDER BY mp.map_file_id) as "planes?: Vec<Option<i32>>"
                     FROM maps_dom6 m 
                     LEFT JOIN map_planes mp ON mp.map_id=m.map_id
                     WHERE 
-                        m.name ILIKE $1 OR 
-                        EXISTS (SELECT g.* FROM games g WHERE g.id=$2 AND g.maps_dom6_id=m.map_id)
+                        (m.is_randommap IS FALSE OR $1 != '%%') AND (
+                            m.name ILIKE $1 OR 
+                            EXISTS (SELECT g.* FROM games g WHERE g.id=$2 AND g.maps_dom6_id=m.map_id)
+                        )
                     GROUP BY m.map_id
                     ORDER BY (SELECT COUNT(*) FROM games g WHERE g.maps_dom6_id=m.map_id) DESC"#,
                 format!("%{}%", game_settings.mapfilter),
@@ -923,7 +929,7 @@ async fn details(
         (
             sqlx::query_as!(
                 MapSummary,
-                r#"SELECT m.*, ARRAY_AGG(mp.prov_count) "planes?: Vec<Option<i32>>"
+                r#"SELECT m.*, ARRAY_AGG(mp.prov_count ORDER BY mp.map_file_id) "planes?: Vec<Option<i32>>"
                 FROM maps_dom6 m
                 LEFT JOIN map_planes mp ON mp.map_id=m.map_id
                 INNER JOIN games g ON
@@ -1365,7 +1371,7 @@ async fn settings_post(
     game.clustered = body.clustered > 0;
     game.storyevents = body.storyevents;
     game.newailvl = body.newailvl;
-    game.maps_dom6_id = Some(body.map);
+    game.maps_dom6_id = if body.generated_map > 0 { None } else { Some(body.map) };
     game.masterpass = body.masterpass;
     game.private = body.private > 0;
     game.require_password = body.require_password > 0;

@@ -70,6 +70,7 @@ pub struct Game {
     pub research_9_slow: bool,
     pub cheat_detection: bool,
     pub mercslots: i32,
+    pub provs_per_player: i32
     
 }
 

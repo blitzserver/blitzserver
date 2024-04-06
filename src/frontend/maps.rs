@@ -208,6 +208,7 @@ async fn upload_post(
                     mapfiles.sort();
                     let name_capture = Regex::new("#dom2title (.+)").unwrap();
                     let mut map = crate::models::maps::Map {
+                        is_randommap: false,
                         name: "Unnamed Map".to_owned(),
                         planes: vec![],
                     };
@@ -302,7 +303,7 @@ async fn upload_post(
                         }
                         map.planes.push(plane);
                     }
-                    if let Err(e) = map.insert(sqlx_db.acquire().await.unwrap()).await {
+                    if let Err(e) = map.insert(&mut sqlx_db.acquire().await.unwrap()).await {
                         println!("Failed to create new map {:?}", e);
                         errors.push(format!("Failed inserting map: {:?}", e));
                         break 'outer;
