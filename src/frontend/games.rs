@@ -1166,7 +1166,7 @@ async fn list(
         if let Some(file) = sqlx::query!(
             "SELECT filename, filebinary
             FROM map_plane_images
-            INENR JOIN files f ON f.id=image_file_id
+            INNER JOIN files f ON f.id=image_file_id
             WHERE map_file_id=$1",
             map_plane.map_file_id
         )
@@ -1196,7 +1196,7 @@ async fn list(
     let mut results = sqlx::query!(r#"
         WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),
         topturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)
-        SELECT g.*,ARRAY_AGG(mp.prov_count) "planes: Vec<Option<i32>>", COUNT(j.*) as fail_count, MAX(cj.job_id) as "current_job?", MAX(p.nationid) AS "playing?", MIN(pt.status) as "turn_status?"
+        SELECT g.*,ARRAY_AGG(mp.prov_count ORDER BY map_file_id) "planes: Vec<Option<i32>>", COUNT(j.*) as fail_count, MAX(cj.job_id) as "current_job?", MAX(p.nationid) AS "playing?", MIN(pt.status) as "turn_status?"
         FROM games g 
         LEFT JOIN topturn tt ON tt.game_id=g.id
         LEFT JOIN players p ON p.id=ANY($1) AND p.game_id=g.id
