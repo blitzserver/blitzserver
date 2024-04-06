@@ -532,8 +532,8 @@ h3 {
 	padding-left: 5px;
 	padding-right: 5px;
 }
-.status pre {
-  margin: 0;
+.status h3 {
+  white-space: pre-wrap;
 }
 .bg-submitted {
 	background: green;
