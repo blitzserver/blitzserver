@@ -532,6 +532,9 @@ h3 {
 	padding-left: 5px;
 	padding-right: 5px;
 }
+.schedule-details pre {
+  margin: 0;
+}
 .bg-submitted {
 	background: green;
 }
