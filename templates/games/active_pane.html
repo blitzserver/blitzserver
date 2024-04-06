@@ -21,6 +21,6 @@
 		</div>
 	</div>
 	<div class="right">
-    {% include "../maps/map_thumb.html" %}
+    {{ self.map_thumb(game.id)|safe }}
   </div>
 </div>

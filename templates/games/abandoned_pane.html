@@ -10,6 +10,6 @@
 		</div>
 	</div>
 	<div class="right">
-		<img src="/images/maps/{{ game.map_id}}_100.webp" />
+    {{ self.map_thumb(game.id)|safe }}
 	</div>
 </div>

@@ -1,3 +1,4 @@
+use super::fragments;
 use super::utils::*;
 use super::AppData;
 use chrono::Utc;
@@ -12,6 +13,7 @@ use crate::models::{
     AdminLog, Disciple, DiscordConfig, EmailConfig, Game, Map, MapProvince, Mod, Nation,
     NewAdminLog, NewGame, Player, PlayerTurn, Turn,
 };
+use crate::packets::map_req;
 use actix_web::http::header;
 use actix_web::{get, post, web, HttpResponse, Result};
 use askama::Template;
@@ -114,7 +116,7 @@ impl From<(&Game, &[Mod])> for GameSettings {
             formal_diplo: game.formal_diplo as i32,
             research_9_slow: game.research_9_slow as i32,
             cheat_detection: game.cheat_detection as i32,
-            mercslots: game.mercslots
+            mercslots: game.mercslots,
         }
     }
 }
@@ -294,6 +296,18 @@ pub struct PNT<'a> {
     nation: &'a Nation,
 }
 impl<'a> GameDetailsTemplate<'a> {
+    pub fn map_thumb(&self) -> String {
+        let map_id = self.game.maps_dom6_id.unwrap_or(0);
+        fragments::map_thumb(
+            map_id,
+            self.maps
+                .iter()
+                .find(|m| m.map_id == map_id).map(|m| m.planes.clone()).flatten().unwrap_or(vec![]),
+            1200,
+            19
+        )
+        .to_string()
+    }
     pub fn get_duplicate_players_string(&self, nation: &PlayerSummary) -> String {
         format!(
             "This cdkey is also playing {}",
@@ -609,7 +623,7 @@ struct ActiveGame {
     address: String,
     turn_summary: crate::models::TurnSummary,
     map_id: i32,
-    plane_count: i32,
+    planes: Vec<Option<i32>>,
     hosting: bool,
     fail_count: i32,
     turn_status: Option<i32>,
@@ -645,7 +659,7 @@ struct PendingGame {
     address: String,
     players: i32,
     map_id: i32,
-    plane_count: i32,
+    planes: Vec<Option<i32>>,
     hosting: bool,
     fail_count: i32,
     joined: bool,
@@ -655,7 +669,7 @@ struct AbandonedGame {
     name: String,
     address: String,
     map_id: i32,
-    plane_count: i32,
+    planes: Vec<Option<i32>>,
     auto_archive_in: String,
 }
 struct ArchivedGame {
@@ -675,6 +689,34 @@ impl<'a> GamesTemplate<'a> {
     pub fn question_string(&self) -> String {
         match &self.antibot_question {
             Some(s) => s.to_owned(),
+            None => "".to_owned(),
+        }
+    }
+
+    pub fn map_thumb(&self, game_id: &i32) -> String {
+        let game_id = *game_id;
+        match self
+            .active_games
+            .iter()
+            .filter(|g| g.id == game_id)
+            .map(|g| (g.map_id, g.planes.clone()))
+            .chain(
+                self.pending_games
+                    .iter()
+                    .filter(|g| g.id == game_id)
+                    .map(|g| (g.map_id, g.planes.clone())),
+            )
+            .chain(
+                self.abandoned_games
+                    .iter()
+                    .filter(|g| g.id == game_id)
+                    .map(|g| (g.map_id, g.planes.clone())),
+            )
+            .next()
+        {
+            Some((map_id, planes)) => {
+                fragments::map_thumb(map_id, planes, 100, 13).to_string()
+            }
             None => "".to_owned(),
         }
     }
@@ -842,12 +884,14 @@ async fn details(
         (
             sqlx::query_as!(
                 MapSummary,
-                "SELECT  map_id, name
+                r#"SELECT  m.map_id, name, ARRAY_AGG(mp.prov_count) as "planes?: Vec<Option<i32>>"
                     FROM maps_dom6 m 
+                    LEFT JOIN map_planes mp ON mp.map_id=m.map_id
                     WHERE 
                         m.name ILIKE $1 OR 
                         EXISTS (SELECT g.* FROM games g WHERE g.id=$2 AND g.maps_dom6_id=m.map_id)
-                    ORDER BY (SELECT COUNT(*) FROM games g WHERE g.maps_dom6_id=m.map_id) DESC",
+                    GROUP BY m.map_id
+                    ORDER BY (SELECT COUNT(*) FROM games g WHERE g.maps_dom6_id=m.map_id) DESC"#,
                 format!("%{}%", game_settings.mapfilter),
                 game.id
             )
@@ -878,11 +922,13 @@ async fn details(
         (
             sqlx::query_as!(
                 MapSummary,
-                "SELECT m.* 
+                r#"SELECT m.*, ARRAY_AGG(mp.prov_count) "planes?: Vec<Option<i32>>"
                 FROM maps_dom6 m
+                LEFT JOIN map_planes mp ON mp.map_id=m.map_id
                 INNER JOIN games g ON
                     g.maps_dom6_id =m.map_id AND
-                    g.id=$1",
+                    g.id=$1
+                GROUP BY m.map_id"#,
                 game.id
             )
             .fetch_all(&sqlx_db)
@@ -927,28 +973,6 @@ async fn details(
     WHERE j.game_id=$1 
     GROUP BY j.job_id
     ORDER BY j.started_at DESC"#, game.id, payload.log_output).fetch_all(&sqlx_db).await.unwrap();
-    // let map = maps.iter().find(|m| m.map_id == game.map_id).unwrap();
-    /*
-    let mut provinces = map.get_provinces(&sqlx_db).await.unwrap_or(vec![]);
-    if provinces.len() == 0 {
-        let (_, tga, _) = Map::get_files(map.id, &sqlx_db).await.unwrap();
-        let img = crate::image::io::Reader::with_format(
-            std::io::Cursor::new(&tga.filebinary),
-            crate::image::ImageFormat::Tga,
-        )
-        .decode()
-        .unwrap_or_else(|_| {
-            crate::image::io::Reader::with_format(
-                std::io::Cursor::new(&tga.filebinary),
-                crate::image::ImageFormat::Sgi,
-            )
-            .decode()
-            .unwrap()
-        });
-        let new_provinces = crate::files::MapFile::load_provinces(&img).unwrap();
-        provinces = map.insert_provinces(new_provinces, &sqlx_db).await.unwrap();
-    }
-    */
     let staling_players: Vec<i32> = sqlx::query!(
         r#"
         WITH tt AS (SELECT MAX(turn_number) as tt FROM turns WHERE game_id=$1 AND archived!=TRUE)
@@ -1125,6 +1149,27 @@ async fn list(
 ) -> Result<HttpResponse> {
     let sqlx_db = app_data.sqlx_pool.clone();
 
+    // BACKLOAD MISSSING PROVINCES
+    let missing_map_provs = sqlx::query!(
+        r#"
+    SELECT DISTINCT ON(mp.map_file_id) mp.map_file_id, f.filename "filename?", f.filebinary "filebinary?"
+    FROM map_planes mp
+    LEFT JOIN map_plane_images mpi ON mpi.map_file_id=mp.map_file_id
+    LEFT JOIN files f ON f.id=mpi.image_file_id
+    WHERE prov_count IS NULL
+    "#
+    )
+    .fetch_all(&sqlx_db)
+    .await
+    .unwrap();
+
+    for map_plane in missing_map_provs {
+        if let (Some(filename), Some(filebinary)) = (map_plane.filename, map_plane.filebinary) {
+            let prov_count = crate::files::MapFile::load_provinces(&filename, &filebinary).unwrap();
+            sqlx::query!("UPDATE map_planes SET prov_count=$1 WHERE map_file_id=$2", prov_count.map(|d| d as i32), map_plane.map_file_id).execute(&sqlx_db).await.unwrap();
+        }
+    }
+
     let watch_player_ids: std::collections::HashSet<i32> = session
         .get("watches")
         .unwrap()
@@ -1133,7 +1178,7 @@ async fn list(
     let mut results = sqlx::query!(r#"
         WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),
         topturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)
-        SELECT g.*,mp.plane_count, COUNT(j.*) as fail_count, MAX(cj.job_id) as "current_job?", MAX(p.nationid) AS "playing?", MIN(pt.status) as "turn_status?"
+        SELECT g.*,ARRAY_AGG(mp.prov_count) "planes: Vec<Option<i32>>", COUNT(j.*) as fail_count, MAX(cj.job_id) as "current_job?", MAX(p.nationid) AS "playing?", MIN(pt.status) as "turn_status?"
         FROM games g 
         LEFT JOIN topturn tt ON tt.game_id=g.id
         LEFT JOIN players p ON p.id=ANY($1) AND p.game_id=g.id
@@ -1141,9 +1186,9 @@ async fn list(
         LEFT JOIN last_success ls ON ls.game_id=g.id 
         LEFT JOIN jobs j ON j.job_id>ls.job_id AND j.game_id=g.id AND j.reaped IS TRUE
         LEFT JOIN jobs cj ON cj.game_id=g.id AND cj.finished_at IS NULL
-        LEFT JOIN LATERAL (SELECT COUNT(*) plane_count FROM map_planes mp WHERE g.maps_dom6_id=mp.map_id) mp ON 1=1
+        LEFT JOIN map_planes mp ON mp.map_id=g.maps_dom6_id
         WHERE g.private!=TRUE
-        GROUP BY g.id, mp.plane_count
+        GROUP BY g.id
         ORDER BY MIN(pt.status), MAX(p.nationid), g.id
         "#, &watch_player_ids.into_iter().collect::<Vec<i32>>()[..]).fetch_all(&sqlx_db).await.unwrap();
     let player_counts = crate::models::Game::get_player_count(
@@ -1167,7 +1212,7 @@ async fn list(
         .map(|g| AbandonedGame {
             id: g.id,
             map_id: g.maps_dom6_id.unwrap_or(0),
-            plane_count: g.plane_count.unwrap_or(1) as i32,
+            planes: g.planes.unwrap_or(vec![]),
             name: g.name.clone(),
             address: format!(
                 "{}:{}",
@@ -1196,7 +1241,7 @@ async fn list(
             id: g.id,
             fail_count: g.fail_count.unwrap_or(0) as i32,
             map_id: g.maps_dom6_id.unwrap_or(0),
-            plane_count: g.plane_count.unwrap_or(1) as i32,
+            planes: g.planes.clone().unwrap_or(vec![]),
             turn_status: g.turn_status,
             hosting: g.current_job.is_some(),
             turn_summary: turn_summaries
@@ -1218,7 +1263,7 @@ async fn list(
             id: g.id,
             fail_count: g.fail_count.unwrap_or(0) as i32,
             map_id: g.maps_dom6_id.unwrap_or(0),
-            plane_count: g.plane_count.unwrap_or(1) as i32,
+            planes: g.planes.clone().unwrap_or(vec![]),
             joined: g.playing.is_some(),
             players: match player_counts.contains_key(&g.id) {
                 true => player_counts[&g.id],
@@ -1438,7 +1483,7 @@ pub async fn archive_post(
 
 #[post("/game/{id}/remove/{playerid}")]
 pub async fn remove_post(
-    (app_data, path, session, web::Form(RemovePlayerForm { password } )): (
+    (app_data, path, session, web::Form(RemovePlayerForm { password })): (
         web::Data<AppData>,
         web::Path<(i32, i32)>,
         actix_session::Session,
@@ -1486,11 +1531,7 @@ pub async fn remove_post(
 
 #[post("/game/{id}/rollback")]
 pub async fn rollback_post(
-    (app_data, path_id, session): (
-        web::Data<AppData>,
-        web::Path<i32>,
-        actix_session::Session,
-    ),
+    (app_data, path_id, session): (web::Data<AppData>, web::Path<i32>, actix_session::Session),
 ) -> Result<HttpResponse> {
     if session
         .get(&format!("auth_{}", path_id))
@@ -1511,11 +1552,7 @@ pub async fn rollback_post(
 
 #[post("/game/{id}/unstart")]
 pub async fn unstart_post(
-    (app_data, path_id, session): (
-        web::Data<AppData>,
-        web::Path<i32>,
-        actix_session::Session,
-    ),
+    (app_data, path_id, session): (web::Data<AppData>, web::Path<i32>, actix_session::Session),
 ) -> Result<HttpResponse> {
     if session
         .get(&format!("auth_{}", *path_id))
@@ -1554,7 +1591,9 @@ pub async fn assign_team(
             .finish());
     }
     let sqlx_db = app_data.sqlx_pool.clone();
-    let disciple = Disciple::get(*path_id, form.nation, &sqlx_db).await.unwrap();
+    let disciple = Disciple::get(*path_id, form.nation, &sqlx_db)
+        .await
+        .unwrap();
     if form.team == 0 {
         if form.disciple == 0 {
             disciple.set_team(None, &sqlx_db).await.unwrap();
@@ -1607,11 +1646,7 @@ pub async fn motd(
 }
 #[post("/game/{id}/watch")]
 pub async fn watch(
-    (path_id, session, form): (
-        web::Path<i32>,
-        actix_session::Session,
-        web::Form<WatchForm>,
-    ),
+    (path_id, session, form): (web::Path<i32>, actix_session::Session, web::Form<WatchForm>),
 ) -> Result<HttpResponse> {
     let mut watches: std::collections::HashSet<i32> = session
         .get("watches")

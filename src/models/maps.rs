@@ -33,7 +33,8 @@ pub struct MapArchive {
 
 pub struct MapSummary {
     pub map_id: i32,
-    pub name: String
+    pub name: String,
+    pub planes: Option<Vec<Option<i32>>>
 }
 impl MapSummary {
     pub async fn get_map_list<'q, D>(
@@ -42,7 +43,7 @@ impl MapSummary {
     where
         D: sqlx::Executor<'q, Database = Postgres>
     {
-        sqlx::query_as!(MapSummary, "SELECT map_id, name FROM maps_dom6").fetch_all(db).await
+        sqlx::query_as!(MapSummary, r#"SELECT m.map_id, m.name, ARRAY_AGG(prov_count) "planes?: Vec<Option<i32>>" FROM maps_dom6 m LEFT JOIN map_planes mp ON mp.map_id=m.map_id GROUP BY m.map_id"#).fetch_all(db).await
     }
 }
 

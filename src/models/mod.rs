@@ -129,7 +129,7 @@ impl Game {
         where D: sqlx::Executor<'q, Database = Postgres> {
         sqlx::query_as!(Game, "
         WITH 
-            removed_mods AS (DELETE FROM game_mods WHERE game_id=$38),
+            removed_mods AS (DELETE FROM game_mods WHERE game_id=$38 AND mod_id <> ALL($39)),
             updated_mods AS (INSERT INTO game_mods (game_id, mod_id) VALUES($38, UNNEST($39::integer[])) ON CONFLICT (game_id, mod_id) DO NOTHING)
         UPDATE games SET 
             era                    = $1,

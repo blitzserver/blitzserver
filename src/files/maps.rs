@@ -1,3 +1,5 @@
+use serde_dom5::d6m_file;
+
 use crate::image::GenericImageView;
 use std::io::BufRead;
 
@@ -129,9 +131,13 @@ impl std::convert::TryFrom<&[u8]> for MapFile {
             map_name: name,
             tga_filename: tga_name,
             winter_filename,
-            min_version: min_version.as_deref().map(|c| str::parse::<i32>(c).ok()).flatten().unwrap_or(0),
+            min_version: min_version
+                .as_deref()
+                .map(|c| str::parse::<i32>(c).ok())
+                .flatten()
+                .unwrap_or(0),
             prov_count: province_count,
-            uwprov_count: uw_count
+            uwprov_count: uw_count,
         })
     }
 }
@@ -140,35 +146,43 @@ pub struct ProvinceLocation {
     pub x: u32,
     pub y: u32,
     pub unit_x: f64,
-    pub unit_y: f64
+    pub unit_y: f64,
 }
 impl MapFile {
-    pub fn load_provinces(img: &image::DynamicImage) -> Result<Vec<ProvinceLocation>, ()> {
-        let mut provs = vec![];
-        let width = img.width();
-        let height = img.height();
-        for (x, y, data) in img.pixels() {
-            if data[0] == 255 && data[1] == 255 && data[2] == 255 {
-                provs.push(ProvinceLocation {
-                    x: x,
-                    y: y,
-                    unit_x: (x as f64) / (width as f64),
-                    unit_y: (y as f64) / (height as f64)
+    pub fn load_provinces(filename: &str, img_bytes: &[u8]) -> Result<Option<usize>, ()> {
+        let provcount = match std::path::PathBuf::from(filename)
+            .extension()
+            .unwrap()
+            .to_str()
+        {
+            Some("tga") | Some("rgb") => {
+                let img = crate::image::io::Reader::with_format(
+                    std::io::Cursor::new(&img_bytes),
+                    crate::image::ImageFormat::Tga,
+                )
+                .decode()
+                .unwrap_or_else(|_| {
+                    crate::image::io::Reader::with_format(
+                        std::io::Cursor::new(&img_bytes),
+                        crate::image::ImageFormat::Sgi,
+                    )
+                    .decode()
+                    .unwrap()
                 });
+                let mut provs = 0;
+                for (_, _, data) in img.pixels() {
+                    if data[0] == 255 && data[1] == 255 && data[2] == 255 {
+                        provs = provs + 1;
+                    }
+                }
+                Some(provs)
             }
-        }
-        provs.sort_by(|a, b| {
-            if a.y < b.y {
-                return std::cmp::Ordering::Greater;
+            Some("d6m") => {
+                let d6m: d6m_file::D6mHeader = bincode::deserialize(img_bytes).unwrap();
+                Some(d6m.provs.len())
             }
-            if a.y > b.y {
-                return std::cmp::Ordering::Less;
-            }
-            if a.x > b.x {
-                return std::cmp::Ordering::Greater;
-            }
-            return std::cmp::Ordering::Less;
-        });
-        Ok(provs)
+            _ => None,
+        };
+        return Ok(provcount);
     }
 }

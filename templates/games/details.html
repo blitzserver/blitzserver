@@ -18,7 +18,7 @@
           {% endif %}
           <div class="game-map">
             <form method="POST">
-              <img class="map-img" loading="lazy" src="/maps/{{self.game.maps_dom6_id.unwrap()}}/planes/0/thumb.webp?width=1200" />
+              {{ self.map_thumb()|safe }}
               {% if settings.select_start > 0 %}
               <style>
 {% for province in provinces %}
