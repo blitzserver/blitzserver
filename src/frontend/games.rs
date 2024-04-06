@@ -302,9 +302,12 @@ impl<'a> GameDetailsTemplate<'a> {
             map_id,
             self.maps
                 .iter()
-                .find(|m| m.map_id == map_id).map(|m| m.planes.clone()).flatten().unwrap_or(vec![]),
+                .find(|m| m.map_id == map_id)
+                .map(|m| m.planes.clone())
+                .flatten()
+                .unwrap_or(vec![]),
             1200,
-            19
+            19,
         )
         .to_string()
     }
@@ -714,9 +717,7 @@ impl<'a> GamesTemplate<'a> {
             )
             .next()
         {
-            Some((map_id, planes)) => {
-                fragments::map_thumb(map_id, planes, 100, 13).to_string()
-            }
+            Some((map_id, planes)) => fragments::map_thumb(map_id, planes, 100, 13).to_string(),
             None => "".to_owned(),
         }
     }
@@ -1152,10 +1153,8 @@ async fn list(
     // BACKLOAD MISSSING PROVINCES
     let missing_map_provs = sqlx::query!(
         r#"
-    SELECT DISTINCT ON(mp.map_file_id) mp.map_file_id, f.filename "filename?", f.filebinary "filebinary?"
+    SELECT DISTINCT ON(mp.map_file_id) mp.map_file_id
     FROM map_planes mp
-    LEFT JOIN map_plane_images mpi ON mpi.map_file_id=mp.map_file_id
-    LEFT JOIN files f ON f.id=mpi.image_file_id
     WHERE prov_count IS NULL
     "#
     )
@@ -1164,9 +1163,28 @@ async fn list(
     .unwrap();
 
     for map_plane in missing_map_provs {
-        if let (Some(filename), Some(filebinary)) = (map_plane.filename, map_plane.filebinary) {
-            let prov_count = crate::files::MapFile::load_provinces(&filename, &filebinary).unwrap();
-            sqlx::query!("UPDATE map_planes SET prov_count=$1 WHERE map_file_id=$2", prov_count.map(|d| d as i32), map_plane.map_file_id).execute(&sqlx_db).await.unwrap();
+        if let Some(file) = sqlx::query!(
+            "SELECT filename, filebinary
+            FROM map_plane_images
+            INENR JOIN files f ON f.id=image_file_id
+            WHERE map_file_id=$1",
+            map_plane.map_file_id
+        )
+        .fetch_all(&sqlx_db)
+        .await
+        .unwrap()
+        .into_iter()
+        .next()
+        {
+            let prov_count = crate::files::MapFile::load_provinces(&file.filename, &file.filebinary).unwrap();
+            sqlx::query!(
+                "UPDATE map_planes SET prov_count=$1 WHERE map_file_id=$2",
+                prov_count.map(|d| d as i32),
+                map_plane.map_file_id
+            )
+            .execute(&sqlx_db)
+            .await
+            .unwrap();
         }
     }
 
