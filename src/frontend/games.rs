@@ -791,7 +791,12 @@ async fn timer(
     .await
     .unwrap();
     sqlx::query!("
-    UPDATE games g SET next_turn=NOW() + interval '1 minute' * g.timer FROM turns t WHERE g.id=$1 AND t.game_id=g.id  AND t.archived=FALSE RETURNING g.*", *path_id).fetch_one(&db).await.unwrap();
+    UPDATE games g SET next_turn=NOW() + interval '1 minute' * g.timer 
+    FROM turns t 
+    WHERE g.id=$1 
+        AND t.game_id=g.id  
+        AND t.archived=FALSE
+    RETURNING g.*", *path_id).fetch_all(&db).await.unwrap();
     NewAdminLog {
         game_id: *path_id,
         datetime: Utc::now().naive_utc(),
