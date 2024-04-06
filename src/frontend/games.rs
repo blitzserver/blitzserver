@@ -893,8 +893,9 @@ async fn details(
                     FROM maps_dom6 m 
                     LEFT JOIN map_planes mp ON mp.map_id=m.map_id
                     WHERE 
-                        (m.is_randommap IS FALSE OR $1 != '%%') AND (m.name ILIKE $1 OR
-                            EXISTS (SELECT g.* FROM games g WHERE g.id=$2 AND g.maps_dom6_id=m.map_id))
+                        EXISTS (SELECT g.* FROM games g WHERE g.id=$2 AND g.maps_dom6_id=m.map_id) OR
+                        (m.is_randommap IS FALSE OR $1 != '%%') AND (m.name ILIKE '%%')
+
                     GROUP BY m.map_id
                     ORDER BY (SELECT COUNT(*) FROM games g WHERE g.maps_dom6_id=m.map_id) DESC"#,
                 format!("%{}%", game_settings.mapfilter),
