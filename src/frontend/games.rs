@@ -1787,8 +1787,8 @@ pub async fn download_turn(
     }
     let mut bytes: Vec<u8> = vec![];
     let mut zip = zip::ZipWriter::new(std::io::Cursor::new(&mut bytes));
-    zip.start_file(
-        &format!("{}.trn", files[0].trnfilename),
+    zip.start_file::<_, (), _>(
+        format!("{}.trn", files[0].trnfilename),
         zip::write::FileOptions::default(),
     )
     .unwrap();
@@ -1797,12 +1797,11 @@ pub async fn download_turn(
         files[0].twohfilename.as_ref(),
         files[0].twohfilebinary.as_ref(),
     ) {
-        zip.start_file(twohfn, zip::write::FileOptions::default())
+        zip.start_file::<_, (), _>(twohfn.to_owned(), zip::write::FileOptions::default())
             .unwrap();
         zip.write_all(twohfb).unwrap();
     }
     zip.finish().unwrap();
-    drop(zip);
     return Ok(HttpResponse::Ok()
         .append_header((
             "content-disposition",

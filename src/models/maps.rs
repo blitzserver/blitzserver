@@ -119,13 +119,12 @@ impl Map {
 
         let options = FileOptions::default().large_file(true);
         for file in &files {
-            zipfile.start_file(&file.m_filename, options).unwrap();
+            zipfile.start_file::<_, (),_>(file.m_filename.to_owned(), options).unwrap();
             zipfile.write_all(&file.m_filebinary).unwrap();
-            zipfile.start_file(&file.i_filename, options).unwrap();
+            zipfile.start_file::<_, (), _>(file.i_filename.to_owned(), options).unwrap();
             zipfile.write_all(&file.i_filebinary).unwrap();
         }
         zipfile.finish().unwrap();
-        drop(zipfile);
         return Ok(MapArchive {
             filename: format!("{}.zip", files[0].name),
             file_binary: buf,
