@@ -10,8 +10,6 @@ use askama::Template;
 use async_std::future;
 use core::slice;
 use futures::{StreamExt, TryStreamExt};
-use libvips::bindings::VipsFormat;
-use libvips::{ops, VipsImage};
 use regex::Regex;
 use serde::Deserialize;
 use serde_dom5::D6mFile;

@@ -18,7 +18,6 @@ extern crate derive_more;
 extern crate encoding;
 extern crate fletcher;
 extern crate image;
-extern crate libvips;
 extern crate num_derive;
 extern crate num_traits;
 extern crate reqwest;
@@ -35,7 +34,6 @@ use actix_session::SessionMiddleware;
 use actix_web::http::header;
 use actix_web::{get, middleware, App, HttpResponse, HttpServer, Result};
 use dotenv::dotenv;
-use libvips::VipsApp;
 use std::env;
 
 pub mod discord;
@@ -122,7 +120,6 @@ async fn main() -> std::io::Result<()> {
     }
     .monitor()
     .await;
-    let _app = VipsApp::new("Test Libvips", true).expect("Cannot initialize libvips");
 
     HttpServer::new(move || {
         // TODO: Hack here, we create the map thumbnail dir VERY ahead of time since the file

@@ -700,7 +700,6 @@ dependencies = [
  "image",
  "itertools",
  "lettre",
- "libvips",
  "log",
  "mime",
  "nonblock",
@@ -2116,16 +2115,6 @@ dependencies = [
  "cc",
  "pkg-config",
  "vcpkg",
-]
-
-[[package]]
-name = "libvips"
-version = "1.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33890b93365ac05b5e6063d41bc014a1598087db4a0b9f75eddaa7dad0f7fc2a"
-dependencies = [
- "num-derive",
- "num-traits",
 ]
 
 [[package]]
