@@ -1,4 +1,4 @@
-use crate::dom5_conn::Dom5Conn;
+use crate::{dom5_conn::Dom5Conn, dom5_lobbyconn::Dom5LobbyConn};
 use futures::future::select_all;
 use sqlx::postgres::PgPool;
 use std::net::TcpListener;
@@ -17,6 +17,18 @@ enum GatewayError {
 impl Gateway {
     pub fn run(self) {
         let pool = self.pool.clone();
+        let lobby_pool = pool.clone();
+        std::thread::spawn(move || -> Result<!, GatewayError> {
+            smol::block_on(async {
+                let listener = TcpListener::bind("0.0.0.0:20997").unwrap();
+                loop {
+                    let stream = listener.accept().unwrap();
+
+                    let new_conn = Dom5LobbyConn::new(stream, lobby_pool.clone());
+                    new_conn.run();
+                }
+            })
+        });
         std::thread::spawn(move || -> Result<!, GatewayError> {
             smol::block_on(async {
                 let mut listen_pool = std::collections::HashMap::<i32, TcpListener>::new();

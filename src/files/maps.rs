@@ -1,6 +1,6 @@
 use serde_dom5::d6m_file;
 
-use crate::image::GenericImageView;
+use image::GenericImageView;
 use std::io::BufRead;
 
 pub struct MapFile {
@@ -156,15 +156,15 @@ impl MapFile {
             .to_str()
         {
             Some("tga") | Some("rgb") => {
-                let img = crate::image::io::Reader::with_format(
+                let img = image::io::Reader::with_format(
                     std::io::Cursor::new(&img_bytes),
-                    crate::image::ImageFormat::Tga,
+                    image::ImageFormat::Tga,
                 )
                 .decode()
                 .unwrap_or_else(|_| {
-                    crate::image::io::Reader::with_format(
+                    image::io::Reader::with_format(
                         std::io::Cursor::new(&img_bytes),
-                        crate::image::ImageFormat::Sgi,
+                        image::ImageFormat::Sgi,
                     )
                     .decode()
                     .unwrap()

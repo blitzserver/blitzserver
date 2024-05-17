@@ -64,12 +64,12 @@ pub async fn image(
         Some("d6m") => {
             let d6m: D6mFile = bincode::deserialize(&image.bytes).unwrap();
             let mut img =
-                crate::image::RgbImage::new(d6m.header.width as u32, d6m.header.height as u32);
+                ::image::RgbImage::new(d6m.header.width as u32, d6m.header.height as u32);
             for (i, d) in d6m.heights.into_iter().enumerate() {
                 img.put_pixel(
                     (i % d6m.header.width as usize) as u32,
                     (d6m.header.height - 1 - (i as i32 / d6m.header.width)) as u32,
-                    crate::image::Rgb([
+                    ::image::Rgb([
                         0u8,
                         ((d >> 15 & 1 ^ 1) * 200) as u8,
                         ((d >> 15 & 1) * 200) as u8,
@@ -79,27 +79,27 @@ pub async fn image(
             img
         }
         Some("tga") => {
-            let mut image = crate::image::io::Reader::new(std::io::Cursor::new(&image.bytes));
+            let mut image = ::image::io::Reader::new(std::io::Cursor::new(&image.bytes));
             image.set_format(ImageFormat::Tga);
             image.decode().unwrap().to_rgb8()
         }
         Some("rgb") => {
-            let mut image = crate::image::io::Reader::new(std::io::Cursor::new(&image.bytes));
+            let mut image = ::image::io::Reader::new(std::io::Cursor::new(&image.bytes));
             image.set_format(ImageFormat::Sgi);
             image.decode().unwrap().to_rgb8()
         }
         _ => {
-            let image = crate::image::io::Reader::new(std::io::Cursor::new(&image.bytes));
+            let image = ::image::io::Reader::new(std::io::Cursor::new(&image.bytes));
             image.decode().unwrap().to_rgb8()
         }
     };
     if let Some(width) = query.width {
         let aspect_ratio = image.height() as f32 / image.width() as f32;
-        image = crate::image::imageops::resize(
+        image = ::image::imageops::resize(
             &image,
             width as u32,
             (width as f32 * aspect_ratio) as u32,
-            crate::image::imageops::FilterType::Lanczos3,
+            ::image::imageops::FilterType::Lanczos3,
         );
     }
     let mut stuff = vec![];

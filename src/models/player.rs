@@ -101,7 +101,7 @@ pub struct NewPlayer {
 }
 
 impl NewPlayer {
-    pub async fn insert<'q, D>(&self, db: D) -> Result<Player, crate::sqlx::error::Error>
+    pub async fn insert<'q, D>(&self, db: D) -> Result<Player, ::sqlx::error::Error>
     where
         D: sqlx::Executor<'q, Database = Postgres>
     {

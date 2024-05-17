@@ -1,5 +1,5 @@
-use crate::num_derive::{FromPrimitive, ToPrimitive};
-use crate::num_traits::{FromPrimitive, ToPrimitive};
+use ::num_derive::{FromPrimitive, ToPrimitive};
+use ::num_traits::{FromPrimitive, ToPrimitive};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
@@ -87,6 +87,10 @@ pub use uploadpretender_req::UploadPretenderReq;
 
 use self::astralpacket_resp::AstralPacketResp;
 use self::dmfile_req::DmFileReq;
+use self::lobby::joingame_req::JoinGameReq;
+use self::lobby::lobbyinfo_gameinfo::LobbyInfoGameInfo;
+use self::lobby::lobby_gameinfo::LobbyGameInfo;
+use self::lobby::lobbyinfo_req::LobbyInfoReq;
 use self::lobby::lobbyinfo_resp::LobbyInfoResp;
 use self::map_resp::{MapResp6, PlaneDef};
 
@@ -214,6 +218,10 @@ pub enum Body {
 
     // Lobby
     LobbyInfoResp(LobbyInfoResp),
+    LobbyInfoReq(LobbyInfoReq),
+    JoinGameReq(JoinGameReq),
+    LobbyInfoGameInfo(LobbyInfoGameInfo),
+    LobbyGameInfo(LobbyGameInfo),
 }
 
 impl Body {
@@ -223,58 +231,88 @@ impl Body {
         protocol: Protocol,
     ) -> Body {
         match (protocol, version, r.read_u8().unwrap()) {
-            (_, _, UploadPretenderReq::ID) => {
+            (Protocol::GAME, _, UploadPretenderReq::ID) => {
                 Body::UploadPretenderReq(UploadPretenderReq::from_reader(r))
             }
-            (_, _, HeartbeatReq::ID) => Body::HeartbeatReq(HeartbeatReq::from_reader(r)),
-            (_, _, GameInfoReq::ID) => Body::GameInfoReq(GameInfoReq::from_reader(r)),
-            (_, _, GameInfoResp::ID) => Body::GameInfoResp(GameInfoResp::from_reader(r)),
-            (_, _, AstralPacketResp::ID) => {
+            (Protocol::GAME, _, HeartbeatReq::ID) => {
+                Body::HeartbeatReq(HeartbeatReq::from_reader(r))
+            }
+            (Protocol::GAME, _, GameInfoReq::ID) => Body::GameInfoReq(GameInfoReq::from_reader(r)),
+            (Protocol::GAME, _, GameInfoResp::ID) => {
+                Body::GameInfoResp(GameInfoResp::from_reader(r))
+            }
+            (Protocol::GAME, _, AstralPacketResp::ID) => {
                 Body::AstralPacketResp(AstralPacketResp::from_reader(r, version))
             }
-            (_, _, AstralPacketReq::ID) => Body::AstralPacketReq(AstralPacketReq::from_reader(r)),
-            (_, _, StartGameReq::ID) => Body::StartGameReq(StartGameReq::from_reader(r)),
-            (_, _, DisconnectReq::ID) => Body::DisconnectReq(DisconnectReq::from_reader(r)),
-            (_, _, PAResp::ID) => Body::PAResp(PAResp::from_reader(r)),
-            (_, _, PAReq::ID) => Body::PAReq(PAReq::from_reader(r)),
-            (_, _, PasswordsReq::ID) => Body::PasswordsReq(PasswordsReq::from_reader(r)),
-            (_, _, TwoHCrcReq::ID) => Body::TwoHCrcReq(TwoHCrcReq::from_reader(r)),
-            (_, _, PasswordsResp::ID) => Body::PasswordsResp(PasswordsResp::from_reader(r)),
-            (_, _, TwoHCrcResp::ID) => Body::TwoHCrcResp(TwoHCrcResp::from_reader(r)),
-            (_, _, TrnReq::ID) => Body::TrnReq(TrnReq::from_reader(r)),
-            (_, _, TrnResp::ID) => Body::TrnResp(TrnResp::from_reader(r)),
-            (_, _, MapReq::ID) => Body::MapReq(MapReq::from_reader(r)),
-            (_, Some(v), MapResp::ID) if v > 561 => Body::MapResp6(MapResp6::from_reader(r)),
-            (_, _, MapFileReq::ID) => Body::MapFileReq(MapFileReq::from_reader(r)),
-            (_, _, MapFileResp::ID) => Body::MapFileResp(MapFileResp::from_reader(r)),
-            (_, v, MapImageFileReq::ID) => {
+            (Protocol::GAME, _, AstralPacketReq::ID) => {
+                Body::AstralPacketReq(AstralPacketReq::from_reader(r))
+            }
+            (Protocol::GAME, _, StartGameReq::ID) => {
+                Body::StartGameReq(StartGameReq::from_reader(r))
+            }
+            (Protocol::GAME, _, DisconnectReq::ID) => {
+                Body::DisconnectReq(DisconnectReq::from_reader(r))
+            }
+            (Protocol::GAME, _, PAResp::ID) => Body::PAResp(PAResp::from_reader(r)),
+            (Protocol::GAME, _, PAReq::ID) => Body::PAReq(PAReq::from_reader(r)),
+            (Protocol::GAME, _, PasswordsReq::ID) => {
+                Body::PasswordsReq(PasswordsReq::from_reader(r))
+            }
+            (Protocol::GAME, _, TwoHCrcReq::ID) => Body::TwoHCrcReq(TwoHCrcReq::from_reader(r)),
+            (Protocol::GAME, _, PasswordsResp::ID) => {
+                Body::PasswordsResp(PasswordsResp::from_reader(r))
+            }
+            (Protocol::GAME, _, TwoHCrcResp::ID) => Body::TwoHCrcResp(TwoHCrcResp::from_reader(r)),
+            (Protocol::GAME, _, TrnReq::ID) => Body::TrnReq(TrnReq::from_reader(r)),
+            (Protocol::GAME, _, TrnResp::ID) => Body::TrnResp(TrnResp::from_reader(r)),
+            (Protocol::GAME, _, MapReq::ID) => Body::MapReq(MapReq::from_reader(r)),
+            (Protocol::GAME, Some(v), MapResp::ID) if v > 561 => {
+                Body::MapResp6(MapResp6::from_reader(r))
+            }
+            (Protocol::GAME, _, MapFileReq::ID) => Body::MapFileReq(MapFileReq::from_reader(r)),
+            (Protocol::GAME, _, MapFileResp::ID) => Body::MapFileResp(MapFileResp::from_reader(r)),
+            (Protocol::GAME, v, MapImageFileReq::ID) => {
                 Body::MapImageFileReq(MapImageFileReq::from_reader(r, v))
             }
-            (_, _, MapImageFileResp::ID) => {
+            (Protocol::GAME, _, MapImageFileResp::ID) => {
                 Body::MapImageFileResp(MapImageFileResp::from_reader(r))
             }
-            (_, _, MapWinterFileReq::ID) => {
+            (Protocol::GAME, _, MapWinterFileReq::ID) => {
                 Body::MapWinterFileReq(MapWinterFileReq::from_reader(r))
             }
-            (_, _, MapWinterFileResp::ID) => {
+            (Protocol::GAME, _, MapWinterFileResp::ID) => {
                 Body::MapWinterFileResp(MapWinterFileResp::from_reader(r))
             }
-            (_, _, Submit2hReq::ID) => Body::Submit2hReq(Submit2hReq::from_reader(r)),
-            (_, _, Submit2hResp::ID) => Body::Submit2hResp(Submit2hResp::from_reader(r)),
-            (_, _, TwoHReq::ID) => Body::TwoHReq(TwoHReq::from_reader(r)),
-            (_, _, TwoHResp::ID) => Body::TwoHResp(TwoHResp::from_reader(r)),
-            (_, _, DmFileReq::ID) => Body::DmFileReq(DmFileReq::from_reader(r, version)),
-            (_, _, DmFileResp::ID) => Body::DmFileResp(DmFileResp::from_reader(r)),
-            (_, _, ModFileReq::ID) => Body::ModFileReq(ModFileReq::from_reader(r)),
-            (_, _, ModFileResp::ID) => Body::ModFileResp(ModFileResp::from_reader(r)),
+            (Protocol::GAME, _, Submit2hReq::ID) => Body::Submit2hReq(Submit2hReq::from_reader(r)),
+            (Protocol::GAME, _, Submit2hResp::ID) => {
+                Body::Submit2hResp(Submit2hResp::from_reader(r))
+            }
+            (Protocol::GAME, _, TwoHReq::ID) => Body::TwoHReq(TwoHReq::from_reader(r)),
+            (Protocol::GAME, _, TwoHResp::ID) => Body::TwoHResp(TwoHResp::from_reader(r)),
+            (Protocol::GAME, _, DmFileReq::ID) => {
+                Body::DmFileReq(DmFileReq::from_reader(r, version))
+            }
+            (Protocol::GAME, _, DmFileResp::ID) => Body::DmFileResp(DmFileResp::from_reader(r)),
+            (Protocol::GAME, _, ModFileReq::ID) => Body::ModFileReq(ModFileReq::from_reader(r)),
+            (Protocol::GAME, _, ModFileResp::ID) => Body::ModFileResp(ModFileResp::from_reader(r)),
             (Protocol::GAME, _, NationsSelectedReq::ID) => {
                 Body::NationsSelectedReq(NationsSelectedReq::from_reader(r))
             }
+            (Protocol::GAME, _, SetTeamReq::ID) => Body::SetTeamReq(SetTeamReq::from_reader(r)),
+            (Protocol::GAME, _, SetDiscReq::ID) => Body::SetDiscReq(SetDiscReq::from_reader(r)),
             (Protocol::LOBBY, _, LobbyInfoResp::ID) => {
                 Body::LobbyInfoResp(LobbyInfoResp::from_reader(r))
             }
-            (_, _, SetTeamReq::ID) => Body::SetTeamReq(SetTeamReq::from_reader(r)),
-            (_, _, SetDiscReq::ID) => Body::SetDiscReq(SetDiscReq::from_reader(r)),
+            (Protocol::LOBBY, _, LobbyInfoReq::ID) => {
+                Body::LobbyInfoReq(LobbyInfoReq::from_reader(r))
+            }
+            (Protocol::LOBBY, _, JoinGameReq::ID) => Body::JoinGameReq(JoinGameReq::from_reader(r)),
+            (Protocol::LOBBY, _, LobbyInfoGameInfo::ID) => {
+                Body::LobbyInfoGameInfo(LobbyInfoGameInfo::from_reader(r))
+            }
+            (Protocol::LOBBY, _, LobbyGameInfo::ID) => {
+                Body::LobbyGameInfo(LobbyGameInfo::from_reader(r))
+            }
             (_, _, d) => {
                 let mut v = vec![];
                 r.read_to_end(&mut v).unwrap();
@@ -286,7 +324,11 @@ impl Body {
     }
     pub fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
         match self {
+            Self::JoinGameReq(p) => p.write(w, version),
+            Self::LobbyInfoReq(p) => p.write(w, version),
             Self::LobbyInfoResp(p) => p.write(w, version),
+            Self::LobbyInfoGameInfo(p) => p.write(w, version),
+            Self::LobbyGameInfo(p) => p.write(w, version),
             Self::NationsSelectedReq(p) => p.write(w, version),
             Self::PAResp(p) => p.write(w, version),
             Self::DisconnectReq(p) => p.write(w, version),
@@ -417,7 +459,7 @@ fn deserialize_packet_lobby() {
                     println!("Deserializing {:?}", entry.path());
                     let packet =
                         Packet::from_reader(&mut file, Some(600), Protocol::LOBBY).unwrap();
-                    println!("Packet {:?}", packet);
+                    println!("Packet: {:?}", packet.body);
                 }
             }
         }

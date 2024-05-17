@@ -60,9 +60,9 @@ pub async fn image(
     .fetch_one(&db)
     .await
     {
-        let reader = crate::image::io::Reader::with_format(
+        let reader = ::image::io::Reader::with_format(
             std::io::Cursor::new(file.filebinary),
-            crate::image::ImageFormat::Tga,
+            ::image::ImageFormat::Tga,
         )
         .decode()
         .unwrap();
@@ -72,13 +72,13 @@ pub async fn image(
         }
         let mut file = std::fs::File::create(mods_dir.join(format!("{}.jpg", *path_id))).unwrap();
         reader
-            .write_to(&mut file, crate::image::ImageFormat::Jpeg)
+            .write_to(&mut file, ::image::ImageFormat::Jpeg)
             .unwrap();
         let mut jpg_bytes: Vec<u8> = Vec::new();
         reader
             .write_to(
                 &mut std::io::Cursor::new(&mut jpg_bytes),
-                crate::image::ImageFormat::Jpeg,
+                ::image::ImageFormat::Jpeg,
             )
             .unwrap();
         Ok(HttpResponse::Ok()
