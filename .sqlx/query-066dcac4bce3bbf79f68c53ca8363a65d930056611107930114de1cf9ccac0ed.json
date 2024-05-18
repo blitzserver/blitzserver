@@ -1,11 +1,11 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id FROM maps ORDER BY id DESC LIMIT 1",
+  "query": "SELECT map_id FROM maps_dom6 ORDER BY map_id DESC LIMIT 1",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "id",
+        "name": "map_id",
         "type_info": "Int4"
       }
     ],
@@ -16,5 +16,5 @@
       false
     ]
   },
-  "hash": "12f54149156e110a7e9141599c7bc12843717a9b63b9b5a0d80d826b784d11c7"
+  "hash": "066dcac4bce3bbf79f68c53ca8363a65d930056611107930114de1cf9ccac0ed"
 }

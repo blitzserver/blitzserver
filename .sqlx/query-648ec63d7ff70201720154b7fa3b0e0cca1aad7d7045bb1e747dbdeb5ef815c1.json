@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        WITH \n            removed_mods AS (DELETE FROM game_mods WHERE game_id=$34 AND mod_id != ANY($35)),\n            updated_mods AS (INSERT INTO game_mods (game_id, mod_id) VALUES($34, UNNEST($35::integer[])) ON CONFLICT (game_id, mod_id) DO NOTHING)\n        UPDATE games SET \n            era                    = $1,\n            thrones_t1             = $2,\n            thrones_t2             = $3,\n            thrones_t3             = $4,\n            throne_points_required = $5,\n            research_diff          = $6,\n            research_rand          = $7,\n            hof_size               = $8,\n            global_size            = $9,\n            indepstr               = $10,\n            magicsites             = $11,\n            eventrarity            = $12,\n            richness               = $13,\n            resources              = $14,\n            recruitment            = $15,\n            supplies               = $16,\n            startprov              = $17,\n            renaming               = $18,\n            scoregraphs            = $19,\n            nationinfo             = $20,\n            artrest                = $21,\n            teamgame               = $22,\n            clustered              = $23,\n            storyevents            = $24,\n            newailvl               = $25,\n            map_id                 = $26,\n            masterpass             = $27,\n            private                = $28,\n            require_password       = $29,\n            select_start           = $30,\n            cataclysm              = $31,\n            max_stales             = $32,\n            conq_all               = $33\n        WHERE\n            id                     = $34\n        RETURNING *\n        ",
+  "query": "\n        WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),\n        topturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)\n        SELECT g.*,ARRAY_AGG(mp.prov_count ORDER BY map_file_id) \"planes: Vec<Option<i32>>\", COUNT(j.*) as fail_count, MAX(cj.job_id) as \"current_job?\", MAX(p.nationid) AS \"playing?\", MIN(pt.status) as \"turn_status?\"\n        FROM games g \n        LEFT JOIN topturn tt ON tt.game_id=g.id\n        LEFT JOIN players p ON p.id=ANY($1) AND p.game_id=g.id\n        LEFT JOIN player_turns pt ON pt.nation_id=p.nationid AND pt.game_id=g.id AND pt.turn_number=tt.max AND pt.archived IS NOT TRUE\n        LEFT JOIN last_success ls ON ls.game_id=g.id \n        LEFT JOIN jobs j ON j.job_id>ls.job_id AND j.game_id=g.id AND j.reaped IS TRUE\n        LEFT JOIN jobs cj ON cj.game_id=g.id AND cj.finished_at IS NULL\n        LEFT JOIN map_planes mp ON mp.map_id=g.maps_dom6_id\n        WHERE g.private!=TRUE\n        GROUP BY g.id\n        ORDER BY MIN(pt.status), MAX(p.nationid), g.id\n        ",
   "describe": {
     "columns": [
       {
@@ -222,44 +222,65 @@
         "ordinal": 43,
         "name": "binary_id",
         "type_info": "Int4"
+      },
+      {
+        "ordinal": 44,
+        "name": "maps_dom6_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 45,
+        "name": "formal_diplo",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 46,
+        "name": "research_9_slow",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 47,
+        "name": "mercslots",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 48,
+        "name": "cheat_detection",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 49,
+        "name": "provs_per_player",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 50,
+        "name": "planes: Vec<Option<i32>>",
+        "type_info": "Int4Array"
+      },
+      {
+        "ordinal": 51,
+        "name": "fail_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 52,
+        "name": "current_job?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 53,
+        "name": "playing?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 54,
+        "name": "turn_status?",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
       "Left": [
-        "Int4",
-        "Int4",
-        "Int4",
-        "Int4",
-        "Int4",
-        "Int4",
-        "Bool",
-        "Int4",
-        "Int4",
-        "Int4",
-        "Int4",
-        "Int4",
-        "Int4",
-        "Int4",
-        "Int4",
-        "Int4",
-        "Int4",
-        "Bool",
-        "Bool",
-        "Bool",
-        "Bool",
-        "Bool",
-        "Bool",
-        "Int4",
-        "Int4",
-        "Int4",
-        "Varchar",
-        "Bool",
-        "Bool",
-        "Int4",
-        "Int4",
-        "Int4",
-        "Bool",
-        "Int4",
         "Int4Array"
       ]
     },
@@ -307,8 +328,19 @@
       true,
       true,
       false,
-      true
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null
     ]
   },
-  "hash": "0fefb4e135c9b0b49d2fb8ad0f2d685cf41662620d9dd9b573bd88d2deeb6d93"
+  "hash": "648ec63d7ff70201720154b7fa3b0e0cca1aad7d7045bb1e747dbdeb5ef815c1"
 }

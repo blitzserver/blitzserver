@@ -57,6 +57,11 @@
         "ordinal": 10,
         "name": "winter_crc",
         "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "min_version",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -75,7 +80,8 @@
       false,
       true,
       true,
-      true
+      true,
+      false
     ]
   },
   "hash": "f5825e19d4b09bb0330c6a3a2d7d0c349f230f2f405b2ae890e7eb1e5931adf8"

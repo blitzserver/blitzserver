@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE subjobs SET meta=$1 WHERE subjob_id=$2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fc6ce4a49625459db2fb8bf4e9d3c1837afd163a5f20f26753b1425c8f933964"
+}

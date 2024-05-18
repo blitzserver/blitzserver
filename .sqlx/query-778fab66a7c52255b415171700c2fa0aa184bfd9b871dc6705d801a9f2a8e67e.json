@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT g.*,MAX(t.turn_number) as \"turn?\",f.filename as mapfilename FROM games g\n                                    LEFT JOIN turns t ON t.game_id=g.id AND t.archived != TRUE\n                                    LEFT JOIN maps m ON g.map_id=m.id\n                                    LEFT JOIN files f ON f.id=m.mapfile_id\n                                    WHERE g.id=$1 GROUP BY g.id, f.filename",
+  "query": "SELECT DISTINCT ON (g.id) g.*,MAX(t.turn_number) as \"turn?\",f.filename as \"mapfilename?\" FROM games g\n                                    LEFT JOIN turns t ON t.game_id=g.id AND t.archived != TRUE\n                                    LEFT JOIN maps_dom6 m ON g.maps_dom6_id=m.map_id\n                                    LEFT JOIN map_planes mp ON mp.map_id=m.map_id\n                                    LEFT JOIN files f ON f.id=mp.map_file_id\n                                    WHERE g.id=$1 \n                                    GROUP BY g.id, f.filename",
   "describe": {
     "columns": [
       {
@@ -225,12 +225,42 @@
       },
       {
         "ordinal": 44,
-        "name": "turn?",
+        "name": "maps_dom6_id",
         "type_info": "Int4"
       },
       {
         "ordinal": 45,
-        "name": "mapfilename",
+        "name": "formal_diplo",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 46,
+        "name": "research_9_slow",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 47,
+        "name": "mercslots",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 48,
+        "name": "cheat_detection",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 49,
+        "name": "provs_per_player",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 50,
+        "name": "turn?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 51,
+        "name": "mapfilename?",
         "type_info": "Varchar"
       }
     ],
@@ -284,9 +314,15 @@
       true,
       false,
       true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
       null,
       false
     ]
   },
-  "hash": "5cad47f04b72a5b5d12fe7f896076dc44da3296b42aed59e5aca084d9934aa94"
+  "hash": "778fab66a7c52255b415171700c2fa0aa184bfd9b871dc6705d801a9f2a8e67e"
 }

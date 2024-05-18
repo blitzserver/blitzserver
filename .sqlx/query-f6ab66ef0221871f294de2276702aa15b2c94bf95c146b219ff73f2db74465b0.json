@@ -32,6 +32,11 @@
         "ordinal": 5,
         "name": "finished_at",
         "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "meta",
+        "type_info": "Text"
       }
     ],
     "parameters": {
@@ -46,7 +51,8 @@
       false,
       true,
       false,
-      true
+      true,
+      false
     ]
   },
   "hash": "f6ab66ef0221871f294de2276702aa15b2c94bf95c146b219ff73f2db74465b0"
