@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        WITH \n            removed_mods AS (DELETE FROM game_mods WHERE game_id=$38 AND mod_id <> ALL($39)),\n            updated_mods AS (INSERT INTO game_mods (game_id, mod_id) VALUES($38, UNNEST($39::integer[])) ON CONFLICT (game_id, mod_id) DO NOTHING)\n        UPDATE games SET \n            era                    = $1,\n            thrones_t1             = $2,\n            thrones_t2             = $3,\n            thrones_t3             = $4,\n            throne_points_required = $5,\n            research_diff          = $6,\n            research_rand          = $7,\n            hof_size               = $8,\n            global_size            = $9,\n            indepstr               = $10,\n            magicsites             = $11,\n            eventrarity            = $12,\n            richness               = $13,\n            resources              = $14,\n            recruitment            = $15,\n            supplies               = $16,\n            startprov              = $17,\n            renaming               = $18,\n            scoregraphs            = $19,\n            nationinfo             = $20,\n            artrest                = $21,\n            teamgame               = $22,\n            clustered              = $23,\n            storyevents            = $24,\n            newailvl               = $25,\n            maps_dom6_id           = $26,\n            masterpass             = $27,\n            private                = $28,\n            require_password       = $29,\n            select_start           = $30,\n            cataclysm              = $31,\n            max_stales             = $32,\n            conq_all               = $33,\n            formal_diplo           = $34,\n            research_9_slow        = $35,\n            cheat_detection        = $36,\n            mercslots              = $37\n        WHERE\n            id                     = $38\n        RETURNING *\n        ",
+  "query": "\n        WITH \n            removed_mods AS (DELETE FROM game_mods WHERE game_id=$1 AND mod_id <> ALL($2)),\n            updated_mods AS (INSERT INTO game_mods (game_id, mod_id) VALUES($1, UNNEST($2::integer[])) ON CONFLICT (game_id, mod_id) DO NOTHING)\n        UPDATE games SET \n            era                    = $3,\n            thrones_t1             = $4,\n            thrones_t2             = $5,\n            thrones_t3             = $6,\n            throne_points_required = $7,\n            research_diff          = $8,\n            research_rand          = $9,\n            hof_size               = $10,\n            global_size            = $11,\n            indepstr               = $12,\n            magicsites             = $13,\n            eventrarity            = $14,\n            richness               = $15,\n            resources              = $16,\n            recruitment            = $17,\n            supplies               = $18,\n            startprov              = $19,\n            renaming               = $20,\n            scoregraphs            = $21,\n            nationinfo             = $22,\n            artrest                = $23,\n            teamgame               = $24,\n            clustered              = $25,\n            storyevents            = $26,\n            newailvl               = $27,\n            maps_dom6_id           = $28,\n            masterpass             = $29,\n            private                = $30,\n            require_password       = $31,\n            select_start           = $32,\n            cataclysm              = $33,\n            max_stales             = $34,\n            conq_all               = $35,\n            formal_diplo           = $36,\n            research_9_slow        = $37,\n            cheat_detection        = $38,\n            mercslots              = $39,\n            provs_per_player       = $40,\n            randommap_wrapping     = $41,\n            log_level = $42\n        WHERE\n            id                     = $1\n        RETURNING *\n        ",
   "describe": {
     "columns": [
       {
@@ -252,10 +252,22 @@
         "ordinal": 49,
         "name": "provs_per_player",
         "type_info": "Int4"
+      },
+      {
+        "ordinal": 50,
+        "name": "randommap_wrapping",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 51,
+        "name": "log_level",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
       "Left": [
+        "Int4",
+        "Int4Array",
         "Int4",
         "Int4",
         "Int4",
@@ -294,7 +306,8 @@
         "Bool",
         "Int4",
         "Int4",
-        "Int4Array"
+        "Int4",
+        "Int4"
       ]
     },
     "nullable": [
@@ -347,8 +360,10 @@
       false,
       false,
       false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "23c89a24d719a543f24f428746f0b28d00299ed7e0a4bba9d71be5363846bf0a"
+  "hash": "8c72628f857f863a9bc04c0ffeb5d84ced8f32aec574b7823eebd9eaf73e9aea"
 }

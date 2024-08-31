@@ -255,26 +255,36 @@
       },
       {
         "ordinal": 50,
+        "name": "randommap_wrapping",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 51,
+        "name": "log_level",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 52,
         "name": "planes: Vec<Option<i32>>",
         "type_info": "Int4Array"
       },
       {
-        "ordinal": 51,
+        "ordinal": 53,
         "name": "fail_count",
         "type_info": "Int8"
       },
       {
-        "ordinal": 52,
+        "ordinal": 54,
         "name": "current_job?",
         "type_info": "Int4"
       },
       {
-        "ordinal": 53,
+        "ordinal": 55,
         "name": "playing?",
         "type_info": "Int4"
       },
       {
-        "ordinal": 54,
+        "ordinal": 56,
         "name": "turn_status?",
         "type_info": "Int4"
       }
@@ -330,6 +340,8 @@
       false,
       true,
       true,
+      false,
+      false,
       false,
       false,
       false,

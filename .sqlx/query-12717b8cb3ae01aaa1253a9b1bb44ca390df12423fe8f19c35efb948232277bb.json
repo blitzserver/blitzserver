@@ -252,6 +252,16 @@
         "ordinal": 49,
         "name": "provs_per_player",
         "type_info": "Int4"
+      },
+      {
+        "ordinal": 50,
+        "name": "randommap_wrapping",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 51,
+        "name": "log_level",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -306,6 +316,8 @@
       false,
       true,
       true,
+      false,
+      false,
       false,
       false,
       false,
