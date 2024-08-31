@@ -61,6 +61,7 @@ serde_dom5 = { git = "ssh://git@github.com/blitzserver/serde_dom5", commit = "c1
 walkdir = "2.4.0"
 mime = "0.3.17"
 safe-transmute = "0.11.2"
+enum_derive = "0.1.7"
 
 [target.x86_64-unknown-linux-gnu]
 linker = "/usr/bin/clang"

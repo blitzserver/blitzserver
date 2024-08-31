@@ -817,6 +817,7 @@ dependencies = [
  "derive_more",
  "dotenv",
  "encoding",
+ "enum_derive",
  "env_logger",
  "flate2",
  "fletcher",
@@ -1401,6 +1402,12 @@ checksum = "b45de904aa0b010bce2ab45264d0631681847fa7b6f2eaa7dab7619943bc4f59"
 dependencies = [
  "cfg-if",
 ]
+
+[[package]]
+name = "enum_derive"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "406ac2a8c9eedf8af9ee1489bee9e50029278a6456c740f7454cf8a158abc816"
 
 [[package]]
 name = "env_filter"

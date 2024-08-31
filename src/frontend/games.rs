@@ -3,12 +3,16 @@ use super::utils::*;
 use super::AppData;
 use chrono::Utc;
 use itertools::Itertools;
+use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::env;
 use std::io::Write;
+use std::iter::MapWhile;
 
 use crate::discord::DiscordManager;
 use crate::dom5_turn::Dom5Turn;
 use crate::models::maps::MapSummary;
+use crate::models::MapWrapping;
 use crate::models::{
     AdminLog, Disciple, DiscordConfig, EmailConfig, Game, Map, MapProvince, Mod, Nation,
     NewAdminLog, NewGame, Player, PlayerTurn, Turn,
@@ -72,6 +76,8 @@ struct GameSettings {
     #[serde(default,                   deserialize_with ="from_str")     ] mercslots:              i32,
     #[serde(default,                   deserialize_with ="from_str")     ] generated_map:          i32,
     #[serde(default,                   deserialize_with ="from_str")     ] provs_per_player:       i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] randommap_wrapping:     i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] log_level:              i32,
 //Markertotellwhethertheformisonitsfirstload
     #[serde(default)]loaded:Option<String>,
 }
@@ -121,6 +127,8 @@ impl From<(&Game, &[Mod])> for GameSettings {
             mercslots: game.mercslots,
             generated_map: !game.maps_dom6_id.is_some() as i32,
             provs_per_player: game.provs_per_player,
+            randommap_wrapping: game.randommap_wrapping as i32,
+            log_level: game.log_level,
         }
     }
 }
@@ -790,13 +798,19 @@ async fn timer(
     .fetch_one(&db)
     .await
     .unwrap();
-    sqlx::query!("
+    sqlx::query!(
+        "
     UPDATE games g SET next_turn=NOW() + interval '1 minute' * g.timer 
     FROM turns t 
     WHERE g.id=$1 
         AND t.game_id=g.id  
         AND t.archived=FALSE
-    RETURNING g.*", *path_id).fetch_all(&db).await.unwrap();
+    RETURNING g.*",
+        *path_id
+    )
+    .fetch_all(&db)
+    .await
+    .unwrap();
     NewAdminLog {
         game_id: *path_id,
         datetime: Utc::now().naive_utc(),
@@ -1186,7 +1200,8 @@ async fn list(
         .into_iter()
         .next()
         {
-            let prov_count = crate::files::MapFile::load_provinces(&file.filename, &file.filebinary).unwrap();
+            let prov_count =
+                crate::files::MapFile::load_provinces(&file.filename, &file.filebinary).unwrap();
             sqlx::query!(
                 "UPDATE map_planes SET prov_count=$1 WHERE map_file_id=$2",
                 prov_count.map(|d| d as i32),
@@ -1375,7 +1390,11 @@ async fn settings_post(
     game.clustered = body.clustered > 0;
     game.storyevents = body.storyevents;
     game.newailvl = body.newailvl;
-    game.maps_dom6_id = if body.generated_map > 0 { None } else { Some(body.map) };
+    game.maps_dom6_id = if body.generated_map > 0 {
+        None
+    } else {
+        Some(body.map)
+    };
     game.masterpass = body.masterpass;
     game.private = body.private > 0;
     game.require_password = body.require_password > 0;
@@ -1387,6 +1406,9 @@ async fn settings_post(
     game.research_9_slow = body.research_9_slow > 0;
     game.mercslots = body.mercslots;
     game.cheat_detection = body.cheat_detection > 0;
+    game.provs_per_player = body.provs_per_player;
+    game.randommap_wrapping = body.randommap_wrapping.into();
+    game.log_level = body.log_level;
     game = game.update(&body.cmods, &sqlx_db).await.unwrap();
     let mods = game.get_mods(&sqlx_db).await.unwrap();
     if mods.len() != old_mods.len()

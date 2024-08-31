@@ -2,7 +2,7 @@ pub mod player;
 pub mod binary;
 pub mod maps;
 
-use std::env;
+use std::{convert::TryInto, env};
 use chrono::NaiveDateTime;
 pub use player::{NewPlayer, Player};
 use sqlx::Postgres;
@@ -10,13 +10,33 @@ use thiserror::Error;
 
 use crate::packets::astralpacket_resp::DmFileDef;
 
-use self::maps::MapSummary;
 
 pub struct Era;
 impl Era {
     pub const EARLY: i32 = 1;
     pub const MIDDLE: i32 = 2;
     pub const LATE: i32 = 3;
+}
+
+#[derive(Clone, Copy, Debug, derive_more::From)]
+#[repr(i32)]
+pub enum MapWrapping {
+    None = 0,
+    Both = 1,
+    Horizontal = 2,
+    Vertical = 3 
+}
+
+impl Into<MapWrapping>  for i32 {
+    fn into(self) -> MapWrapping {
+        match self {
+            0 => MapWrapping::None,
+            1 => MapWrapping::Both,
+            2 => MapWrapping::Horizontal,
+            3 => MapWrapping::Vertical,
+            _ => MapWrapping::None
+        }
+    }
 }
 
 #[derive(Clone, derive_more::Into, derive_more::From, Debug)]
@@ -70,8 +90,9 @@ pub struct Game {
     pub research_9_slow: bool,
     pub cheat_detection: bool,
     pub mercslots: i32,
-    pub provs_per_player: i32
-    
+    pub provs_per_player: i32,
+    pub randommap_wrapping: MapWrapping,
+    pub log_level: i32,
 }
 
 #[derive(derive_more::From, derive_more::Into)]
@@ -130,50 +151,55 @@ impl Game {
         where D: sqlx::Executor<'q, Database = Postgres> {
         sqlx::query_as!(Game, "
         WITH 
-            removed_mods AS (DELETE FROM game_mods WHERE game_id=$38 AND mod_id <> ALL($39)),
-            updated_mods AS (INSERT INTO game_mods (game_id, mod_id) VALUES($38, UNNEST($39::integer[])) ON CONFLICT (game_id, mod_id) DO NOTHING)
+            removed_mods AS (DELETE FROM game_mods WHERE game_id=$1 AND mod_id <> ALL($2)),
+            updated_mods AS (INSERT INTO game_mods (game_id, mod_id) VALUES($1, UNNEST($2::integer[])) ON CONFLICT (game_id, mod_id) DO NOTHING)
         UPDATE games SET 
-            era                    = $1,
-            thrones_t1             = $2,
-            thrones_t2             = $3,
-            thrones_t3             = $4,
-            throne_points_required = $5,
-            research_diff          = $6,
-            research_rand          = $7,
-            hof_size               = $8,
-            global_size            = $9,
-            indepstr               = $10,
-            magicsites             = $11,
-            eventrarity            = $12,
-            richness               = $13,
-            resources              = $14,
-            recruitment            = $15,
-            supplies               = $16,
-            startprov              = $17,
-            renaming               = $18,
-            scoregraphs            = $19,
-            nationinfo             = $20,
-            artrest                = $21,
-            teamgame               = $22,
-            clustered              = $23,
-            storyevents            = $24,
-            newailvl               = $25,
-            maps_dom6_id           = $26,
-            masterpass             = $27,
-            private                = $28,
-            require_password       = $29,
-            select_start           = $30,
-            cataclysm              = $31,
-            max_stales             = $32,
-            conq_all               = $33,
-            formal_diplo           = $34,
-            research_9_slow        = $35,
-            cheat_detection        = $36,
-            mercslots              = $37
+            era                    = $3,
+            thrones_t1             = $4,
+            thrones_t2             = $5,
+            thrones_t3             = $6,
+            throne_points_required = $7,
+            research_diff          = $8,
+            research_rand          = $9,
+            hof_size               = $10,
+            global_size            = $11,
+            indepstr               = $12,
+            magicsites             = $13,
+            eventrarity            = $14,
+            richness               = $15,
+            resources              = $16,
+            recruitment            = $17,
+            supplies               = $18,
+            startprov              = $19,
+            renaming               = $20,
+            scoregraphs            = $21,
+            nationinfo             = $22,
+            artrest                = $23,
+            teamgame               = $24,
+            clustered              = $25,
+            storyevents            = $26,
+            newailvl               = $27,
+            maps_dom6_id           = $28,
+            masterpass             = $29,
+            private                = $30,
+            require_password       = $31,
+            select_start           = $32,
+            cataclysm              = $33,
+            max_stales             = $34,
+            conq_all               = $35,
+            formal_diplo           = $36,
+            research_9_slow        = $37,
+            cheat_detection        = $38,
+            mercslots              = $39,
+            provs_per_player       = $40,
+            randommap_wrapping     = $41,
+            log_level = $42
         WHERE
-            id                     = $38
+            id                     = $1
         RETURNING *
         " , 
+                self.id,
+                mod_ids,
                 self.era,
                 self.thrones_t1,
                 self.thrones_t2,
@@ -211,8 +237,10 @@ impl Game {
                 self.research_9_slow,
                 self.cheat_detection,
                 self.mercslots,
-                self.id,
-                mod_ids).fetch_one(db).await
+                self.provs_per_player,
+                self.randommap_wrapping as i32,
+                self.log_level
+                ).fetch_one(db).await
     }
     pub async fn get_mods<'c, D: sqlx::Executor<'c, Database = Postgres>>(&self, db: D) -> Result<Vec<Mod>, sqlx::error::Error>
     {

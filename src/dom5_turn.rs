@@ -2,7 +2,7 @@ use crate::files::saves::DomSaveReadError;
 use crate::files::MapFile;
 use crate::models::binary::Binary;
 use crate::models::maps::{Plane, PlaneImage};
-use crate::models::Map;
+use crate::models::{Map, MapWrapping};
 use crate::util::calculate_crc;
 use encoding::{all::ISO_8859_1, DecoderTrap, Encoding};
 use itertools::Itertools;
@@ -580,7 +580,14 @@ impl Dom5Turn {
                 acc
             }));
             arguments.append(&mut vec![
-                "-d".to_string(),
+                match game.log_level {
+                    0 => "".to_string(),
+                    1 => "-d".to_string(),
+                    2 => "-dd".to_string(),
+                    3 => "-ddd".to_string(),
+                    4 => "-dddd".to_string(),
+                    _ => "".to_string(),
+                },
                 "--noclientstart".to_string(),
                 if game.renaming { "--renaming" } else { "" }.to_string(),
                 "--thrones".to_string(),
@@ -678,6 +685,12 @@ impl Dom5Turn {
                         "--randmap".to_string(),
                         format!("{}", game.provs_per_player),
                     ]);
+                    arguments.append(&mut match Into::<_>::into(game.randommap_wrapping) {
+                        MapWrapping::None       => vec!["--nohwrap".to_owned()],
+                        MapWrapping::Both       => vec!["--vwrap".to_owned()],
+                        MapWrapping::Vertical   => vec!["--vwrap".to_owned(), "--nohwrap".to_owned()],
+                        MapWrapping::Horizontal => vec![]
+                    });
                 }
             }
             match game.newailvl {
