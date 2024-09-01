@@ -3502,7 +3502,7 @@ dependencies = [
 [[package]]
 name = "serde_dom5"
 version = "0.1.0"
-source = "git+ssh://git@github.com/blitzserver/serde_dom5#9338e02029acdefc60b2d96c4da1305d40a31174"
+source = "git+ssh://git@github.com/blitzserver/serde_dom5#63792f9ed889ca24ef777a63a82042e47fb0bbaa"
 dependencies = [
  "bincode",
  "derive_more",
