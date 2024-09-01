@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),\n        topturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)\n        SELECT g.*,ARRAY_AGG(mp.prov_count ORDER BY map_file_id) \"planes: Vec<Option<i32>>\", COUNT(j.*) as fail_count, MAX(cj.job_id) as \"current_job?\", MAX(p.nationid) AS \"playing?\", MIN(pt.status) as \"turn_status?\"\n        FROM games g \n        LEFT JOIN topturn tt ON tt.game_id=g.id\n        LEFT JOIN players p ON p.id=ANY($1) AND p.game_id=g.id\n        LEFT JOIN player_turns pt ON pt.nation_id=p.nationid AND pt.game_id=g.id AND pt.turn_number=tt.max AND pt.archived IS NOT TRUE\n        LEFT JOIN last_success ls ON ls.game_id=g.id \n        LEFT JOIN jobs j ON j.job_id>ls.job_id AND j.game_id=g.id AND j.reaped IS TRUE\n        LEFT JOIN jobs cj ON cj.game_id=g.id AND cj.finished_at IS NULL\n        LEFT JOIN map_planes mp ON mp.map_id=g.maps_dom6_id\n        WHERE g.private!=TRUE\n        GROUP BY g.id\n        ORDER BY MIN(pt.status), MAX(p.nationid), g.id\n        ",
+  "query": "\nWITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),\ntopturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)\nSELECT \ng.*,\nARRAY_AGG(mp.prov_count ORDER BY map_file_id) \"planes: Vec<Option<i32>>\",\nls.failed_count as fail_count, \nls.current_job as \"current_job?\", \nMAX(p.nationid) AS \"playing?\", \nMIN(pt.status) as \"turn_status?\"\nFROM games g \n  LEFT JOIN topturn tt ON tt.game_id=g.id\n  LEFT JOIN players p ON p.id=ANY($1) AND p.game_id=g.id\n  LEFT JOIN player_turns pt ON pt.nation_id=p.nationid AND pt.game_id=g.id AND pt.turn_number=tt.max AND pt.archived IS NOT TRUE\n  LEFT JOIN map_planes mp ON mp.map_id=g.maps_dom6_id\nLEFT JOIN (\n  SELECT last.game_id, COUNT(j.*) failed_count, MAX(cj.job_id) \"current_job\"\n  FROM last_success last\n    LEFT JOIN jobs j ON j.job_id>last.job_id AND j.game_id=last.game_id AND j.reaped IS TRUE\n    LEFT JOIN jobs cj ON cj.game_id=j.game_id AND cj.finished_at IS NULL\n  GROUP BY last.game_id\n) AS ls ON ls.game_id=g.id\nWHERE g.private!=TRUE\nGROUP BY g.id , ls.game_id, ls.failed_count, ls.current_job\nORDER BY MIN(pt.status), MAX(p.nationid), g.id\n\n        ",
   "describe": {
     "columns": [
       {
@@ -354,5 +354,5 @@
       null
     ]
   },
-  "hash": "648ec63d7ff70201720154b7fa3b0e0cca1aad7d7045bb1e747dbdeb5ef815c1"
+  "hash": "b57248d6befc53bbf253186a65cf5dfadf2f2d39fdb38d8a5c1e6aaefe2420b8"
 }
