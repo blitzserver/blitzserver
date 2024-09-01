@@ -1219,20 +1219,31 @@ async fn list(
         .unwrap_or(std::collections::HashSet::new());
 
     let mut results = sqlx::query!(r#"
-        WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),
-        topturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)
-        SELECT g.*,ARRAY_AGG(mp.prov_count ORDER BY map_file_id) "planes: Vec<Option<i32>>", COUNT(j.*) as fail_count, MAX(cj.job_id) as "current_job?", MAX(p.nationid) AS "playing?", MIN(pt.status) as "turn_status?"
-        FROM games g 
-        LEFT JOIN topturn tt ON tt.game_id=g.id
-        LEFT JOIN players p ON p.id=ANY($1) AND p.game_id=g.id
-        LEFT JOIN player_turns pt ON pt.nation_id=p.nationid AND pt.game_id=g.id AND pt.turn_number=tt.max AND pt.archived IS NOT TRUE
-        LEFT JOIN last_success ls ON ls.game_id=g.id 
-        LEFT JOIN jobs j ON j.job_id>ls.job_id AND j.game_id=g.id AND j.reaped IS TRUE
-        LEFT JOIN jobs cj ON cj.game_id=g.id AND cj.finished_at IS NULL
-        LEFT JOIN map_planes mp ON mp.map_id=g.maps_dom6_id
-        WHERE g.private!=TRUE
-        GROUP BY g.id
-        ORDER BY MIN(pt.status), MAX(p.nationid), g.id
+WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),
+topturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)
+SELECT 
+g.*,
+ARRAY_AGG(mp.prov_count ORDER BY map_file_id) "planes: Vec<Option<i32>>",
+ls.failed_count as fail_count, 
+ls.current_job as "current_job?", 
+MAX(p.nationid) AS "playing?", 
+MIN(pt.status) as "turn_status?"
+FROM games g 
+  LEFT JOIN topturn tt ON tt.game_id=g.id
+  LEFT JOIN players p ON p.id=ANY($1) AND p.game_id=g.id
+  LEFT JOIN player_turns pt ON pt.nation_id=p.nationid AND pt.game_id=g.id AND pt.turn_number=tt.max AND pt.archived IS NOT TRUE
+  LEFT JOIN map_planes mp ON mp.map_id=g.maps_dom6_id
+LEFT JOIN (
+  SELECT last.game_id, COUNT(j.*) failed_count, MAX(cj.job_id) "current_job"
+  FROM last_success last
+    LEFT JOIN jobs j ON j.job_id>last.job_id AND j.game_id=last.game_id AND j.reaped IS TRUE
+    LEFT JOIN jobs cj ON cj.game_id=j.game_id AND cj.finished_at IS NULL
+  GROUP BY last.game_id
+) AS ls ON ls.game_id=g.id
+WHERE g.private!=TRUE
+GROUP BY g.id , ls.game_id, ls.failed_count, ls.current_job
+ORDER BY MIN(pt.status), MAX(p.nationid), g.id
+
         "#, &watch_player_ids.into_iter().collect::<Vec<i32>>()[..]).fetch_all(&sqlx_db).await.unwrap();
     let player_counts = crate::models::Game::get_player_count(
         &results.iter().map(|g| g.id).collect::<Vec<i32>>(),
