@@ -205,6 +205,7 @@ async fn upload_post(
                     }
                     mapfiles.sort();
                     let name_capture = Regex::new("#dom2title (.+)").unwrap();
+                    let image_capture = Regex::new("#imagefile (.+)").unwrap();
                     let mut map = crate::models::maps::Map {
                         is_randommap: false,
                         name: "Unnamed Map".to_owned(),
@@ -218,6 +219,8 @@ async fn upload_post(
                             hash: 0,
                         };
 
+                        let mut image_names: Vec<String> = vec![];
+
                         {
                             let base_plane_file = archive.by_name(&plane_filename).unwrap();
                             let reader = std::io::BufReader::new(base_plane_file);
@@ -230,6 +233,9 @@ async fn upload_post(
                                 if let Some(capture) = name_capture.captures(&line) {
                                     map.name = capture.get(1).unwrap().as_str().to_owned();
                                 }
+                                if let Some(capture) = image_capture.captures(&line) {
+                                    image_names.push(capture.get(1).unwrap().as_str().to_owned());
+                                }
                             }
                         }
                         {
@@ -240,28 +246,7 @@ async fn upload_post(
                             let base_plane_file = archive.by_name(&plane_filename).unwrap();
                             plane.hash = calculate_crc(base_plane_file);
                         }
-                        let mapwithoutext = Path::new(&plane.name).file_stem().unwrap();
-                        let planeimage_regex = Regex::new(&format!(
-                            r#"{}([a-zA-Z]+?)?\.(tga|d6m|rgb)"#,
-                            mapwithoutext.to_string_lossy()
-                        ))
-                        .unwrap();
-                        let names = archive
-                            .file_names()
-                            .map(|filename| {
-                                println!("Regex {:?}", planeimage_regex);
-                                let fname = std::path::PathBuf::from(filename)
-                                    .file_name()
-                                    .unwrap()
-                                    .to_string_lossy()
-                                    .to_string();
-                                planeimage_regex
-                                    .captures(&fname)
-                                    .map(|c| c.get(0).unwrap().as_str().to_owned())
-                            })
-                            .flatten()
-                            .collect::<Vec<String>>();
-                        for name in names {
+                        for name in image_names {
                             let hash = {
                                 let hash_file = match &central_dir {
                                     Some(cd) => cd.join(&name).to_string_lossy().to_string(),
