@@ -152,7 +152,7 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::maps::image)
             .service(frontend::maps::upload_post)
             .service(frontend::maps::list)
-            .service(frontend::maps::download)
+            // .service(frontend::maps::download)
             .service(frontend::games::motd)
             .service(frontend::games::watch)
             .service(frontend::games::timer)
