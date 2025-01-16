@@ -265,11 +265,16 @@
       },
       {
         "ordinal": 52,
+        "name": "borked",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 53,
         "name": "turn?",
         "type_info": "Int4"
       },
       {
-        "ordinal": 53,
+        "ordinal": 54,
         "name": "mapfilename?",
         "type_info": "Varchar"
       }
@@ -325,6 +330,7 @@
       false,
       true,
       true,
+      false,
       false,
       false,
       false,
