@@ -8,6 +8,8 @@ RUN apt-get -y install cmake libgl1 libglu1-mesa libsdl2-dev
 WORKDIR /usr/src
 
 COPY . .
+RUN mkdir ~/.ssh/
+RUN ssh-keyscan github.com >> ~/.ssh/known_hosts
 RUN --mount=type=ssh SQLX_OFFLINE=true CARGO_NET_FETCH_WITH_CLI=true cargo build --release 
 
 CMD ./target/release/blitzserver
