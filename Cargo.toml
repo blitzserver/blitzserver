@@ -1,6 +1,6 @@
 [package]
 name = "blitzserver"
-version = "1.0.0-rc.48"
+version = "1.0.0-rc.49"
 authors = ["Blitzserver Admin <admin@blitzserver.net"]
 edition = "2018"
 
