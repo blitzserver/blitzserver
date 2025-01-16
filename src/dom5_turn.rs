@@ -684,10 +684,10 @@ impl Dom5Turn {
                         format!("{}", game.provs_per_player),
                     ]);
                     arguments.append(&mut match Into::<_>::into(game.randommap_wrapping) {
-                        MapWrapping::None       => vec!["--nohwrap".to_owned()],
-                        MapWrapping::Both       => vec!["--vwrap".to_owned()],
-                        MapWrapping::Vertical   => vec!["--vwrap".to_owned(), "--nohwrap".to_owned()],
-                        MapWrapping::Horizontal => vec![]
+                        MapWrapping::None => vec!["--nohwrap".to_owned()],
+                        MapWrapping::Both => vec!["--vwrap".to_owned()],
+                        MapWrapping::Vertical => vec!["--vwrap".to_owned(), "--nohwrap".to_owned()],
+                        MapWrapping::Horizontal => vec![],
                     });
                 }
             }
@@ -705,6 +705,9 @@ impl Dom5Turn {
             for modname in modnames {
                 arguments.push("-M".to_string());
                 arguments.push(modname.dm_filename);
+            }
+            if game.borked {
+                arguments.append(&mut vec!["--repair".to_string()]);
             }
             if let None = game.turn {
                 arguments.append(&mut vec!["--newgame".to_string()]);

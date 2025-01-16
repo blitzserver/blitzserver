@@ -7,27 +7,10 @@
 #![feature(type_alias_impl_trait)]
 #![feature(get_mut_unchecked)]
 #![feature(never_type)]
-#[macro_use]
-extern crate async_std;
-extern crate base64;
-extern crate byteorder;
-extern crate chrono;
-extern crate crc;
-extern crate crossbeam_channel;
-extern crate derive_more;
-extern crate encoding;
-extern crate fletcher;
 extern crate image;
 extern crate num_derive;
 extern crate num_traits;
-extern crate reqwest;
-extern crate serde_json;
-extern crate smol;
 extern crate sqlx;
-extern crate thiserror;
-extern crate tungstenite;
-extern crate url;
-extern crate zip;
 
 use actix_session::storage::CookieSessionStore;
 use actix_session::SessionMiddleware;
@@ -47,6 +30,7 @@ pub mod frontend;
 pub mod models;
 pub mod msgbus;
 pub mod packets;
+// pub mod scraping_api;
 pub mod statusdump;
 pub mod util;
 pub mod views;
@@ -181,6 +165,7 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::help::help)
             .service(frontend::binaries::list)
             .service(frontend::binaries::upload)
+            //            .service(scraping_api::state)
             .service(actix_files::Files::new("/", "./content"))
     })
     .bind(format!(

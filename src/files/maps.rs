@@ -1,6 +1,6 @@
 use serde_dom5::d6m_file;
 
-use crate::image::GenericImageView;
+use image::GenericImageView;
 use std::io::BufRead;
 
 pub struct MapFile {

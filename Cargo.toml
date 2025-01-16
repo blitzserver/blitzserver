@@ -34,7 +34,7 @@ flate2 = { version = "1.0.17", features = ["zlib"], default-features = false }
 num-traits = "*"
 num-derive = "*"
 thiserror = "*"
-chrono = "*"
+chrono = { version = "*", features = ["serde"] }
 crc = "*"
 fletcher = "*"
 reqwest = { version = "*", features = ["blocking", "json"] }

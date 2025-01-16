@@ -93,6 +93,7 @@ pub struct Game {
     pub provs_per_player: i32,
     pub randommap_wrapping: MapWrapping,
     pub log_level: i32,
+    pub borked: bool,
 }
 
 #[derive(derive_more::From, derive_more::Into)]
