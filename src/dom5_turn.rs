@@ -336,11 +336,9 @@ impl Dom5Turn {
                 Err(e) => panic!("{}", e),
                 Ok(_) => {}
             }
-            println!("Extracting");
             let path = Binary::extract_to_tmp(self.game_id, &self.db_pool)
                 .await
                 .unwrap();
-            println!("Extracted");
             if let Some(subjob_id) = subjob_id {
                 sqlx::query!(
                     "UPDATE subjobs SET meta=$1 WHERE subjob_id=$2",
@@ -711,7 +709,6 @@ impl Dom5Turn {
             if let None = game.turn {
                 arguments.append(&mut vec!["--newgame".to_string()]);
             }
-            println!("Extracting");
             let path = Binary::extract_to_tmp(self.game_id, &self.db_pool)
                 .await
                 .unwrap();
@@ -723,8 +720,6 @@ impl Dom5Turn {
             .execute(&self.db_pool)
             .await
             .unwrap();
-            println!("Extracted");
-            println!("Startup command {}", &arguments.iter().join(" "));
             let mut child = AutokilledProc(
                 std::process::Command::new(path)
                     .env(

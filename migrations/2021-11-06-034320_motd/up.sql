@@ -1,2 +1,0 @@
--- Your SQL goes here
-ALTER TABLE games ADD COLUMN motd VARCHAR NOT NULL DEFAULT '';
