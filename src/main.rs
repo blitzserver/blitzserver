@@ -30,7 +30,6 @@ pub mod frontend;
 pub mod models;
 pub mod msgbus;
 pub mod packets;
-// pub mod scraping_api;
 pub mod statusdump;
 pub mod util;
 pub mod views;
@@ -165,7 +164,7 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::help::help)
             .service(frontend::binaries::list)
             .service(frontend::binaries::upload)
-            //            .service(scraping_api::state)
+            .service(frontend::api::game_json)
             .service(actix_files::Files::new("/", "./content"))
     })
     .bind(format!(

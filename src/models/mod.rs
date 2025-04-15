@@ -2,9 +2,10 @@ pub mod player;
 pub mod binary;
 pub mod maps;
 
-use std::{convert::TryInto, env};
+use std::{ env};
 use chrono::NaiveDateTime;
 pub use player::{NewPlayer, Player};
+use serde_json::Value;
 use sqlx::Postgres;
 use thiserror::Error;
 
@@ -148,6 +149,11 @@ struct GameNationCount {
 }
 
 impl Game {
+    pub async fn json_summary<'q, D>(game_id: i32, db: D) -> Result<Value, sqlx::error::Error>
+        where D: sqlx::Executor<'q, Database = Postgres> {
+        sqlx::query_file!("src/sql/get_game_jsonb.sql", game_id)
+        .fetch_one(db).await.map(|r| r.details)
+    }
     pub async fn update<'q, D>(&self, mod_ids: &[i32], db: D) -> Result<Game, sqlx::error::Error> 
         where D: sqlx::Executor<'q, Database = Postgres> {
         sqlx::query_as!(Game, "
