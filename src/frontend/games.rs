@@ -3,21 +3,15 @@ use super::utils::*;
 use super::AppData;
 use chrono::Utc;
 use itertools::Itertools;
-use std::convert::TryFrom;
-use std::convert::TryInto;
 use std::env;
 use std::io::Write;
-use std::iter::MapWhile;
 
-use crate::discord::DiscordManager;
 use crate::dom5_turn::Dom5Turn;
 use crate::models::maps::MapSummary;
-use crate::models::MapWrapping;
 use crate::models::{
-    AdminLog, Disciple, DiscordConfig, EmailConfig, Game, Map, MapProvince, Mod, Nation,
+    AdminLog, Disciple, EmailConfig, Game, MapProvince, Mod, Nation,
     NewAdminLog, NewGame, Player, PlayerTurn, Turn,
 };
-use crate::packets::map_req;
 use actix_web::http::header;
 use actix_web::{get, post, web, HttpResponse, Result};
 use askama::Template;
@@ -31,7 +25,7 @@ use std::ops::Add;
 struct GamesListPayload {
     antibot_failed: Option<i32>,
 }
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
 struct GameSettings {
     #[serde(default="default_one",     deserialize_with ="from_str")     ] era:                    i32,
@@ -121,18 +115,18 @@ impl From<(&Game, &[Mod])> for GameSettings {
             cataclysm: game.cataclysm,
             max_stales: game.max_stales,
             conq_all: game.conq_all as i32,
-            formal_diplo: game.formal_diplo as i32,
+            formal_diplo: game.formal_diplo,
             research_9_slow: game.research_9_slow as i32,
             cheat_detection: game.cheat_detection as i32,
             mercslots: game.mercslots,
-            generated_map: !game.maps_dom6_id.is_some() as i32,
+            generated_map: game.maps_dom6_id.is_none() as i32,
             provs_per_player: game.provs_per_player,
             randommap_wrapping: game.randommap_wrapping as i32,
             log_level: game.log_level,
         }
     }
 }
-#[cfg_attr(rustfmt, rustfmt_skip)]
+#[rustfmt::skip]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EmailForm {
     #[serde(default)                               ] email_address:   String,
@@ -315,8 +309,7 @@ impl<'a> GameDetailsTemplate<'a> {
             self.maps
                 .iter()
                 .find(|m| m.map_id == map_id)
-                .map(|m| m.planes.clone())
-                .flatten()
+                .and_then(|m| m.planes.clone())
                 .unwrap_or(vec![]),
             1200,
             19,
@@ -330,7 +323,7 @@ impl<'a> GameDetailsTemplate<'a> {
                 .duplicate_cdkey_nationnames
                 .as_ref()
                 .map(|n| n.iter().join(", "))
-                .unwrap_or(String::new())
+                .unwrap_or_default()
         )
     }
     pub fn turn_color_class(turn_status: &i32) -> String {
@@ -345,7 +338,7 @@ impl<'a> GameDetailsTemplate<'a> {
         }
     }
     pub fn nation_staling(&self, nation: &i32) -> bool {
-        return self.staling_players.iter().find(|n| *n == nation).is_some();
+        return self.staling_players.iter().any(|n| n == nation);
     }
     pub fn motd_str(&self) -> String {
         self.game.motd.as_ref().unwrap_or(&"".to_owned()).to_owned()
@@ -367,11 +360,7 @@ impl<'a> GameDetailsTemplate<'a> {
             .iter()
             .find(|p| match p.startprov {
                 Some(prov) => {
-                    if prov == *province_id {
-                        true
-                    } else {
-                        false
-                    }
+                    prov == *province_id
                 }
                 None => false,
             })
@@ -427,8 +416,7 @@ impl<'a> GameDetailsTemplate<'a> {
                     && !self
                         .players
                         .iter()
-                        .find(|p| p.nationid == d.nation_id)
-                        .is_some()
+                        .any(|p| p.nationid == d.nation_id)
                     || d.is_disciple == 0
                     || d.team.unwrap_or(0) != *team
                 {
@@ -501,8 +489,7 @@ impl<'a> GameDetailsTemplate<'a> {
             .filter(|n| {
                 self.players
                     .iter()
-                    .find(|p| p.nationid == n.nation_id)
-                    .is_some()
+                    .any(|p| p.nationid == n.nation_id)
             })
             .collect()
     }
@@ -534,7 +521,7 @@ impl<'a> GameDetailsTemplate<'a> {
         })
     }
     fn get_turn_pips(&self, nation_id: &i32) -> Vec<&PlayerTurn> {
-        match self.turns.get(&nation_id) {
+        match self.turns.get(nation_id) {
             Some(turns) => {
                 let len = turns.len();
                 if len > 0 {
@@ -554,12 +541,12 @@ impl<'a> GameDetailsTemplate<'a> {
         }
     }
     fn get_current_mods(&self) -> Vec<&Mod> {
-        if self.settings.cmods.len() == 0 {
+        if self.settings.cmods.is_empty() {
             vec![]
         } else {
             self.mods
                 .iter()
-                .filter(|m| self.settings.cmods.iter().find(|cm| **cm == m.id).is_some())
+                .filter(|m| self.settings.cmods.iter().any(|cm| *cm == m.id))
                 .collect()
         }
     }
@@ -845,11 +832,11 @@ async fn details(
     if let Some(p) = &payload.password {
         if *p == game.password {
             session
-                .insert(&format!("auth_{}", game.id), AuthStatus::AuthSuccess)
+                .insert(format!("auth_{}", game.id), AuthStatus::AuthSuccess)
                 .unwrap();
         } else {
             session
-                .insert(&format!("auth_{}", game.id), AuthStatus::AuthFail)
+                .insert(format!("auth_{}", game.id), AuthStatus::AuthFail)
                 .unwrap();
         }
         return Ok(HttpResponse::TemporaryRedirect()
@@ -899,7 +886,7 @@ async fn details(
         .await
         .unwrap();
     let turns = Turn::get_all(game.id, &sqlx_db).await.unwrap();
-    let settings: GameSettings = if let Some(_) = game_settings.loaded {
+    let settings: GameSettings = if game_settings.loaded.is_some() {
         game_settings.clone()
     } else {
         (&game, &game.get_mods(&sqlx_db).await.unwrap()[..]).into()
@@ -1053,8 +1040,7 @@ async fn details(
             winner_name: turns.last().and_then(|t| {
                 nations
                     .iter()
-                    .find(|n| Some(n.nation_id) == t.winner)
-                    .and_then(|n| Some(n.name.clone()))
+                    .find(|n| Some(n.nation_id) == t.winner).map(|n| n.name.clone())
             }),
             maps: &maps,
             mods: &mods,
@@ -1083,7 +1069,7 @@ async fn launch(
         bytes.extend_from_slice(&item?);
     }
     let config = serde_qs::Config::new(10, false);
-    let form: StartGame = config.deserialize_bytes(&*bytes).unwrap();
+    let form: StartGame = config.deserialize_bytes(&bytes).unwrap();
     let sqlx_db = app_data.sqlx_pool.clone();
     let sched = chrono::Utc::now().add(chrono::Duration::hours(form.countdown.unwrap_or(0) as i64));
     let game = Game::get(*path_id, &sqlx_db).await.unwrap();
@@ -1117,24 +1103,20 @@ async fn create_post(
         bytes.extend_from_slice(&item?);
     }
     let config = serde_qs::Config::new(10, false);
-    let params: CreateGame = config.deserialize_bytes(&*bytes).unwrap();
-    if AppData::get_antibot_question().is_some() {
-        if params.antibot.is_none()
-            || AppData::get_antibot_answer()
+    let params: CreateGame = config.deserialize_bytes(&bytes).unwrap();
+    if AppData::get_antibot_question().is_some() && (params.antibot.is_none() || AppData::get_antibot_answer()
                 .as_ref()
                 .unwrap()
                 .to_ascii_lowercase()
-                != params.antibot.unwrap().to_ascii_lowercase()
-        {
-            return Ok(HttpResponse::Found()
-                .append_header((header::LOCATION, "/games?antibot_failed=1"))
-                .finish());
-        }
+                != params.antibot.unwrap().to_ascii_lowercase()) {
+        return Ok(HttpResponse::Found()
+            .append_header((header::LOCATION, "/games?antibot_failed=1"))
+            .finish());
     }
 
     let mut new_game = NewGame::default();
     let port_var = env::var("PORT_RANGE").expect("PORT_RANGE must be set (ie. '10000,10999')");
-    let range: Vec<&str> = port_var.split(",").collect();
+    let range: Vec<&str> = port_var.split(',').collect();
     let new_port: i32 = sqlx::query!(
                     "SELECT num FROM generate_series($1::integer, $2::integer) num LEFT OUTER JOIN games g ON g.port=num WHERE g.id IS NULL ORDER BY num ASC LIMIT 1",
                     range[0].parse::<i32>().unwrap(), range[1].parse::<i32>().unwrap()
@@ -1216,7 +1198,7 @@ async fn list(
     let watch_player_ids: std::collections::HashSet<i32> = session
         .get("watches")
         .unwrap()
-        .unwrap_or(std::collections::HashSet::new());
+        .unwrap_or_default();
 
     let mut results = sqlx::query!(r#"
 WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),
@@ -1266,7 +1248,7 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
         .map(|g| AbandonedGame {
             id: g.id,
             map_id: g.maps_dom6_id.unwrap_or(0),
-            planes: g.planes.unwrap_or(vec![]),
+            planes: g.planes.unwrap_or_default(),
             name: g.name.clone(),
             address: format!(
                 "{}:{}",
@@ -1290,12 +1272,12 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
         })
         .collect();
     let active_games: Vec<ActiveGame> = results
-        .extract_if(|g| turn_summaries.iter().find(|t| t.game_id == g.id).is_some())
+        .extract_if(|g| turn_summaries.iter().any(|t| t.game_id == g.id))
         .map(|g| ActiveGame {
             id: g.id,
             fail_count: g.fail_count.unwrap_or(0) as i32,
             map_id: g.maps_dom6_id.unwrap_or(0),
-            planes: g.planes.clone().unwrap_or(vec![]),
+            planes: g.planes.clone().unwrap_or_default(),
             turn_status: g.turn_status,
             hosting: g.current_job.is_some(),
             turn_summary: turn_summaries
@@ -1317,7 +1299,7 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
             id: g.id,
             fail_count: g.fail_count.unwrap_or(0) as i32,
             map_id: g.maps_dom6_id.unwrap_or(0),
-            planes: g.planes.clone().unwrap_or(vec![]),
+            planes: g.planes.clone().unwrap_or_default(),
             joined: g.playing.is_some(),
             players: match player_counts.contains_key(&g.id) {
                 true => player_counts[&g.id],
@@ -1361,7 +1343,7 @@ async fn settings_post(
     }
     let config = serde_qs::Config::new(10, false);
     log::debug!("Game settings {:?}", bytes);
-    let body: GameSettings = config.deserialize_bytes(&*bytes).unwrap();
+    let body: GameSettings = config.deserialize_bytes(&bytes).unwrap();
     if session
         .get(&format!("auth_{}", path_id))
         .unwrap_or(Some(AuthStatus::Unauthed))
@@ -1558,12 +1540,12 @@ pub async fn remove_post(
         .unwrap_or(AuthStatus::Unauthed)
         == AuthStatus::AuthSuccess;
     let sqlx_db = app_data.sqlx_pool.clone();
-    let turns = crate::models::Turn::current_turn(&vec![path_id], &sqlx_db)
+    let turns = crate::models::Turn::current_turn(&[path_id], &sqlx_db)
         .await
         .unwrap();
     // Check if there were no turns found for the vector of games containing only our game, *not*
     // that there were zero games for just ours, this is not a logic error, though it looks odd.
-    if turns.len() == 0 {
+    if turns.is_empty() {
         let players = Player::get_players(path_id, &sqlx_db).await.unwrap();
         if let Some(player) = players.iter().find(|p| p.nationid == nation_id) {
             log::debug!("Attempted pass {:?} {:?}", password, player.password);
@@ -1813,7 +1795,7 @@ pub async fn download_turn(
     .fetch_all(&db)
     .await
     .unwrap();
-    if files.len() == 0 {
+    if files.is_empty() {
         return Ok(HttpResponse::Found()
             .append_header((header::LOCATION, format!("/game/{}#schedule", game_id)))
             .finish());

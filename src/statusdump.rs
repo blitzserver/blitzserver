@@ -46,6 +46,6 @@ impl StatusDump {
                 });
             }
         }
-        return StatusDump { turn, nations };
+        StatusDump { turn, nations }
     }
 }

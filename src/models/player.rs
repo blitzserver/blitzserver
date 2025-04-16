@@ -1,4 +1,4 @@
-use super::{File, Game};
+use super::{File};
 use crate::files::saves::{DomSaveReadError, SaveFile};
 use sqlx::Postgres;
 use thiserror::Error;

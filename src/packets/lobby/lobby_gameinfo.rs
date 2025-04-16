@@ -1,4 +1,4 @@
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{LittleEndian, WriteBytesExt};
 use num_traits::{FromPrimitive, ToPrimitive};
 #[derive(Default, Debug, Clone, num_derive::FromPrimitive, num_derive::ToPrimitive)]
 #[repr(i8)]
@@ -38,7 +38,7 @@ pub struct LobbyGameInfo {
 
 impl LobbyGameInfo {
     pub fn from_reader<R: std::io::Read>(r: &mut R) -> LobbyGameInfo {
-        return Self::default();
+        Self::default()
     }
 }
 

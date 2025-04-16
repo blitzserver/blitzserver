@@ -7,7 +7,7 @@ pub struct JoinGameReq {
 
 impl JoinGameReq {
     pub fn from_reader<R: std::io::Read>(r: &mut R) -> JoinGameReq {
-        return Self {
+        Self {
             game_id: r.read_i32::<LittleEndian>().unwrap(),
             pass: {
                 let mut pass = String::new();
@@ -19,7 +19,7 @@ impl JoinGameReq {
                 }
                 pass
             },
-        };
+        }
     }
 }
 

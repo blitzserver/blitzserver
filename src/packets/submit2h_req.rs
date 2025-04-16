@@ -21,8 +21,7 @@ impl std::fmt::Debug for Submit2hReq {
                 &self
                     .twoh_contents
                     .iter()
-                    .take(32)
-                    .map(|d| *d)
+                    .take(32).copied()
                     .collect::<Vec<u8>>(),
             )
             .finish()

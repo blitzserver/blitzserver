@@ -6,7 +6,7 @@ pub struct MapWinterFileResp {
 impl std::fmt::Debug for MapWinterFileResp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MapWinterFileResp")
-            .field("winter_contents[0..32]", &self.winter_contents.iter().take(32).map(|d| *d).collect::<Vec<u8>>().iter())
+            .field("winter_contents[0..32]", &self.winter_contents.iter().take(32).copied().collect::<Vec<u8>>().iter())
             .finish()
     }
 }

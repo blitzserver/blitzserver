@@ -1,6 +1,5 @@
 use std::env;
 use crate::msgbus::MsgBusTx;
-use crate::discord::DiscordManager;
 use crate::email_manager::EmailManager;
 
 pub mod mods;
@@ -21,10 +20,10 @@ pub struct AppData {
 
 impl AppData {
     pub fn get_antibot_question() -> Option<String> {
-        return env::var("ANTIBOT_QUESTION").ok()
+        env::var("ANTIBOT_QUESTION").ok()
     }
     pub fn get_antibot_answer() -> Option<String> {
-        return env::var("ANTIBOT_ANSWER").ok()
+        env::var("ANTIBOT_ANSWER").ok()
     }
 }
 

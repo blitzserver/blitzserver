@@ -72,45 +72,39 @@ impl std::convert::TryFrom<&[u8]> for MapFile {
         let tga_name = regex::Regex::new(r#"#imagefile "?([^"\n]+)"?"#)
             .ok()
             .and_then(|c| c.captures(&nocomment_lines))
-            .and_then(|m| m.get(1))
-            .and_then(|d| Some(d.as_str().to_owned()))
+            .and_then(|m| m.get(1)).map(|d| d.as_str().to_owned())
             .ok_or(MapFileReadError {
                 err_type: MapFileReadErrorType::NoImageFile,
             })?;
         let name = regex::Regex::new(r#"#dom2title "?([^"\n]+)"?"#)
             .ok()
             .and_then(|c| c.captures(&nocomment_lines))
-            .and_then(|m| m.get(1))
-            .and_then(|d| Some(d.as_str().to_owned()))
+            .and_then(|m| m.get(1)).map(|d| d.as_str().to_owned())
             .ok_or(MapFileReadError {
                 err_type: MapFileReadErrorType::NoName,
             })?;
         let winter_filename = regex::Regex::new(r#"#winterimagefile "?([^"\n]+)"?"#)
             .ok()
             .and_then(|c| c.captures(&nocomment_lines))
-            .and_then(|m| m.get(1))
-            .and_then(|d| Some(d.as_str().to_owned()));
+            .and_then(|m| m.get(1)).map(|d| d.as_str().to_owned());
         let min_version = regex::Regex::new(r#"#domversion ([0-9]+)"#)
             .ok()
             .and_then(|c| c.captures(&nocomment_lines))
-            .and_then(|m| m.get(1))
-            .and_then(|d| Some(d.as_str().to_owned()));
+            .and_then(|m| m.get(1)).map(|d| d.as_str().to_owned());
 
         let mut province_count: i32 = 0;
         let mut uw_count = 0;
         let capture_terrain = regex::Regex::new("#terrain ([0-9]+) ([0-9]+)").unwrap();
         for (_, terrain_type) in contents.lines().filter_map(Result::ok).filter_map(|l| {
-            capture_terrain.captures(&l).and_then(|c| {
-                Some((
+            capture_terrain.captures(&l).map(|c| (
                     c.get(1).unwrap().as_str().parse::<i32>().unwrap(),
                     c.get(2).unwrap().as_str().parse::<i32>().unwrap(),
                 ))
-            })
         }) {
             if terrain_type & TerrainFlags::Sea as i32 == TerrainFlags::Sea as i32 {
-                uw_count = uw_count + 1;
+                uw_count += 1;
             } else {
-                province_count = province_count + 1;
+                province_count += 1;
             }
         }
 
@@ -119,8 +113,7 @@ impl std::convert::TryFrom<&[u8]> for MapFile {
             let capture_neighbour = regex::Regex::new("#neighbour ([0-9]+) ([0-9]+)").unwrap();
             for prov_id in contents.lines().filter_map(Result::ok).filter_map(|l| {
                 capture_neighbour
-                    .captures(&l)
-                    .and_then(|c| Some(c.get(1).unwrap().as_str().parse::<i32>().unwrap()))
+                    .captures(&l).map(|c| c.get(1).unwrap().as_str().parse::<i32>().unwrap())
             }) {
                 set.insert(prov_id);
             }
@@ -133,8 +126,7 @@ impl std::convert::TryFrom<&[u8]> for MapFile {
             winter_filename,
             min_version: min_version
                 .as_deref()
-                .map(|c| str::parse::<i32>(c).ok())
-                .flatten()
+                .and_then(|c| str::parse::<i32>(c).ok())
                 .unwrap_or(0),
             prov_count: province_count,
             uwprov_count: uw_count,
@@ -172,7 +164,7 @@ impl MapFile {
                 let mut provs = 0;
                 for (_, _, data) in img.pixels() {
                     if data[0] == 255 && data[1] == 255 && data[2] == 255 {
-                        provs = provs + 1;
+                        provs += 1;
                     }
                 }
                 Some(provs)
@@ -183,6 +175,6 @@ impl MapFile {
             }
             _ => None,
         };
-        return Ok(provcount);
+        Ok(provcount)
     }
 }

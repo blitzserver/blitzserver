@@ -1,6 +1,5 @@
 use actix_multipart::Multipart;
 use actix_web::{get, http::header, post, web::Data, HttpResponse, Result};
-use async_std::fs::create_dir;
 use html_node::{html, text};
 use smol::stream::StreamExt;
 
@@ -14,11 +13,11 @@ struct ListTemplate<'a> {
 
 impl<'a> ListTemplate<'a> {
     pub fn get_upload_location() -> String {
-        return format!(
+        format!(
             "{}/binaries",
             std::env::var("UPLOAD_ADDRESS")
                 .expect("GAMES_ADDRESS env varnot specified, needed for binary upload form")
-        );
+        )
     }
 }
 
@@ -67,7 +66,7 @@ pub async fn upload((app_data, mut payload): (Data<AppData>, Multipart)) -> Resu
 
                 std::thread::sleep(std::time::Duration::from_secs(1));
 
-                let command = std::process::Command::new(tmp_path.join(&fname))
+                let command = std::process::Command::new(tmp_path.join(fname))
                     .arg("--version")
                     .output()
                     .unwrap();
@@ -79,7 +78,7 @@ pub async fn upload((app_data, mut payload): (Data<AppData>, Multipart)) -> Resu
                     .get(1)
                     .unwrap()
                     .as_str();
-                Binary::new(&version, &filename, &contents, &fname, &db)
+                Binary::new(version, &filename, &contents, fname, &db)
                     .await
                     .unwrap();
             }

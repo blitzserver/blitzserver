@@ -1,5 +1,5 @@
 use super::game_settings::GameSettings;
-use super::{calendar::Calendar, kingdom::Kingdom, land::Land, DomSaveReadError, ReadDom5Ext};
+use super::{calendar::Calendar, kingdom::Kingdom, land::Land, DomSaveReadError};
 use byteorder::{LittleEndian, ReadBytesExt};
 
 #[derive(Debug)]

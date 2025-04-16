@@ -1,13 +1,10 @@
 use itertools::Itertools;
 use sqlx::PgPool;
 use std::{
-    io::Read,
     net::{SocketAddr, TcpStream},
 };
 
 use crate::{
-    dom5_conn::Dom5Conn,
-    models::Player,
     packets::{
         lobby::{
             joingame_resp::{JoinGameResp, RespCode::Success},
@@ -33,7 +30,7 @@ impl Dom5LobbyConn {
             pool,
         }
     }
-    pub fn run(mut self) -> () {
+    pub fn run(mut self) {
         std::thread::spawn(move || {
             smol::block_on(async {
                 let mut buffered_conn = std::io::BufReader::new(self.stream.try_clone().unwrap());

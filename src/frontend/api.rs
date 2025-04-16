@@ -1,7 +1,6 @@
 use crate::frontend::AppData;
 use crate::models::Game;
-use actix_web::guard::Header;
-use actix_web::http::header::{self, ContentType, HeaderName};
+use actix_web::http::header::{self};
 use actix_web::{get, Result};
 use actix_web::{web, HttpResponse};
 

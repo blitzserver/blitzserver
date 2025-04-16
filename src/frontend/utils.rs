@@ -1,4 +1,4 @@
-use actix_web::{dev::Response, Responder, HttpResponse, body::BoxBody};
+use actix_web::{Responder, HttpResponse, body::BoxBody};
 use serde::de::Error;
 
 pub fn from_str_opt<'de, D, S>(deserializer: D) -> Result<Option<S>, D::Error>
@@ -7,7 +7,7 @@ where
     S: std::str::FromStr + Default,
 {
     let s = <&str as serde::Deserialize>::deserialize(deserializer)?;
-    Ok(match S::from_str(&s) {
+    Ok(match S::from_str(s) {
         Ok(s) => Some(s),
         Err(_) => None
     })
@@ -18,7 +18,7 @@ where
     S: std::str::FromStr + Default,
 {
     let s = <&str as serde::Deserialize>::deserialize(deserializer)?;
-    Ok(S::from_str(&s).unwrap_or(S::default()))
+    Ok(S::from_str(s).unwrap_or(S::default()))
 }
 pub fn from_str_seq<'de, D, S>(deserializer: D) -> Result<Vec<S>, D::Error>
 where
@@ -27,7 +27,7 @@ where
 {
     let s = <Vec<&str> as serde::Deserialize>::deserialize(deserializer)?;
     s.iter()
-        .map(|s| S::from_str(&s).map_err(|_| D::Error::custom("could not parse string")))
+        .map(|s| S::from_str(s).map_err(|_| D::Error::custom("could not parse string")))
         .collect()
 }
 

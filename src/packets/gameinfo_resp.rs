@@ -157,10 +157,10 @@ impl crate::packets::BodyContents for GameInfoResp {
             | if self.diplo_off { DIPLO_OFF } else { 0 }
             | if self.diplo_weak { DIPLO_WEAK } else { 0 };
         if self.disciples {
-            unk_bit_map = unk_bit_map | DISCIPLES_BIT_ID;
+            unk_bit_map |= DISCIPLES_BIT_ID;
         }
         if self.renaming {
-            unk_bit_map = unk_bit_map | RENAMING_BIT_ID;
+            unk_bit_map |= RENAMING_BIT_ID;
         }
         w.write_u32::<LittleEndian>(unk_bit_map).unwrap();
         w.write_u8(0x2d).unwrap();

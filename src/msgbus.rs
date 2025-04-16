@@ -112,6 +112,12 @@ pub struct MsgBus {
     pub sender: crossbeam_channel::Sender<Msg>,
 }
 
+impl Default for MsgBus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MsgBus {
     pub fn new() -> MsgBus {
         let (tx, rx) = crossbeam_channel::unbounded::<Msg>();
@@ -123,7 +129,7 @@ impl MsgBus {
                 .recv()
                 .expect("Msgbus failed to receive broadcast request (send channel hosed?");
             if let Ok(mut broadcasters) = cloned_broadcast.lock() {
-                broadcasters.extract_if(|broadcaster| !broadcaster.send(m.clone()).is_ok());
+                broadcasters.extract_if(|broadcaster| broadcaster.send(m.clone()).is_err());
             }
         });
         MsgBus {

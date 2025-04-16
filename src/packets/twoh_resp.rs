@@ -9,7 +9,7 @@ impl std::fmt::Debug for TwoHResp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TwoHResp")
             .field("nation_id", &self.nation_id)
-            .field("twoh_contents[0..32]", &self.twoh_contents.iter().take(32).map(|d| *d).collect::<Vec<u8>>())
+            .field("twoh_contents[0..32]", &self.twoh_contents.iter().take(32).copied().collect::<Vec<u8>>())
             .finish()
     }
 }

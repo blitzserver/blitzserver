@@ -1,13 +1,11 @@
-use crate::files::saves::DomSaveReadError;
 use crate::files::MapFile;
 use crate::models::binary::Binary;
 use crate::models::maps::{Plane, PlaneImage};
-use crate::models::{Map, MapWrapping};
+use crate::models::{MapWrapping};
 use crate::util::calculate_crc;
 use encoding::{all::ISO_8859_1, DecoderTrap, Encoding};
 use itertools::Itertools;
 use nonblock::NonBlockingReader;
-use serde::Deserialize;
 use serde_dom5::ftherlnd_contents::FtherlndContents;
 use serde_dom5::game_settings::GameSettings;
 use serde_dom5::kingdom::KingdomType;
@@ -206,7 +204,7 @@ impl Dom5Turn {
             )
             .fetch_all(&self.db_pool)
             .await?;
-            if save_files.len() == 0 {
+            if save_files.is_empty() {
                 return Err(Dom5TurnErr::NoTurns);
             }
             let save_dir = std::env::current_dir()
@@ -275,9 +273,9 @@ impl Dom5Turn {
                     .map_err(Dom5TurnErr::UncleanSaveDir)?;
                 if let (Some(twohfn), Some(twohfb)) = (saves.twohfn.as_ref(), saves.twohfb.as_ref())
                 {
-                    std::fs::File::create(save_dir.join(&twohfn))
+                    std::fs::File::create(save_dir.join(twohfn))
                         .map_err(Dom5TurnErr::UncleanSaveDir)?
-                        .write_all(&twohfb)
+                        .write_all(twohfb)
                         .map_err(Dom5TurnErr::UncleanSaveDir)?;
                 }
             }
@@ -709,7 +707,7 @@ impl Dom5Turn {
             if game.borked {
                 arguments.append(&mut vec!["--repair".to_string()]);
             }
-            if let None = game.turn {
+            if game.turn.is_none() {
                 arguments.append(&mut vec!["--newgame".to_string()]);
             }
             let path = Binary::extract_to_tmp(self.game_id, &self.db_pool)
@@ -767,8 +765,8 @@ impl Dom5Turn {
                     Ok(s) => s,
                     Err(e) => format!("\nERROR: Failed to read output from Dom5: {:?}", e),
                 };
-                if outbuf.len() == 0 && errbuf.len() == 0 {
-                    waits = waits + 1;
+                if outbuf.is_empty() && errbuf.is_empty() {
+                    waits += 1;
                     if waits == 240 {
                         outbuf.push_str(&format!(
                             "WARN: Printed nothing for {} seconds, forcefully killing\n",
@@ -951,7 +949,7 @@ impl Dom5Turn {
                         };
                         let nation = nations
                             .iter()
-                            .find(|n| n.nation_id == *nation_id as i32)
+                            .find(|n| n.nation_id == { *nation_id })
                             .unwrap();
                         let mut player_turn_file =
                             std::fs::File::open(save_dir.join(format!("{}.trn", nation.filename)))
@@ -980,12 +978,12 @@ impl Dom5Turn {
                         .await?;
                     }
                     // Player_turns which should be inserted without files (in bulk, later on)
-                    KingdomType::Computer => computer_nationids.push(*nation_id as i32),
-                    KingdomType::Defeated => defeated_nationids.push(*nation_id as i32),
+                    KingdomType::Computer => computer_nationids.push(*nation_id),
+                    KingdomType::Defeated => defeated_nationids.push(*nation_id),
                     // Kingdom types we shall ignore
                     KingdomType::Special => {}
                     KingdomType::Unknown(d) => {
-                        log::warn!("Unknown nation status for {}, {}", *nation_id as i32, d);
+                        log::warn!("Unknown nation status for {}, {}", { *nation_id }, d);
                     }
                 }
             }

@@ -52,11 +52,11 @@ async fn styles() -> Result<HttpResponse> {
         )]))
         .content_type("text/css")
         .body(
-            &concat!(
+            concat!(
                 include_str!("../content/map-list.css"),
                 include_str!("../content/mod-list.css"),
                 include_str!("../content/styles.css")
-            )[..],
+            ),
         ))
 }
 

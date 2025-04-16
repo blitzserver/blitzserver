@@ -30,18 +30,9 @@ impl MapResp {
             image_name,
             image_len: image_contents.len() as u32,
             image_crc: crate::util::calculate_crc(&image_contents[..]),
-            winter_name: match winter_name {
-                Some(winter_name) => Some(winter_name),
-                _ => None,
-            },
-            winter_crc: match &winter_contents {
-                Some(wc) => Some(crate::util::calculate_crc(&wc[..])),
-                None => None,
-            },
-            winter_len: match winter_contents {
-                Some(winter_contents) => Some(winter_contents.len() as u32),
-                None => None,
-            },
+            winter_name,
+            winter_crc: winter_contents.as_ref().map(|wc| crate::util::calculate_crc(&wc[..])),
+            winter_len: winter_contents.map(|winter_contents| winter_contents.len() as u32),
         }
     }
     pub fn from_reader<R: std::io::BufRead>(r: &mut R) -> MapResp {
@@ -172,18 +163,18 @@ impl PlaneImage {
             name.push(c as char);
             println!("name so far {}", name);
         }
-        if name == "" {
+        if name.is_empty() {
             return None;
         }
         let unk = r.read_i32::<LittleEndian>().unwrap();
         let unk1 = r.read_i32::<LittleEndian>().unwrap();
         let unk2 = r.read_i8().unwrap();
-        return Some(PlaneImage {
+        Some(PlaneImage {
             name,
             unk,
             unk1,
             unk2,
-        });
+        })
     }
 }
 

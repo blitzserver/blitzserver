@@ -3,12 +3,9 @@ use ::num_traits::{FromPrimitive, ToPrimitive};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use flate2::read::ZlibDecoder;
 use flate2::write::ZlibEncoder;
-use std::io::{BufReader, Write};
+use std::io::{Write};
 use thiserror::Error;
 
-use bincode::Options;
-use std::collections::VecDeque;
-use std::fs;
 
 pub mod astralpacket_req;
 pub mod astralpacket_resp;
@@ -92,7 +89,7 @@ use self::lobby::lobbyinfo_gameinfo::LobbyInfoGameInfo;
 use self::lobby::lobby_gameinfo::LobbyGameInfo;
 use self::lobby::lobbyinfo_req::LobbyInfoReq;
 use self::lobby::lobbyinfo_resp::LobbyInfoResp;
-use self::map_resp::{MapResp6, PlaneDef};
+use self::map_resp::{MapResp6};
 
 #[derive(Debug)]
 pub enum Protocol {
@@ -414,16 +411,13 @@ fn deserialize_packet_game() {
         for entry in fs::read_dir(path).unwrap() {
             let entry = entry.unwrap();
             if let Ok(ft) = entry.file_type() {
-                if ft.is_dir() {
-                    if !entry
+                if ft.is_dir() && !entry
                         .file_name()
                         .as_os_str()
                         .to_str()
                         .unwrap()
-                        .starts_with("_")
-                    {
-                        openset.push_back(entry.path());
-                    }
+                        .starts_with('_') {
+                    openset.push_back(entry.path());
                 }
                 if ft.is_file() {
                     let mut file = std::fs::File::open(entry.path()).unwrap();
@@ -443,16 +437,13 @@ fn deserialize_packet_lobby() {
         for entry in fs::read_dir(path).unwrap() {
             let entry = entry.unwrap();
             if let Ok(ft) = entry.file_type() {
-                if ft.is_dir() {
-                    if !entry
+                if ft.is_dir() && !entry
                         .file_name()
                         .as_os_str()
                         .to_str()
                         .unwrap()
-                        .starts_with("_")
-                    {
-                        openset.push_back(entry.path());
-                    }
+                        .starts_with('_') {
+                    openset.push_back(entry.path());
                 }
                 if ft.is_file() {
                     let mut file = std::fs::File::open(entry.path()).unwrap();

@@ -1,4 +1,4 @@
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{LittleEndian, WriteBytesExt};
 #[derive(Default, Debug, Clone)]
 pub struct ServerStatusResp {
     pub unkbytes: [u8; 5],
@@ -13,7 +13,7 @@ pub struct ServerStatusResp {
 
 impl ServerStatusResp {
     pub fn from_reader<R: std::io::Read>(r: &mut R) -> ServerStatusResp {
-        return Self::default();
+        Self::default()
     }
 }
 

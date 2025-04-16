@@ -1,13 +1,11 @@
-use std::default;
 
-use byteorder::ReadBytesExt;
 #[derive(Debug, Clone)]
 pub struct LobbyInfoReq {
 }
 
 impl LobbyInfoReq {
     pub fn from_reader<R: std::io::Read>(r: &mut R) -> LobbyInfoReq {
-        return Self {}
+        Self {}
     }
 }
 

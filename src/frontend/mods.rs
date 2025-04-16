@@ -15,13 +15,13 @@ pub struct ListModsTemplate<'a> {
 
 impl<'a> ListModsTemplate<'a> {
     pub fn get_upload_location() -> String {
-        return format!(
+        format!(
             "{}/mods/upload",
             std::env::var("UPLOAD_ADDRESS").unwrap_or(
                 std::env::var("ADDRESS")
                     .expect("GAMES_ADDRESS env varnot specified, needed for map upload form")
             )
-        );
+        )
     }
 }
 
@@ -36,7 +36,7 @@ pub async fn list(app_data: web::Data<AppData>) -> Result<HttpResponse> {
     let db = app_data.sqlx_pool.clone();
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (ListModsTemplate {
-            errors: &vec![],
+            errors: &[],
             mods: sqlx::query_as!(Mod, "SELECT * FROM mods")
                 .fetch_all(&db)
                 .await
@@ -152,7 +152,7 @@ pub async fn upload_post(
                                 dm_filename,
                                 icon_filename,
                             }) => {
-                                let banner_file = if icon_filename == "" {
+                                let banner_file = if icon_filename.is_empty() {
                                     None
                                 } else {
                                     let path = std::path::PathBuf::from(&icon_filename);
@@ -183,7 +183,7 @@ pub async fn upload_post(
                             _ => {
                                 return Ok(HttpResponse::Ok().content_type("text/html").body(
                                     (ListModsTemplate {
-                                        errors: &vec!["Unable to find mod in zip (make sure there's a file that ends in .dm)".to_string()],
+                                        errors: &["Unable to find mod in zip (make sure there's a file that ends in .dm)".to_string()],
                                         mods: sqlx::query_as!(Mod, "SELECT * FROM mods")
                                             .fetch_all(&sqlx_db)
                                             .await
@@ -202,7 +202,7 @@ pub async fn upload_post(
                                     .fetch_all(&sqlx_db)
                                     .await
                                     .unwrap(),
-                                errors: &vec!["File is not a zip".to_string()],
+                                errors: &["File is not a zip".to_string()],
                             })
                             .render()
                             .unwrap(),
@@ -219,7 +219,7 @@ pub async fn upload_post(
                 .fetch_all(&sqlx_db)
                 .await
                 .unwrap(),
-            errors: &vec!["Form post is complete garbage".to_string()],
+            errors: &["Form post is complete garbage".to_string()],
         })
         .render()
         .unwrap(),

@@ -1,4 +1,4 @@
-use std::{ffi::OsStr, os::unix::prelude::OsStrExt, path::Path};
+use std::{os::unix::prelude::OsStrExt};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
@@ -16,7 +16,7 @@ pub struct AstralPacketResp {
 
 impl AstralPacketResp {
     pub fn from_reader<R: std::io::Read>(r: &mut R, version: Option<u16>) -> AstralPacketResp {
-        let mut name_bytes: Vec<u8> = vec![];
+        let name_bytes: Vec<u8> = vec![];
         let len = r.read_u16::<LittleEndian>().unwrap();
         let mut dmfiles = Vec::new();
         for i in 0..=len {
@@ -54,7 +54,7 @@ impl AstralPacketResp {
 impl crate::packets::BodyContents for AstralPacketResp {
     const ID: u8 = 0x12;
     fn write<W: std::io::Write>(&self, w: &mut W, version: Option<u16>) {
-        if self.dmfiles.len() == 0 {
+        if self.dmfiles.is_empty() {
             w.write_u32::<LittleEndian>(0xffffffff).unwrap();
         } else {
             w.write_u16::<LittleEndian>(self.dmfiles.len() as u16)

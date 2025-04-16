@@ -15,9 +15,9 @@ pub struct JoinGameResp {
 
 impl JoinGameResp {
     pub fn from_reader<R: std::io::Read>(r: &mut R) -> JoinGameResp {
-        return Self {
+        Self {
             respcode: RespCode::from_i16(r.read_i16::<LittleEndian>().unwrap()).unwrap(),
-        };
+        }
     }
 }
 

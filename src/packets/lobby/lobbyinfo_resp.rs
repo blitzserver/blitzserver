@@ -1,7 +1,7 @@
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
-use std::{convert::TryInto, default::Default};
+use std::{default::Default};
 
 #[repr(i16)]
 #[derive(Clone, Debug, FromPrimitive, ToPrimitive)]
@@ -102,7 +102,7 @@ pub struct LobbyInfoResp {
 
 impl LobbyInfoResp {
     pub fn from_reader<R: std::io::Read>(r: &mut R) -> LobbyInfoResp {
-        return LobbyInfoResp {
+        LobbyInfoResp {
             unk: r.read_u8().unwrap(),
             motd: {
                 let mut s = String::new();
@@ -124,7 +124,7 @@ impl LobbyInfoResp {
                 }
                 games
             },
-        };
+        }
     }
 }
 

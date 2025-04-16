@@ -34,13 +34,13 @@ pub fn calculate_crc<R: std::io::Read>(data: R) -> u32 {
         let dat_u32 = dat.unwrap() as u32;
         register = register.rotate_left(6);
         register = (std::num::Wrapping(register ^ dat_u32)
-            + (std::num::Wrapping(dat_u32 + 1) * std::num::Wrapping(index as u32) << 8))
+            + ((std::num::Wrapping(dat_u32 + 1) * std::num::Wrapping(index as u32)) << 8))
             .0;
     }
-    return register;
+    register
 }
 pub fn calculate_trn_cc(data: &[u8]) -> u16 {
-    if data.len() == 0 {
+    if data.is_empty() {
         return 0;
     }
     let mut dx: u32 = 0;
@@ -49,11 +49,11 @@ pub fn calculate_trn_cc(data: &[u8]) -> u16 {
         result = dx;
         let si: u32 = data[di] as u32;
         let mut bx: u32 = data[((di as u32) + si + dx) as usize] as u32;
-        bx = bx & 0xff;
+        bx &= 0xff;
         bx = RAND_TAB[bx as usize];
         dx = (std::num::Wrapping(bx) + std::num::Wrapping(dx)).0;
     }
-    return (result & 0xffff) as u16;
+    (result & 0xffff) as u16
 }
 const RAND_TAB: [u32; 704] = [
     0x67458B6B, 0xC6237B32, 0x69983C64, 0x73483366, 0x51DCB074, 0xFF5C4919, 0x4A94E82A, 0xEC585562,

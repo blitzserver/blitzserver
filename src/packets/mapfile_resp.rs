@@ -11,8 +11,7 @@ impl std::fmt::Debug for MapFileResp {
                 &self
                     .map_contents
                     .iter()
-                    .take(32)
-                    .map(|d| *d)
+                    .take(32).copied()
                     .collect::<Vec<u8>>(),
             )
             .finish()

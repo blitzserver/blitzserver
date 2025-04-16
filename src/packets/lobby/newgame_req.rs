@@ -1,6 +1,4 @@
-use std::default;
 
-use byteorder::ReadBytesExt;
 #[derive(Debug, Clone)]
 pub struct NewGameReq {
 //    unk: u16,
@@ -11,7 +9,7 @@ pub struct NewGameReq {
 
 impl NewGameReq {
     pub fn from_reader<R: std::io::Read>(r: &mut R) -> NewGameReq {
-        return Self {}
+        Self {}
     }
 }
 

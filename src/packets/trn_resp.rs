@@ -6,7 +6,7 @@ pub struct TrnResp {
 impl std::fmt::Debug for TrnResp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TrnResp")
-            .field("trn_contents[0..32]", &self.trn_contents.iter().take(32).map(|d| *d).collect::<Vec<u8>>().iter())
+            .field("trn_contents[0..32]", &self.trn_contents.iter().take(32).copied().collect::<Vec<u8>>().iter())
             .finish()
     }
 }

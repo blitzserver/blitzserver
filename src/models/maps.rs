@@ -1,9 +1,9 @@
 use std::io::Write;
 
-use sqlx::{Postgres, pool::PoolConnection, Acquire, Connection, Executor};
-use zip::{ZipArchive, ZipWriter, write::FileOptions};
+use sqlx::{Postgres, Acquire, Connection, Executor};
+use zip::{ZipWriter, write::FileOptions};
 
-use crate::packets::{map_resp::{MapResp6, PlaneDef}, MapResp};
+use crate::packets::{map_resp::{MapResp6, PlaneDef}};
 
 #[derive(Debug)]
 pub struct PlaneImage {
@@ -93,7 +93,7 @@ impl Map {
         WHERE m.map_id=$1
         ORDER BY map_file_id ASC LIMIT 1 OFFSET $2
         "#, map_id, plane_id as i64).fetch_one(db).await?;
-        return Ok(PlaneImage {
+        Ok(PlaneImage {
             filename: stuff.filename,
             hash: stuff.hash as u32,
             bytes: stuff.filebinary
@@ -125,12 +125,12 @@ impl Map {
             zipfile.write_all(&file.i_filebinary).unwrap();
         }
         zipfile.finish().unwrap();
-        return Ok(MapArchive {
+        Ok(MapArchive {
             filename: format!("{}.zip", files[0].name),
             file_binary: buf,
         })
     }
-    pub async fn insert<'q, E>(&self, mut db: E) -> Result<i32, sqlx::error::Error>
+    pub async fn insert<'q, E>(&self, db: E) -> Result<i32, sqlx::error::Error>
         where E: 'q + sqlx::Acquire<'q, Database = sqlx::Postgres>
     {
         let mut transaction = db.begin().await?;
@@ -197,6 +197,6 @@ impl Map {
         
         transaction.commit().await?;
 
-        return Ok(map.map_id);
+        Ok(map.map_id)
     }
 }

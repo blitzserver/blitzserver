@@ -14,8 +14,7 @@ impl std::fmt::Debug for ModFileResp {
                 &self
                     .contents
                     .iter()
-                    .take(32)
-                    .map(|d| *d)
+                    .take(32).copied()
                     .collect::<Vec<u8>>()
                     .iter(),
             )

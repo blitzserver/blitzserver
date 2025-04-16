@@ -1,4 +1,3 @@
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 #[derive(Default, Debug, Clone)]
 pub struct LobbyInfoGameInfo {
     bytes: Vec<u8>,
@@ -6,13 +5,13 @@ pub struct LobbyInfoGameInfo {
 
 impl LobbyInfoGameInfo {
     pub fn from_reader<R: std::io::Read>(r: &mut R) -> LobbyInfoGameInfo {
-        return Self {
+        Self {
             bytes: {
                 let mut b = vec![];
                 r.read_to_end(&mut b).unwrap();
                 b
             },
-        };
+        }
     }
 }
 

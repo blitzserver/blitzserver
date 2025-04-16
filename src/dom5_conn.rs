@@ -1,5 +1,5 @@
 use crate::{models::{Player, Mod, self}, packets::astralpacket_resp::AstralPacketResp};
-use std::{io::Read, collections::HashMap};
+use std::{io::Read};
 use crate::packets::{ MapImageFileResp, ModFileResp, TwoHResp, DmFileResp, MapWinterFileResp,  Submit2hResp, MapFileResp, TrnResp, MapResp, TwoHCrcResp, BodyContents, PasswordsResp, PAResp, DisconnectResp, GameInfoResp, LoadingMessageResp, Packet };
 use std::io::BufReader;
 use std::net::TcpStream;
@@ -67,9 +67,9 @@ impl Dom5Conn {
                     None
                 })
                 .and_then(|s| {
-                    s.parse::<u32>().or_else(|e| {
+                    s.parse::<u32>().map_err(|e| {
                         log::warn!("Failed to parse MIN_VERSION as an integer! Unable to validate pretender min versions: {:?}.", e);
-                        Err(e)
+                        e
                     }).ok()
                 });
             if required_version.map(|r| r > twoh.header.version) == Some(true) {
@@ -84,7 +84,7 @@ impl Dom5Conn {
             }
             // Make sure password isnt violated
             let password_required = sqlx::query!("SELECT require_password FROM games WHERE id=$1", self.game_id).fetch_one(&self.db_pool).await.map_err(|_| UploadPretenderErr::PassswordRequired)?;
-            if password_required.require_password && twoh.header.password.len() == 0 {
+            if password_required.require_password && twoh.header.password.is_empty() {
                 return Err(UploadPretenderErr::PassswordRequired);
             }
             // Insert
@@ -112,7 +112,7 @@ impl Dom5Conn {
             twoh.header.password,
             twoh.header.cdkey as i64,
             &req.pretender_contents).execute(&self.db_pool).await.map_err(|_|UploadPretenderErr::IllegalNation)?;
-            return Ok(());
+            Ok(())
         })
     }
 
@@ -401,7 +401,7 @@ impl Dom5Conn {
                             match sqlx::query!("SELECT nationid FROM players WHERE password IS NOT NULL AND game_id=$1", self.game_id).fetch_all(&self.db_pool).await {
                                 Err(e) => {
                                     log::error!("Failed to determine passwords: {:?}", e);
-                                    PasswordsResp::new(&vec![]).write_packet(&mut self.stream, None);
+                                    PasswordsResp::new(&[]).write_packet(&mut self.stream, None);
                                 }
                                 Ok(records) => {
                                     PasswordsResp::new(&records.into_iter().map(|r| r.nationid).collect::<Vec<i32>>()).write_packet(&mut self.stream, None);
@@ -696,7 +696,7 @@ impl Dom5Conn {
                                         }
                                         let Some(location) = walkdir::WalkDir::new(&mod_dir).into_iter().flatten().filter(|e| {
                                             let filename = e.file_name().to_string_lossy();
-                                            return filename == pkt.filename;
+                                            filename == pkt.filename
                                         }).next() else {
                                                 log::error!("Unable to find dm file {} for mod that should have it {}", pkt.filename, m.mod_id);
                                                 self.send_message("Somethings wrong with the mods. Contact the admin!");

@@ -1,4 +1,4 @@
-use super::{DomSaveReadError, ReadDom5Ext};
+use super::{DomSaveReadError};
 use byteorder::{LittleEndian, ReadBytesExt};
 
 #[derive(Debug)]
@@ -16,10 +16,10 @@ impl Calendar {
         if id == -1 {
             return Ok(None);
         }
-        return Ok(Some(Self {
+        Ok(Some(Self {
             id,
             unk1: f.read_i32::<LittleEndian>()?,
             unk2: f.read_i32::<LittleEndian>()?
-        }));
+        }))
     }
 }

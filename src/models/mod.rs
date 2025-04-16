@@ -28,9 +28,9 @@ pub enum MapWrapping {
     Vertical = 3 
 }
 
-impl Into<MapWrapping>  for i32 {
-    fn into(self) -> MapWrapping {
-        match self {
+impl From<i32>  for MapWrapping {
+    fn from(val: i32) -> Self {
+        match val {
             0 => MapWrapping::None,
             1 => MapWrapping::Both,
             2 => MapWrapping::Horizontal,
@@ -255,7 +255,7 @@ impl Game {
     }
     pub async fn get<'c, D: sqlx::Executor<'c , Database = Postgres>>(game_id: i32, db: D) -> Result<Game, sqlx::error::Error>
     {
-        return sqlx::query_as!(Game, "SELECT * FROM games WHERE id=$1", game_id).fetch_one(db).await
+        sqlx::query_as!(Game, "SELECT * FROM games WHERE id=$1", game_id).fetch_one(db).await
     }
 
     pub async fn schedule_turn<'c, D>( &self, next_turn: chrono::DateTime::<chrono::Utc>, db: D) -> Result<Game, sqlx::error::Error>
@@ -404,7 +404,7 @@ impl Game {
         D: sqlx::Executor<'a, Database = Postgres>
     {
         let port_var = env::var("PORT_RANGE").expect("PORT_RANGE must be set (ie. '10000,10999')");
-        let range: Vec<&str> = port_var.split(",").collect();
+        let range: Vec<&str> = port_var.split(',').collect();
         sqlx::query!("WITH unarchive AS (
                      UPDATE games 
                      SET port=(SELECT MIN(num) 
@@ -631,10 +631,7 @@ impl Map {
             if let (Some(_), None) = (record.custom_starts, record.modified_mapcrc) {
                 let mut mapbinary = sqlx::query!("SELECT mapf.filebinary FROM maps m INNER JOIN files mapf ON mapf.id=m.mapfile_id WHERE m.id=$1", record.id).fetch_one(db).await?;
                 let custom_starts = sqlx::query!("SELECT nationid, startprov FROM players WHERE game_id=$1", game_id).fetch_all(db).await?;
-                for (player, prov) in custom_starts.iter().flat_map(|p| match p.startprov {
-                    Some(startprov) => Some((p.nationid, startprov)),
-                    None => None,
-                }) {
+                for (player, prov) in custom_starts.iter().flat_map(|p| p.startprov.map(|startprov| (p.nationid, startprov))) {
                    mapbinary 
                         .filebinary
                         .append(&mut format!("\n#specstart {} {}\n", player, prov).into_bytes());
@@ -649,10 +646,7 @@ impl Map {
                         record.mapflen.unwrap_or(0) + sqlx::query!(r#"SELECT nationid, startprov as "startprov" FROM players WHERE game_id=$1 AND startprov IS NOT NULL"#, game_id)
                             .fetch_all(db).await?
                             .into_iter()
-                            .filter_map(|record| match record.startprov {
-                                Some(sp) => Some((record.nationid, sp)),
-                                None => None
-                            })
+                            .filter_map(|record| record.startprov.map(|sp| (record.nationid, sp)))
                             .fold(0i32, |acc, (nationid, startprov)| acc + format!("\n#specstart {} {}\n", nationid, startprov).into_bytes().len() as i32)
                     },
                     None => record.mapflen.unwrap_or(0)
@@ -726,7 +720,7 @@ impl Map {
         LEFT JOIN files wi ON wi.id=m.winterfile_id
         WHERE m.id=$1"#, map_id).fetch_one(db).await?;
 
-        return Ok((
+        Ok((
             File {
                 id: file_contents.map_id,
                 filename: file_contents.map_filename,
@@ -741,7 +735,7 @@ impl Map {
                 (Some(id), Some(filename), Some(filebinary)) => Some(File { id, filename, filebinary}),
                 _ => None
             }
-        ));
+        ))
     }
 }
 
@@ -881,7 +875,7 @@ impl Turn {
         
     pub fn turn_summary(game_ids: &[i32], db_pool: &sqlx::postgres::PgPool) -> Vec<TurnSummary> {
         smol::block_on(async {
-            if game_ids.len() == 0 {
+            if game_ids.is_empty() {
                 vec![]
             } else {
                 sqlx::query_as!(TurnSummary, r#"
@@ -927,9 +921,7 @@ impl PlayerTurn {
         Ok(player_turns.into_iter().fold(
             std::collections::HashMap::new(),
             |mut hm: std::collections::HashMap<i32, Vec<PlayerTurn>>, pt: PlayerTurn| {
-                if !hm.contains_key(&pt.nation_id) {
-                    hm.insert(pt.nation_id, vec![]);
-                }
+                hm.entry(pt.nation_id).or_default();
                 hm.get_mut(&pt.nation_id).unwrap().push(pt);
                 hm
             },
@@ -1019,13 +1011,13 @@ impl Mod {
                                         e
                                     );
                                 }
-                                return DmFileDef {
+                                DmFileDef {
                                     filename,
                                     folder,
                                     hash: mod_record.crc.unwrap() as u32
                                 }
                             } else {
-                                return DmFileDef {
+                                DmFileDef {
                                     filename,
                                     folder,
                                     hash: 0

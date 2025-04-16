@@ -92,7 +92,7 @@ enum ProtocolMsg {
     },
 }
 
-static HELP_MESSAGE: &'static str = r#"
+static HELP_MESSAGE: &str = r#"
 Get my attention by @ing me, the following requests are available:
 
 Setup a new reminder:
@@ -132,7 +132,7 @@ impl DiscordManager {
             server_cache: Arc::new(Mutex::new(HashMap::new())),
         })
     }
-    pub fn monitor_bus(mut self, bus_rx: MsgBusRx) -> Result<(), DiscordManagerError> {
+    pub fn monitor_bus(self, bus_rx: MsgBusRx) -> Result<(), DiscordManagerError> {
         unimplemented!("Fuck off");
     }
 
@@ -144,7 +144,7 @@ impl DiscordManager {
         unimplemented!("Fuck off");
     }
 
-    pub fn monitor_discord(mut self) -> Result<(), DiscordManagerError> {
+    pub fn monitor_discord(self) -> Result<(), DiscordManagerError> {
         unimplemented!("Fuck off");
     }
 }

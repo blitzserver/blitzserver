@@ -67,7 +67,6 @@ mod tests {
     fn test_pretender() {
         for path in std::fs::read_dir("./test_data/newlords")
             .unwrap()
-            .into_iter()
             .flatten()
         {
             if path.file_type().unwrap().is_file() {
@@ -82,7 +81,6 @@ mod tests {
     fn test_game1() {
         for path in std::fs::read_dir("./test_data/game1")
             .unwrap()
-            .into_iter()
             .flatten()
         {
             if path.file_type().unwrap().is_file() {
@@ -97,7 +95,6 @@ mod tests {
     fn test_game2() {
         for path in std::fs::read_dir("./test_data/game2")
             .unwrap()
-            .into_iter()
             .flatten()
         {
             if path.file_type().unwrap().is_file() {
@@ -112,7 +109,6 @@ mod tests {
     fn test_game3() {
         for path in std::fs::read_dir("./test_data/game3")
             .unwrap()
-            .into_iter()
             .flatten()
         {
             if path.file_type().unwrap().is_file() {
@@ -127,7 +123,6 @@ mod tests {
     fn test_game4() {
         for path in std::fs::read_dir("./test_data/game4")
             .unwrap()
-            .into_iter()
             .flatten()
         {
             if path.file_type().unwrap().is_file() {
@@ -142,7 +137,6 @@ mod tests {
     fn test_game5() {
         for path in std::fs::read_dir("./test_data/game5")
             .unwrap()
-            .into_iter()
             .flatten()
         {
             if path.file_type().unwrap().is_file() {
@@ -157,7 +151,6 @@ mod tests {
     fn test_game6() {
         for path in std::fs::read_dir("./test_data/game6")
             .unwrap()
-            .into_iter()
             .flatten()
         {
             if path.file_type().unwrap().is_file() {
@@ -172,7 +165,6 @@ mod tests {
     fn test_game7() {
         for path in std::fs::read_dir("./test_data/game7")
             .unwrap()
-            .into_iter()
             .flatten()
         {
             if path.file_type().unwrap().is_file() {
@@ -187,7 +179,6 @@ mod tests {
     fn test_game8() {
         for path in std::fs::read_dir("./test_data/game8")
             .unwrap()
-            .into_iter()
             .flatten()
         {
             if path.file_type().unwrap().is_file() {
@@ -202,7 +193,6 @@ mod tests {
     fn test_game9() {
         for path in std::fs::read_dir("./test_data/game9")
             .unwrap()
-            .into_iter()
             .flatten()
         {
             if path.file_type().unwrap().is_file() {

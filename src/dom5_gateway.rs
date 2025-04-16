@@ -1,5 +1,4 @@
 use crate::{dom5_conn::Dom5Conn, dom5_lobbyconn::Dom5LobbyConn};
-use futures::future::select_all;
 use sqlx::postgres::PgPool;
 use std::net::TcpListener;
 use thiserror::Error;
@@ -53,12 +52,12 @@ impl Gateway {
                     .iter()
                     .flat_map(|p| p.port)
                     {
-                        if !listen_pool.contains_key(&port) {
+                        if let std::collections::hash_map::Entry::Vacant(e) = listen_pool.entry(port) {
                             log::debug!("Adding listener for port {:?}", port);
                             match TcpListener::bind(format!("0.0.0.0:{}", port)) {
                                 Ok(listener) => match listener.set_nonblocking(true) {
                                     Ok(_) => {
-                                        listen_pool.insert(port, listener);
+                                        e.insert(listener);
                                     }
                                     Err(e) => {
                                         log::error!(

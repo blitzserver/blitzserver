@@ -7,15 +7,12 @@ use actix_multipart::Multipart;
 use actix_web::http::header;
 use actix_web::{get, post, web, HttpResponse, Result};
 use askama::Template;
-use async_std::future;
-use core::slice;
 use futures::{StreamExt, TryStreamExt};
 use regex::Regex;
-use serde::Deserialize;
 use serde_dom5::D6mFile;
 use std::io::Write;
 use std::io::{BufRead, Read};
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 
 #[derive(Template)]
 #[template(path = "maps/details.html")]
@@ -58,7 +55,7 @@ pub async fn image(
         .await
         .unwrap();
     let pathbuf = PathBuf::from(image.filename);
-    let mut image = match pathbuf.extension().map(|e| e.to_str()).flatten() {
+    let mut image = match pathbuf.extension().and_then(|e| e.to_str()) {
         Some("d6m") => {
             let d6m: D6mFile = bincode::deserialize(&image.bytes).unwrap();
             let mut img =
@@ -120,13 +117,13 @@ struct ListMapsTemplate<'a> {
 
 impl<'a> ListMapsTemplate<'a> {
     pub fn get_upload_location() -> String {
-        return format!(
+        format!(
             "{}/maps/upload",
             std::env::var("UPLOAD_ADDRESS").unwrap_or(
                 std::env::var("ADDRESS")
                     .expect("GAMES_ADDRESS env varnot specified, needed for map upload form")
             )
-        );
+        )
     }
 }
 
@@ -154,7 +151,7 @@ async fn list(app_data: web::Data<AppData>) -> Result<HttpResponse> {
     let result_maps = MapSummary::get_map_list(&sqlx_db).await.unwrap();
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (ListMapsTemplate {
-            errors: &vec![],
+            errors: &[],
             maps: &result_maps,
         })
         .render()
@@ -170,7 +167,7 @@ async fn upload_post(
     let mut errors: Vec<String> = vec![];
     {
         'outer: while let Ok(Some(mut field)) = payload.try_next().await {
-            if errors.len() > 0 {
+            if !errors.is_empty() {
                 continue;
             }
             let content_type = field.content_disposition().clone();
@@ -296,7 +293,7 @@ async fn upload_post(
             };
         }
     }
-    if errors.len() > 0 {
+    if !errors.is_empty() {
         let result_maps = MapSummary::get_map_list(&sqlx_db).await.unwrap();
         return Ok(HttpResponse::Ok().content_type("text/html").body(
             (ListMapsTemplate {

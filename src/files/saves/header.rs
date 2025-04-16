@@ -31,7 +31,7 @@ impl Header {
                 [0x01, 0x02, 0x04, 0x44, 0x4f, 0x4d],
             )));
         }
-        return Ok(magic_bytes);
+        Ok(magic_bytes)
     }
 
     fn read_sentinel<R: std::io::Read>(mut file: R) -> Result<u32, DomSaveReadError> {
@@ -39,11 +39,11 @@ impl Header {
         if s != 12546 {
             return Err(DomSaveReadError::BadSentinel((s, 12546)));
         }
-        return Ok(s);
+        Ok(s)
     }
 
     pub fn read_contents<R: Seek + std::io::Read>(mut file: R) -> Result<Header, DomSaveReadError> {
-        return Ok(Header {
+        Ok(Header {
             magic: Self::read_magic_marker(&mut file)?,
             cdkey: file.read_u32::<LittleEndian>()?,
             version: file.read_u32::<LittleEndian>()?,
@@ -58,6 +58,6 @@ impl Header {
             master_password: file.read_domsecret()?,
             turnkey: file.read_u32::<LittleEndian>()?,
             sentinel: Self::read_sentinel(file)?
-        });
+        })
     }
 }

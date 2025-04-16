@@ -1,5 +1,4 @@
 use byteorder::ReadBytesExt;
-use itertools::Itertools;
 
 #[derive(Debug, Clone)]
 pub struct MapImageFileReq {
