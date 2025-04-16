@@ -5,3 +5,4 @@ pub mod joingame_resp;
 pub mod serverstatus_resp;
 pub mod lobbyinfo_gameinfo;
 pub mod lobby_gameinfo;
+pub mod newgame_req;

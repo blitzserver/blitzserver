@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT \n  jsonb_build_object(\n    'name', g.name,\n    'id', g.id,\n    'next_turn', g.next_turn,\n    'next_turn_unix', ROUND(EXTRACT(epoch FROM g.next_turn)),\n    'current_turn', (\n      SELECT MAX(t.turn_number)\n      FROM turns t\n      WHERE t.game_id = g.id AND t.archived = false\n    ),\n    'players', (\n      SELECT jsonb_object_agg(\n        p.nationid,\n        jsonb_build_object(\n          'name', p.name,\n          'nation_name', n.name,\n          'current_turn_status', (\n            SELECT pt.status\n            FROM player_turns pt\n            JOIN (\n              SELECT MAX(turn_number) as max_turn\n              FROM turns\n              WHERE game_id = g.id AND archived = false\n            ) current_turn ON pt.turn_number = current_turn.max_turn\n            WHERE pt.game_id = g.id\n              AND pt.nation_id = p.nationid\n          )\n        )\n      )\n      FROM players p\n      JOIN nations n ON p.nationid = n.nation_id AND p.game_id = n.game_id\n      WHERE p.game_id = g.id\n    ),\n    'turns', (\n      SELECT jsonb_object_agg(\n        t.turn_number,\n        (\n          SELECT jsonb_object_agg(\n            pt.nation_id,\n            pt.status\n          )\n          FROM player_turns pt\n          WHERE pt.game_id = t.game_id \n            AND pt.turn_number = t.turn_number\n        )\n      )\n      FROM turns t\n      WHERE t.game_id = g.id\n        AND t.archived = false\n    ),\n    'port', g.port\n  ) AS \"details!\"\nFROM games g\nWHERE g.id=$1;\n\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "details!",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "4e9892885039f10ab1f552a53a213985fdfe4b1022c00ed10e979bcdc5e13560"
+}

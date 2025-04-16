@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT m.*, ARRAY_AGG(mp.prov_count ORDER BY mp.map_file_id) \"planes?: Vec<Option<i32>>\"\n                FROM maps_dom6 m\n                LEFT JOIN map_planes mp ON mp.map_id=m.map_id\n                INNER JOIN games g ON\n                    g.maps_dom6_id =m.map_id AND\n                    g.id=$1\n                GROUP BY m.map_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "map_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "is_randommap",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "planes?: Vec<Option<i32>>",
+        "type_info": "Int4Array"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "4ad3343d231270415ca2e217069a782899af6625339659d12b658a49b91f48a6"
+}

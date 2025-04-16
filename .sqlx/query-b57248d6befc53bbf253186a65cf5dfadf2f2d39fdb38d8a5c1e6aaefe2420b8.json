@@ -1,0 +1,364 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\nWITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),\ntopturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)\nSELECT \ng.*,\nARRAY_AGG(mp.prov_count ORDER BY map_file_id) \"planes: Vec<Option<i32>>\",\nls.failed_count as fail_count, \nls.current_job as \"current_job?\", \nMAX(p.nationid) AS \"playing?\", \nMIN(pt.status) as \"turn_status?\"\nFROM games g \n  LEFT JOIN topturn tt ON tt.game_id=g.id\n  LEFT JOIN players p ON p.id=ANY($1) AND p.game_id=g.id\n  LEFT JOIN player_turns pt ON pt.nation_id=p.nationid AND pt.game_id=g.id AND pt.turn_number=tt.max AND pt.archived IS NOT TRUE\n  LEFT JOIN map_planes mp ON mp.map_id=g.maps_dom6_id\nLEFT JOIN (\n  SELECT last.game_id, COUNT(j.*) failed_count, MAX(cj.job_id) \"current_job\"\n  FROM last_success last\n    LEFT JOIN jobs j ON j.job_id>last.job_id AND j.game_id=last.game_id AND j.reaped IS TRUE\n    LEFT JOIN jobs cj ON cj.game_id=j.game_id AND cj.finished_at IS NULL\n  GROUP BY last.game_id\n) AS ls ON ls.game_id=g.id\nWHERE g.private!=TRUE\nGROUP BY g.id , ls.game_id, ls.failed_count, ls.current_job\nORDER BY MIN(pt.status), MAX(p.nationid), g.id\n\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "era",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "map_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "port",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "timer",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "thrones_t1",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "thrones_t2",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "thrones_t3",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "throne_points_required",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "research_diff",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "research_rand",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 12,
+        "name": "hof_size",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 13,
+        "name": "global_size",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 14,
+        "name": "indepstr",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 15,
+        "name": "magicsites",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 16,
+        "name": "eventrarity",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 17,
+        "name": "richness",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 18,
+        "name": "resources",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 19,
+        "name": "recruitment",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 20,
+        "name": "supplies",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 21,
+        "name": "startprov",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 22,
+        "name": "renaming",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 23,
+        "name": "scoregraphs",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 24,
+        "name": "nationinfo",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 25,
+        "name": "artrest",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 26,
+        "name": "teamgame",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 27,
+        "name": "clustered",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 28,
+        "name": "storyevents",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 29,
+        "name": "newailvl",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 30,
+        "name": "next_turn",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 31,
+        "name": "password",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 32,
+        "name": "archived",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 33,
+        "name": "masterpass",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 34,
+        "name": "private",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 35,
+        "name": "last_activity",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 36,
+        "name": "require_password",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 37,
+        "name": "select_start",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 38,
+        "name": "modified_mapcrc",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 39,
+        "name": "cataclysm",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 40,
+        "name": "max_stales",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 41,
+        "name": "motd",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 42,
+        "name": "conq_all",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 43,
+        "name": "binary_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 44,
+        "name": "maps_dom6_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 45,
+        "name": "formal_diplo",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 46,
+        "name": "research_9_slow",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 47,
+        "name": "mercslots",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 48,
+        "name": "cheat_detection",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 49,
+        "name": "provs_per_player",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 50,
+        "name": "randommap_wrapping",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 51,
+        "name": "log_level",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 52,
+        "name": "borked",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 53,
+        "name": "planes: Vec<Option<i32>>",
+        "type_info": "Int4Array"
+      },
+      {
+        "ordinal": 54,
+        "name": "fail_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 55,
+        "name": "current_job?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 56,
+        "name": "playing?",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 57,
+        "name": "turn_status?",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "b57248d6befc53bbf253186a65cf5dfadf2f2d39fdb38d8a5c1e6aaefe2420b8"
+}

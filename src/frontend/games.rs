@@ -3,12 +3,16 @@ use super::utils::*;
 use super::AppData;
 use chrono::Utc;
 use itertools::Itertools;
+use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::env;
 use std::io::Write;
+use std::iter::MapWhile;
 
 use crate::discord::DiscordManager;
 use crate::dom5_turn::Dom5Turn;
 use crate::models::maps::MapSummary;
+use crate::models::MapWrapping;
 use crate::models::{
     AdminLog, Disciple, DiscordConfig, EmailConfig, Game, Map, MapProvince, Mod, Nation,
     NewAdminLog, NewGame, Player, PlayerTurn, Turn,
@@ -72,6 +76,8 @@ struct GameSettings {
     #[serde(default,                   deserialize_with ="from_str")     ] mercslots:              i32,
     #[serde(default,                   deserialize_with ="from_str")     ] generated_map:          i32,
     #[serde(default,                   deserialize_with ="from_str")     ] provs_per_player:       i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] randommap_wrapping:     i32,
+    #[serde(default,                   deserialize_with ="from_str")     ] log_level:              i32,
 //Markertotellwhethertheformisonitsfirstload
     #[serde(default)]loaded:Option<String>,
 }
@@ -121,6 +127,8 @@ impl From<(&Game, &[Mod])> for GameSettings {
             mercslots: game.mercslots,
             generated_map: !game.maps_dom6_id.is_some() as i32,
             provs_per_player: game.provs_per_player,
+            randommap_wrapping: game.randommap_wrapping as i32,
+            log_level: game.log_level,
         }
     }
 }
@@ -790,13 +798,19 @@ async fn timer(
     .fetch_one(&db)
     .await
     .unwrap();
-    sqlx::query!("
+    sqlx::query!(
+        "
     UPDATE games g SET next_turn=NOW() + interval '1 minute' * g.timer 
     FROM turns t 
     WHERE g.id=$1 
         AND t.game_id=g.id  
         AND t.archived=FALSE
-    RETURNING g.*", *path_id).fetch_all(&db).await.unwrap();
+    RETURNING g.*",
+        *path_id
+    )
+    .fetch_all(&db)
+    .await
+    .unwrap();
     NewAdminLog {
         game_id: *path_id,
         datetime: Utc::now().naive_utc(),
@@ -1186,7 +1200,8 @@ async fn list(
         .into_iter()
         .next()
         {
-            let prov_count = crate::files::MapFile::load_provinces(&file.filename, &file.filebinary).unwrap();
+            let prov_count =
+                crate::files::MapFile::load_provinces(&file.filename, &file.filebinary).unwrap();
             sqlx::query!(
                 "UPDATE map_planes SET prov_count=$1 WHERE map_file_id=$2",
                 prov_count.map(|d| d as i32),
@@ -1204,20 +1219,31 @@ async fn list(
         .unwrap_or(std::collections::HashSet::new());
 
     let mut results = sqlx::query!(r#"
-        WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),
-        topturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)
-        SELECT g.*,ARRAY_AGG(mp.prov_count ORDER BY map_file_id) "planes: Vec<Option<i32>>", COUNT(j.*) as fail_count, MAX(cj.job_id) as "current_job?", MAX(p.nationid) AS "playing?", MIN(pt.status) as "turn_status?"
-        FROM games g 
-        LEFT JOIN topturn tt ON tt.game_id=g.id
-        LEFT JOIN players p ON p.id=ANY($1) AND p.game_id=g.id
-        LEFT JOIN player_turns pt ON pt.nation_id=p.nationid AND pt.game_id=g.id AND pt.turn_number=tt.max AND pt.archived IS NOT TRUE
-        LEFT JOIN last_success ls ON ls.game_id=g.id 
-        LEFT JOIN jobs j ON j.job_id>ls.job_id AND j.game_id=g.id AND j.reaped IS TRUE
-        LEFT JOIN jobs cj ON cj.game_id=g.id AND cj.finished_at IS NULL
-        LEFT JOIN map_planes mp ON mp.map_id=g.maps_dom6_id
-        WHERE g.private!=TRUE
-        GROUP BY g.id
-        ORDER BY MIN(pt.status), MAX(p.nationid), g.id
+WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),
+topturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)
+SELECT 
+g.*,
+ARRAY_AGG(mp.prov_count ORDER BY map_file_id) "planes: Vec<Option<i32>>",
+ls.failed_count as fail_count, 
+ls.current_job as "current_job?", 
+MAX(p.nationid) AS "playing?", 
+MIN(pt.status) as "turn_status?"
+FROM games g 
+  LEFT JOIN topturn tt ON tt.game_id=g.id
+  LEFT JOIN players p ON p.id=ANY($1) AND p.game_id=g.id
+  LEFT JOIN player_turns pt ON pt.nation_id=p.nationid AND pt.game_id=g.id AND pt.turn_number=tt.max AND pt.archived IS NOT TRUE
+  LEFT JOIN map_planes mp ON mp.map_id=g.maps_dom6_id
+LEFT JOIN (
+  SELECT last.game_id, COUNT(j.*) failed_count, MAX(cj.job_id) "current_job"
+  FROM last_success last
+    LEFT JOIN jobs j ON j.job_id>last.job_id AND j.game_id=last.game_id AND j.reaped IS TRUE
+    LEFT JOIN jobs cj ON cj.game_id=j.game_id AND cj.finished_at IS NULL
+  GROUP BY last.game_id
+) AS ls ON ls.game_id=g.id
+WHERE g.private!=TRUE
+GROUP BY g.id , ls.game_id, ls.failed_count, ls.current_job
+ORDER BY MIN(pt.status), MAX(p.nationid), g.id
+
         "#, &watch_player_ids.into_iter().collect::<Vec<i32>>()[..]).fetch_all(&sqlx_db).await.unwrap();
     let player_counts = crate::models::Game::get_player_count(
         &results.iter().map(|g| g.id).collect::<Vec<i32>>(),
@@ -1375,7 +1401,11 @@ async fn settings_post(
     game.clustered = body.clustered > 0;
     game.storyevents = body.storyevents;
     game.newailvl = body.newailvl;
-    game.maps_dom6_id = if body.generated_map > 0 { None } else { Some(body.map) };
+    game.maps_dom6_id = if body.generated_map > 0 {
+        None
+    } else {
+        Some(body.map)
+    };
     game.masterpass = body.masterpass;
     game.private = body.private > 0;
     game.require_password = body.require_password > 0;
@@ -1387,6 +1417,9 @@ async fn settings_post(
     game.research_9_slow = body.research_9_slow > 0;
     game.mercslots = body.mercslots;
     game.cheat_detection = body.cheat_detection > 0;
+    game.provs_per_player = body.provs_per_player;
+    game.randommap_wrapping = body.randommap_wrapping.into();
+    game.log_level = body.log_level;
     game = game.update(&body.cmods, &sqlx_db).await.unwrap();
     let mods = game.get_mods(&sqlx_db).await.unwrap();
     if mods.len() != old_mods.len()
@@ -1787,8 +1820,8 @@ pub async fn download_turn(
     }
     let mut bytes: Vec<u8> = vec![];
     let mut zip = zip::ZipWriter::new(std::io::Cursor::new(&mut bytes));
-    zip.start_file(
-        &format!("{}.trn", files[0].trnfilename),
+    zip.start_file::<_, (), _>(
+        format!("{}.trn", files[0].trnfilename),
         zip::write::FileOptions::default(),
     )
     .unwrap();
@@ -1797,12 +1830,11 @@ pub async fn download_turn(
         files[0].twohfilename.as_ref(),
         files[0].twohfilebinary.as_ref(),
     ) {
-        zip.start_file(twohfn, zip::write::FileOptions::default())
+        zip.start_file::<_, (), _>(twohfn.to_owned(), zip::write::FileOptions::default())
             .unwrap();
         zip.write_all(twohfb).unwrap();
     }
     zip.finish().unwrap();
-    drop(zip);
     return Ok(HttpResponse::Ok()
         .append_header((
             "content-disposition",

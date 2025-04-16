@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE map_planes SET prov_count=$1 WHERE map_file_id=$2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "41dd6493f00b14e6cd553e6e615d2b9d8b97c5b43518b55f79c36d8d1932bd72"
+}

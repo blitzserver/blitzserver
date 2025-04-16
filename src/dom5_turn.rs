@@ -2,7 +2,7 @@ use crate::files::saves::DomSaveReadError;
 use crate::files::MapFile;
 use crate::models::binary::Binary;
 use crate::models::maps::{Plane, PlaneImage};
-use crate::models::Map;
+use crate::models::{Map, MapWrapping};
 use crate::util::calculate_crc;
 use encoding::{all::ISO_8859_1, DecoderTrap, Encoding};
 use itertools::Itertools;
@@ -336,11 +336,9 @@ impl Dom5Turn {
                 Err(e) => panic!("{}", e),
                 Ok(_) => {}
             }
-            println!("Extracting");
             let path = Binary::extract_to_tmp(self.game_id, &self.db_pool)
                 .await
                 .unwrap();
-            println!("Extracted");
             if let Some(subjob_id) = subjob_id {
                 sqlx::query!(
                     "UPDATE subjobs SET meta=$1 WHERE subjob_id=$2",
@@ -580,7 +578,14 @@ impl Dom5Turn {
                 acc
             }));
             arguments.append(&mut vec![
-                "-d".to_string(),
+                match game.log_level {
+                    0 => "".to_string(),
+                    1 => "-d".to_string(),
+                    2 => "-dd".to_string(),
+                    3 => "-ddd".to_string(),
+                    4 => "-dddd".to_string(),
+                    _ => "".to_string(),
+                },
                 "--noclientstart".to_string(),
                 if game.renaming { "--renaming" } else { "" }.to_string(),
                 "--thrones".to_string(),
@@ -678,6 +683,12 @@ impl Dom5Turn {
                         "--randmap".to_string(),
                         format!("{}", game.provs_per_player),
                     ]);
+                    arguments.append(&mut match Into::<_>::into(game.randommap_wrapping) {
+                        MapWrapping::None => vec!["--nohwrap".to_owned()],
+                        MapWrapping::Both => vec!["--vwrap".to_owned()],
+                        MapWrapping::Vertical => vec!["--vwrap".to_owned(), "--nohwrap".to_owned()],
+                        MapWrapping::Horizontal => vec![],
+                    });
                 }
             }
             match game.newailvl {
@@ -695,10 +706,12 @@ impl Dom5Turn {
                 arguments.push("-M".to_string());
                 arguments.push(modname.dm_filename);
             }
+            if game.borked {
+                arguments.append(&mut vec!["--repair".to_string()]);
+            }
             if let None = game.turn {
                 arguments.append(&mut vec!["--newgame".to_string()]);
             }
-            println!("Extracting");
             let path = Binary::extract_to_tmp(self.game_id, &self.db_pool)
                 .await
                 .unwrap();
@@ -710,8 +723,6 @@ impl Dom5Turn {
             .execute(&self.db_pool)
             .await
             .unwrap();
-            println!("Extracted");
-            println!("Startup command {}", &arguments.iter().join(" "));
             let mut child = AutokilledProc(
                 std::process::Command::new(path)
                     .env(

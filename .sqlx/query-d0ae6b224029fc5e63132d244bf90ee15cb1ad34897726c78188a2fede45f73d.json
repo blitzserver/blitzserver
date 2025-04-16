@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                WITH unnested AS (\n                    SELECT UNNEST($3::INTEGER[]) hash, UNNEST($4::TEXT[]) filename, UNNEST($5::BYTEA[]) contents\n                ),\n                file AS (\n                    INSERT INTO files (filename, filebinary) \n                    SELECT filename, contents \n                    FROM unnested\n                    ON CONFLICT (filename,digest(filebinary, 'sha1'::text)) DO UPDATE SET filename=EXCLUDED.filename RETURNING *\n                )\n                INSERT INTO map_plane_images (map_id, map_file_id, hash, image_file_id) \n                    SELECT $1, $2, hash, id \n                    FROM file f\n                    INNER JOIN unnested u ON u.filename=f.filename\n                    RETURNING *",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "map_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "map_file_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "image_file_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "hash",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Int4Array",
+        "TextArray",
+        "ByteaArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d0ae6b224029fc5e63132d244bf90ee15cb1ad34897726c78188a2fede45f73d"
+}

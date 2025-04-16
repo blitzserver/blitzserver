@@ -1,3 +1,0 @@
--- Your SQL goes here
-ALTER TABLE mods
-ADD COLUMN crc INTEGER DEFAULT NULL;

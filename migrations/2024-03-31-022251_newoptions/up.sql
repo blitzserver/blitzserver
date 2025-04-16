@@ -1,4 +1,0 @@
--- Your SQL goes here
-ALTER TABLE games ALTER COLUMN indepstr SET DEFAULT 4;
-ALTER TABLE games ADD COLUMN mercslots INT NOT NULL DEFAULT 5;
-ALTER TABLE games ADD COLUMN cheat_detection BOOLEAN NOT NULL DEFAULT true;

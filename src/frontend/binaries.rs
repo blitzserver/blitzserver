@@ -2,7 +2,6 @@ use actix_multipart::Multipart;
 use actix_web::{get, http::header, post, web::Data, HttpResponse, Result};
 use async_std::fs::create_dir;
 use html_node::{html, text};
-use libvips::bindings::mkdir;
 use smol::stream::StreamExt;
 
 use crate::{models::binary::Binary, views::container::wrap_container};

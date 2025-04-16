@@ -7,13 +7,16 @@
 #![feature(type_alias_impl_trait)]
 #![feature(get_mut_unchecked)]
 #![feature(never_type)]
+extern crate image;
+extern crate num_derive;
+extern crate num_traits;
+extern crate sqlx;
 
 use actix_session::storage::CookieSessionStore;
 use actix_session::SessionMiddleware;
 use actix_web::http::header;
 use actix_web::{get, middleware, App, HttpResponse, HttpServer, Result};
 use dotenv::dotenv;
-use libvips::VipsApp;
 use std::env;
 
 pub mod discord;
@@ -101,7 +104,6 @@ async fn main() -> std::io::Result<()> {
     }
     .monitor()
     .await;
-    let _app = VipsApp::new("Test Libvips", true).expect("Cannot initialize libvips");
 
     HttpServer::new(move || {
         // TODO: Hack here, we create the map thumbnail dir VERY ahead of time since the file
@@ -134,7 +136,7 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::maps::image)
             .service(frontend::maps::upload_post)
             .service(frontend::maps::list)
-            .service(frontend::maps::download)
+            // .service(frontend::maps::download)
             .service(frontend::games::motd)
             .service(frontend::games::watch)
             .service(frontend::games::timer)
@@ -163,6 +165,7 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::help::help)
             .service(frontend::binaries::list)
             .service(frontend::binaries::upload)
+            .service(frontend::api::game_json)
             .service(actix_files::Files::new("/", "./content"))
     })
     .bind(format!(

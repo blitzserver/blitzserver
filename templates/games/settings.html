@@ -15,6 +15,15 @@
           <label for="provs_per_player">Provinces Per Player</label>
           <input type="number" value="{{settings.provs_per_player}}" name="provs_per_player" />
         </div>
+        <div class="input-group">
+          <label for="randommap_wrapping">Wrapping</label>
+          <select name="randommap_wrapping">
+            <option value="0" {% if settings.randommap_wrapping == 0 %} selected {% endif %}>None</option>
+            <option value="1" {% if settings.randommap_wrapping == 1 %} selected {% endif %}>Both</option>
+            <option value="2" {% if settings.randommap_wrapping == 2 %} selected {% endif %}>Horizontal</option>
+            <option value="3" {% if settings.randommap_wrapping == 3 %} selected {% endif %}>Vertical</option>
+          </select>
+        </div>
       </div>
     </div>
     <div id="map-section-uploaded">
@@ -314,6 +323,16 @@
         <select name="cheat_detection">
           <option {% if settings.cheat_detection==0 %} selected="selected" {% endif %} value="0">Disabled</option>
           <option {% if settings.cheat_detection==1 %} selected="selected" {% endif %} value="1">Enabled</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label for="log_level">Log Level</label>
+        <select name="log_level">
+          <option {% if settings.log_level==0 %} selected="selected" {% endif %} value="0">None</option>
+          <option {% if settings.log_level==1 %} selected="selected" {% endif %} value="1">A bit</option>
+          <option {% if settings.log_level==2 %} selected="selected" {% endif %} value="2">More</option>
+          <option {% if settings.log_level==3 %} selected="selected" {% endif %} value="3">Lots</option>
+          <option {% if settings.log_level==4 %} selected="selected" {% endif %} value="4">AIEEEEEEEEE</option>
         </select>
       </div>
     </div>

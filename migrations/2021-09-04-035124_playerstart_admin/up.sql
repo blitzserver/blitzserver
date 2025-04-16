@@ -1,6 +1,0 @@
--- Your SQL goes here
-ALTER TABLE games ALTER COLUMN select_start DROP NOT NULL;
-ALTER TABLE games ALTER COLUMN select_start DROP DEFAULT;
-ALTER TABLE games ALTER COLUMN select_start TYPE INTEGER USING select_start::INTEGER;
-ALTER TABLE games ALTER COLUMN select_start SET DEFAULT 0;
-ALTER TABLE games ALTER COLUMN select_start SET NOT NULL;

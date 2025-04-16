@@ -1,0 +1,49 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH new_file AS (\n  INSERT INTO files (filename, filebinary) VALUES($1, $2) \n  ON CONFLICT (filename,digest(filebinary, 'sha1'::text)) DO UPDATE \n  SET filename=EXCLUDED.filename\n  RETURNING *\n)\nINSERT INTO binaries (binary_id, executable_path, version) \nSELECT id, $3, $4 \nFROM new_file \nON CONFLICT(binary_id) DO UPDATE SET version=EXCLUDED.version\nRETURNING *;\n",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "binary_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "executable_path",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "version",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "version_number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "foldered_maps",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Bytea",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "6ba6fd82b3f012d220e7a88990ab04769b08cfb6cd66a2a15298a0f76037778a"
+}

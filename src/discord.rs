@@ -1,4 +1,3 @@
-use crate::models::DiscordConfig;
 use crate::msgbus::{MsgBusRx, MsgBusTx};
 use serde::Deserialize;
 use std::collections::HashMap;

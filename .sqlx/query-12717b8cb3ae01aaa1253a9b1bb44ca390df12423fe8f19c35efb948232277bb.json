@@ -222,6 +222,51 @@
         "ordinal": 43,
         "name": "binary_id",
         "type_info": "Int4"
+      },
+      {
+        "ordinal": 44,
+        "name": "maps_dom6_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 45,
+        "name": "formal_diplo",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 46,
+        "name": "research_9_slow",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 47,
+        "name": "mercslots",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 48,
+        "name": "cheat_detection",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 49,
+        "name": "provs_per_player",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 50,
+        "name": "randommap_wrapping",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 51,
+        "name": "log_level",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 52,
+        "name": "borked",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -274,7 +319,16 @@
       true,
       true,
       false,
-      true
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
     ]
   },
   "hash": "12717b8cb3ae01aaa1253a9b1bb44ca390df12423fe8f19c35efb948232277bb"
