@@ -25,7 +25,6 @@ pub mod dom5_turn;
 pub mod files;
 pub mod frontend;
 pub mod models;
-pub mod msgbus;
 pub mod packets;
 pub mod statusdump;
 pub mod util;
@@ -61,7 +60,6 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
     // Db
     dotenv().ok();
-    let bus = msgbus::MsgBus::new();
 
     let sqlx_pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(20)
@@ -78,7 +76,6 @@ async fn main() -> std::io::Result<()> {
     scheduler.run();
 
     let app_data = AppData {
-        msgbus_sender: bus.sender.clone(),
         sqlx_pool: sqlx_pool.clone(),
     };
 

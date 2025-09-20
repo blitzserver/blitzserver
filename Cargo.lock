@@ -813,7 +813,6 @@ dependencies = [
  "byteorder",
  "chrono",
  "crc",
- "crossbeam-channel",
  "derive_more",
  "dotenv",
  "encoding",

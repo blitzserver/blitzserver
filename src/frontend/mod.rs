@@ -1,5 +1,4 @@
 use std::env;
-use crate::msgbus::MsgBusTx;
 
 pub mod mods;
 pub mod maps;
@@ -13,7 +12,6 @@ pub mod api;
 #[derive(Clone)]
 pub struct AppData {
     pub sqlx_pool: sqlx::postgres::PgPool,
-    pub msgbus_sender: MsgBusTx,
 }
 
 impl AppData {
