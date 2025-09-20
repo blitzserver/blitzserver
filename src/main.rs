@@ -18,12 +18,10 @@ use actix_web::{get, middleware, App, HttpResponse, HttpServer, Result};
 use dotenv::dotenv;
 use std::env;
 
-pub mod discord;
 pub mod dom5_conn;
 pub mod dom5_gateway;
 pub mod dom5_scheduler;
 pub mod dom5_turn;
-pub mod email_manager;
 pub mod files;
 pub mod frontend;
 pub mod models;
@@ -82,26 +80,7 @@ async fn main() -> std::io::Result<()> {
     let app_data = AppData {
         msgbus_sender: bus.sender.clone(),
         sqlx_pool: sqlx_pool.clone(),
-        email_manager: crate::email_manager::EmailManager {
-            msgbus_tx: bus.sender.clone(),
-            sqlx_pool: sqlx_pool.clone(),
-            smtp_user: env::var("SMTP_USER").expect("SMTP_USER must be said to the SMTP user"),
-            smtp_pass: env::var("SMTP_PASS").expect("SMTP_PASS must be said to the SMTP password"),
-            smtp_server: env::var("SMTP_SERVER")
-                .expect("SMTP_SERVER must be said to the SMTP server"),
-            hostname: env::var("HOSTNAME").expect("HOSTNAME must be set to accessible address"),
-        },
     };
-    crate::email_manager::EmailManager {
-        msgbus_tx: bus.sender.clone(),
-        sqlx_pool: sqlx_pool.clone(),
-        smtp_user: env::var("SMTP_USER").expect("SMTP_USER must be said to the SMTP user"),
-        smtp_pass: env::var("SMTP_PASS").expect("SMTP_PASS must be said to the SMTP password"),
-        smtp_server: env::var("SMTP_SERVER").expect("SMTP_SERVER must be said to the SMTP server"),
-        hostname: env::var("HOSTNAME").expect("HOSTNAME must be set to accessible address"),
-    }
-    .monitor()
-    .await;
 
     HttpServer::new(move || {
         // TODO: Hack here, we create the map thumbnail dir VERY ahead of time since the file
@@ -147,8 +126,6 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::games::create_post)
             .service(frontend::games::remove_post)
             .service(frontend::games::settings_post)
-            .service(frontend::games::emails_delete)
-            .service(frontend::games::emails_post)
             .service(frontend::games::archive_post)
             .service(frontend::games::rollback_post)
             .service(frontend::games::unstart_post)

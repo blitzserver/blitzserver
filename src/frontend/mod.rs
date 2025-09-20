@@ -1,7 +1,5 @@
 use std::env;
 use crate::msgbus::MsgBusTx;
-use crate::discord::DiscordManager;
-use crate::email_manager::EmailManager;
 
 pub mod mods;
 pub mod maps;
@@ -16,7 +14,6 @@ pub mod api;
 pub struct AppData {
     pub sqlx_pool: sqlx::postgres::PgPool,
     pub msgbus_sender: MsgBusTx,
-    pub email_manager: EmailManager,
 }
 
 impl AppData {

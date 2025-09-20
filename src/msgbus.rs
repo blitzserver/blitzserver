@@ -13,10 +13,6 @@ pub enum Msg {
     ModsChanged(ModsChangedMsg),
     EraChanged(EraChangedMsg),
     GameArchived(GameArchivedMsg),
-    EmailConfigCreated(EmailConfigCreatedMsg),
-    EmailConfigDeleted(EmailConfigDeletedMsg),
-    DiscordConfigCreated(DiscordConfigCreatedMsg),
-    DiscordConfigDeleted(DiscordConfigDeletedMsg),
     LastActivityUpdated(LastActivityUpdatedMsg)
 }
 
@@ -70,24 +66,7 @@ pub struct ModsChangedMsg {
     pub game_id: i32,
 }
 
-#[derive(Clone)]
-pub struct EmailConfigCreatedMsg {
-    pub id: i32,
-}
 
-#[derive(Clone)]
-pub struct EmailConfigDeletedMsg {
-    pub id: i32,
-}
-
-#[derive(Clone)]
-pub struct DiscordConfigCreatedMsg {
-    pub id: i32,
-}
-#[derive(Clone)]
-pub struct DiscordConfigDeletedMsg {
-    pub id: i32,
-}
 
 #[derive(Clone)]
 pub struct EraChangedMsg {

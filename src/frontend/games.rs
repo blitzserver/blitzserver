@@ -9,12 +9,11 @@ use std::env;
 use std::io::Write;
 use std::iter::MapWhile;
 
-use crate::discord::DiscordManager;
 use crate::dom5_turn::Dom5Turn;
 use crate::models::maps::MapSummary;
 use crate::models::MapWrapping;
 use crate::models::{
-    AdminLog, Disciple, DiscordConfig, EmailConfig, Game, Map, MapProvince, Mod, Nation,
+    AdminLog, Disciple, Game, Map, MapProvince, Mod, Nation,
     NewAdminLog, NewGame, Player, PlayerTurn, Turn,
 };
 use crate::packets::map_req;
@@ -132,16 +131,6 @@ impl From<(&Game, &[Mod])> for GameSettings {
         }
     }
 }
-#[cfg_attr(rustfmt, rustfmt_skip)]
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct EmailForm {
-    #[serde(default)                               ] email_address:   String,
-    #[serde(default, deserialize_with ="from_str") ] nation:          i32,
-    #[serde(default)                               ] subject:         String,
-    #[serde(default)                               ] body:            String,
-    #[serde(default, deserialize_with ="from_str") ] hours_remaining: i32,
-    #[serde(default, deserialize_with ="from_str") ] is_reminder:     bool,
-}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TeamForm {
     team: i32,
@@ -162,18 +151,6 @@ pub struct StartLocForm {
     #[serde(default)]
     password: std::collections::HashMap<i32, String>,
 }
-impl Default for EmailForm {
-    fn default() -> Self {
-        Self {
-            email_address: "".to_string(),
-            nation: 0,
-            subject: "".to_string(),
-            body: "".to_string(),
-            hours_remaining: 0,
-            is_reminder: false,
-        }
-    }
-}
 #[derive(PartialEq, Debug, Serialize, Deserialize)]
 enum AuthStatus {
     Unauthed = 0,
@@ -184,8 +161,6 @@ enum AuthStatus {
 struct GameDetailsPayload {
     #[serde(flatten)]
     game_settings: GameSettings,
-    #[serde(flatten)]
-    email_form: EmailForm,
     password: Option<String>,
     log_output: Option<i32>,
 }
@@ -210,11 +185,6 @@ struct CreateGame {
 #[derive(Debug, Deserialize)]
 struct SetTimer {
     timer: i32,
-}
-#[derive(Default, Clone, Debug, Serialize, Deserialize)]
-struct EmailFormEntry {
-    pub selected_nation: i32,
-    pub remaining_hours: Option<i32>,
 }
 #[derive(Debug, Deserialize)]
 pub struct ArchiveForm {
@@ -284,8 +254,6 @@ impl GameJobDisplay {
 struct GameDetailsTemplate<'a> {
     game: Game,
     settings: GameSettings,
-    email_form: EmailForm,
-    email_configs: &'a [EmailConfig],
     turn_number: i32,
     turns: HashMap<i32, Vec<PlayerTurn>>,
     games_address: String,
@@ -511,19 +479,6 @@ impl<'a> GameDetailsTemplate<'a> {
             .iter()
             .map(|p| self.get_player_summary(0, p.nationid))
             .collect()
-    }
-    fn get_email_config_nation_name(&self, id: &i32) -> &str {
-        self.email_configs
-            .iter()
-            .find(|e| e.id == *id)
-            .map_or("", |e| {
-                &self
-                    .nations
-                    .iter()
-                    .find(|n| n.nation_id == e.nation_id)
-                    .unwrap()
-                    .name
-            })
     }
     fn get_turn_status(&self, nation_id: &i32, turn_number: &i32) -> i32 {
         self.turns.get(nation_id).map_or(0, |turns| {
@@ -839,7 +794,6 @@ async fn details(
     ),
 ) -> Result<HttpResponse> {
     let game_settings = &payload.game_settings;
-    let email_form = &payload.email_form;
     let sqlx_db = app_data.sqlx_pool.clone();
     let game = Game::get(*path_id, &sqlx_db).await.unwrap();
     if let Some(p) = &payload.password {
@@ -973,15 +927,6 @@ async fn details(
             .unwrap(),
         )
     };
-    let email_configs = sqlx::query_as!(
-        EmailConfig,
-        "SELECT * FROM email_configs WHERE game_id=$1 AND email_address=$2",
-        *path_id,
-        email_form.email_address
-    )
-    .fetch_all(&sqlx_db)
-    .await
-    .unwrap();
     let logs = sqlx::query_as!(GameJobDisplay, r#"
     WITH _insert as (INSERT INTO admin_logs (game_id, datetime, action) 
     SELECT $1 as "game_id", NOW() as "datetime", concat('Viewed turn logs for turn ', j.turn_number) as "action"
@@ -1047,8 +992,6 @@ async fn details(
             settings,
             authed,
             provinces: &vec![],
-            email_form: (*email_form).clone(),
-            email_configs: &email_configs,
             turn_number: turns.len() as i32,
             winner_name: turns.last().and_then(|t| {
                 nations
@@ -1449,67 +1392,6 @@ async fn settings_post(
     Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#settings", game.id))
         .finish())
-}
-#[post("/game/{id}/email")]
-async fn emails_post(
-    (app_data, bytes, game_id): (web::Data<AppData>, actix_web::web::Bytes, web::Path<i32>),
-) -> Result<HttpResponse> {
-    let cfg = serde_qs::Config::new(10, false);
-    match cfg.deserialize_bytes::<EmailForm>(&bytes) {
-        Ok(email_form) => {
-            app_data.email_manager.create_config(
-                *game_id,
-                email_form.email_address.clone(),
-                email_form.subject,
-                email_form.body,
-                email_form.nation,
-                email_form.hours_remaining,
-                email_form.is_reminder,
-            );
-            Ok(HttpResponse::Found()
-                .append_header((
-                    header::LOCATION,
-                    format!(
-                        "/game/{}?email_address={}#emails",
-                        game_id, email_form.email_address
-                    ),
-                ))
-                .finish())
-        }
-        Err(_) => Ok(HttpResponse::BadRequest()
-            .header(header::LOCATION, format!("/game/{}#email", game_id))
-            .finish()),
-    }
-}
-#[post("/game/{id}/emails/{emailid}/delete")]
-async fn emails_delete(
-    (app_data, bytes, path): (
-        web::Data<AppData>,
-        actix_web::web::Bytes,
-        web::Path<(i32, i32)>,
-    ),
-) -> Result<HttpResponse> {
-    let (game_id, email_id) = path.into_inner();
-    let cfg = serde_qs::Config::new(10, false);
-    match cfg.deserialize_bytes::<EmailForm>(&bytes) {
-        Ok(email_form) => {
-            app_data
-                .email_manager
-                .delete_config(email_id, email_form.email_address.clone());
-            Ok(HttpResponse::Found()
-                .append_header((
-                    header::LOCATION,
-                    format!(
-                        "/game/{}#emails?email_address={}",
-                        game_id, email_form.email_address
-                    ),
-                ))
-                .finish())
-        }
-        Err(_) => Ok(HttpResponse::BadRequest()
-            .header(header::LOCATION, format!("/game/{}#email", game_id))
-            .finish()),
-    }
 }
 
 #[post("/game/{id}/archive")]

@@ -28,7 +28,6 @@ image = { git = "ssh://git@github.com/Moggers/image.git", branch = "sgi", featur
 ] }
 env_logger = "*"
 log = "*"
-lettre = "0.10.0-alpha.4"
 actix-session = { version = "0.8.0", features = ["cookie-session"] }
 flate2 = { version = "1.0.17", features = ["zlib"], default-features = false }
 num-traits = "*"

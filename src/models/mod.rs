@@ -1063,94 +1063,6 @@ pub struct Wakeup {
     pub timestamp: std::time::SystemTime,
 }
 
-#[derive(Debug)]
-pub struct EmailConfig {
-    pub id: i32,
-    pub nation_id: i32,
-    pub game_id: i32,
-    pub hours_before_host: i32,
-    pub email_address: String,
-    pub last_turn_notified: Option<i32>,
-    pub subject: String,
-    pub body: String,
-    pub is_reminder: bool,
-}
-
-impl EmailConfig {
-    pub async fn delete<'q, D>(email_id: i32, email_address: &str, db: D) -> Result<EmailConfig, sqlx::error::Error> 
-    where
-        D: sqlx::Executor<'q, Database = Postgres> 
-    {
-        sqlx::query_as!(EmailConfig, "DELETE FROM email_configs WHERE id=$1 AND email_address=$2 RETURNING *", email_id, email_address).fetch_one(db).await
-    }
-    pub async fn mark_sent<'q, D>(&self, turn: i32, db: D) -> Result<EmailConfig, sqlx::error::Error>
-    where
-        D: sqlx::Executor<'q, Database = Postgres>
-    {
-        sqlx::query_as!(EmailConfig, "UPDATE email_configs SET last_turn_notified=$1 WHERE id=$2 RETURNING *", turn, self.id).fetch_one(db).await
-    }
-    pub async fn get_due_reminders<'q, D>(db: D) -> Result<Vec<EmailConfig>, sqlx::error::Error>
-    where
-        D: sqlx::Executor<'q, Database = Postgres>
-    {
-        // Fetch all email_configs which are reminder types attached to games which have at least
-        // one turn, whose attached nation has not submitted orders for the current turn and the
-        // timer has come to pass
-        sqlx::query_as!(EmailConfig, r#"
-SELECT ec.id "id!", ec.nation_id "nation_id!", ec.game_id "game_id!", ec.hours_before_host "hours_before_host!", ec.email_address "email_address!", ec.last_turn_notified, ec.subject "subject!", ec.body "body!", ec.is_reminder "is_reminder!"
-FROM email_configs ec
-LEFT JOIN (SELECT game_id,MAX(turn_number) as turn_number FROM turns WHERE archived = false GROUP BY game_id) t
-    ON t.game_id=ec.game_id
-INNER JOIN games g ON g.id=t.game_id AND g.archived = FALSE
-LEFT OUTER JOIN (SELECT nation_id, game_id, MAX(turn_number) as turn_number FROM player_turns pt WHERE archived = false AND twohfile_id IS NOT NULL GROUP BY game_id,nation_id) pt
-    ON pt.game_id=ec.game_id AND pt.turn_number = t.turn_number AND pt.nation_id = ec.nation_id
-WHERE
-    (ec.last_turn_notified IS NULL OR t.turn_number != ec.last_turn_notified)
-    AND g.next_turn IS NOT NULL
-    AND g.next_turn - interval '1' hour * ec.hours_before_host < NOW()
-    AND ec.is_reminder IS TRUE
-    AND t.turn_number IS NOT NULL
-    "#).fetch_all(db).await
-    }
-    pub async fn get_due_notifications<'q, D>(db: D) -> Result<Vec<EmailConfig>, sqlx::error::Error>
-    where
-        D: sqlx::Executor<'q, Database = Postgres>
-    {
-        sqlx::query_as!(EmailConfig, r#"
-SELECT ec.id "id!", ec.nation_id "nation_id!", ec.game_id "game_id!", ec.hours_before_host "hours_before_host!", ec.email_address "email_address!", ec.last_turn_notified, ec.subject "subject!", ec.body "body!", ec.is_reminder "is_reminder!"
-FROM email_configs ec
-LEFT JOIN (SELECT game_id,MAX(turn_number) as turn_number FROM turns WHERE archived = false GROUP BY game_id) t
-    ON t.game_id=ec.game_id
-INNER JOIN games g ON g.id=t.game_id AND g.archived = FALSE
-LEFT OUTER JOIN (SELECT nation_id, game_id, MAX(turn_number) as turn_number FROM player_turns pt WHERE archived = false AND twohfile_id IS NOT NULL GROUP BY game_id,nation_id) pt
-    ON pt.game_id=ec.game_id AND pt.turn_number = t.turn_number AND pt.nation_id = ec.nation_id
-WHERE
-    (ec.last_turn_notified IS NULL OR t.turn_number != ec.last_turn_notified)
-    AND t.turn_number IS NOT NULL 
-    AND ec.is_reminder = FALSE
-    AND (ec.last_turn_notified IS NULL OR ec.last_turn_notified != t.turn_number)
-    "#).fetch_all(db).await
-    }
-}
-
-pub struct NewEmailConfig {
-    pub nation_id: i32,
-    pub game_id: i32,
-    pub hours_before_host: i32,
-    pub email_address: String,
-    pub subject: String,
-    pub body: String,
-    pub is_reminder: bool,
-}
-
-impl NewEmailConfig {
-    pub async fn insert<'q, D>(self, db: D) -> Result<EmailConfig, sqlx::error::Error>
-    where
-        D: sqlx::Executor<'q, Database = Postgres>
-    {
-        sqlx::query_as!(EmailConfig, "INSERT INTO email_configs (nation_id, game_id, hours_before_host, email_address, subject, body, is_reminder) VALUES($1, $2, $3, $4, $5, $6, $7) RETURNING *", self.nation_id, self.game_id, self.hours_before_host, self.email_address, self.subject, self.body, self.is_reminder).fetch_one(db).await
-    }
-}
 
 #[derive(Debug)]
 pub struct Disciple {
@@ -1252,28 +1164,6 @@ impl NewAdminLog {
     }
 }
 
-#[derive(Debug)]
-pub struct DiscordConfig {
-    pub id: i32,
-    pub game_id: i32,
-    pub last_turn_notified: Option<i32>,
-    pub discord_guildid: String,
-    pub discord_channelid: String,
-    pub message: String,
-    pub hours_remaining: Option<i32>,
-}
-
-impl DiscordConfig {
-    pub async fn get_notifications<'q, D>(
-        game_id: i32,
-        db: D,
-    ) -> Result<Vec<DiscordConfig>, sqlx::error::Error>
-    where
-        D: sqlx::Executor<'q, Database = Postgres>
-    {
-        sqlx::query_as!(DiscordConfig, "SELECT * FROM discord_configs WHERE game_id=$1", game_id).fetch_all(db).await
-    }
-}
 
 #[derive( Debug)]
 pub struct MapProvince {
