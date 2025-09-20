@@ -123,7 +123,7 @@ impl MsgBus {
                 .recv()
                 .expect("Msgbus failed to receive broadcast request (send channel hosed?");
             if let Ok(mut broadcasters) = cloned_broadcast.lock() {
-                broadcasters.extract_if(|broadcaster| !broadcaster.send(m.clone()).is_ok());
+                broadcasters.extract_if(.., |broadcaster| !broadcaster.send(m.clone()).is_ok()).for_each(drop);
             }
         });
         MsgBus {
