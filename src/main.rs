@@ -185,10 +185,12 @@ async fn main() -> std::io::Result<()> {
             .wrap(middleware::Logger::default())
             .wrap(middleware::Compress::default())
             .data(app_data.clone())
-            .wrap(SessionMiddleware::new(
+            .wrap(SessionMiddleware::builder(
                 CookieSessionStore::default(),
                 secret_key,
-            ))
+            )
+            .cookie_secure(false)
+            .build())
             .app_data(
                 serde_qs::actix::QsQueryConfig::default()
                     .qs_config(serde_qs::Config::new(10, false)),
