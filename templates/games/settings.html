@@ -335,6 +335,15 @@
           <option {% if settings.log_level==4 %} selected="selected" {% endif %} value="4">AIEEEEEEEEE</option>
         </select>
       </div>
+      <div class="input-group">
+        <label for="binary_id">Dominions Version</label>
+        <select name="binary_id">
+          <option value="">Default (Most Recent)</option>
+          {% for binary in binaries %}
+          <option {% if settings.binary_id.is_some() && settings.binary_id.unwrap() == binary.binary_id %} selected {% endif %} value="{{binary.binary_id}}">Dominions {{binary.version}}</option>
+          {% endfor %}
+        </select>
+      </div>
     </div>
   </div>
 </div>

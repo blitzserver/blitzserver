@@ -1,12 +1,12 @@
-SELECT 
-  b.executable_path, 
+SELECT
+  b.executable_path,
   b.version,
-  f.filename, 
-  f.filebinary 
-FROM 
-  files f, 
+  f.filename,
+  f.filebinary
+FROM
+  files f,
   binaries b,
   games g
-WHERE g.id=$1 AND f.id=g.binary_id AND b.binary_id=g.binary_id;
+WHERE g.id=$1 AND f.id=COALESCE(g.binary_id, (SELECT binary_id FROM binaries ORDER BY binary_id DESC LIMIT 1)) AND b.binary_id=COALESCE(g.binary_id, (SELECT binary_id FROM binaries ORDER BY binary_id DESC LIMIT 1));
 
 

@@ -2,7 +2,6 @@
 DELETE FROM settings WHERE key IN (
     'UPLOAD_ADDRESS',
     'ADDRESS',
-    'GAMES_ADDRESS',
     'PORT_RANGE',
     'ANTIBOT_QUESTION',
     'ANTIBOT_ANSWER',

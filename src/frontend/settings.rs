@@ -130,6 +130,18 @@ pub async fn admin_upload_binary(
                     .find(|fname| binary_match.is_match(fname))
                     .unwrap();
 
+                // Set executable permission on dom6_amd64 for Windows-uploaded binaries
+                let executable_path = tmp_path.join(fname);
+                if executable_path.exists() {
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        let mut perms = std::fs::metadata(&executable_path).unwrap().permissions();
+                        perms.set_mode(perms.mode() | 0o111); // Add execute permission for owner, group, and others
+                        std::fs::set_permissions(&executable_path, perms).unwrap();
+                    }
+                }
+
                 std::thread::sleep(std::time::Duration::from_secs(1));
 
                 let command = std::process::Command::new(tmp_path.join(&fname))
@@ -214,9 +226,14 @@ fn admin_view(settings_list: Vec<Setting>, binaries: Vec<Binary>) -> ActixHtmlNo
                 <div class="pane">
                     <form enctype="multipart/form-data" action="/admin/upload-binary" method="post">
                         <h3>Upload Binary</h3>
+                        <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
+                            "To upload a Dominions game binary, create a ZIP archive containing the game contents
+                            (including the dominions executable) and upload it here. The system will automatically
+                            extract and detect the game version."
+                        </p>
                         <div class="input-group">
                             <label>Archive</label>
-                            <input name="archive" required type="file" />
+                            <input name="archive" required type="file" accept=".zip" />
                         </div>
                         <input class="btn btn-block btn-primary" type="submit" value="Upload"/>
                     </form>

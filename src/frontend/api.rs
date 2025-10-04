@@ -15,7 +15,7 @@ pub async fn game_json(
         .unwrap();
     summary.as_object_mut().unwrap().insert(
         "address".to_owned(),
-        std::env::var("GAMES_ADDRESS").unwrap().into(),
+        std::env::var("ADDRESS").unwrap().into(),
     );
     Ok(HttpResponse::Ok()
         .insert_header(header::ContentType(mime::APPLICATION_JSON))

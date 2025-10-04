@@ -9,8 +9,8 @@ struct HelpTemplate { hostname: String }
 
 #[get("/help")]
 pub async fn help(app_data: web::Data<AppData>) -> Result<HttpResponse> {
-    let hostname = Setting::get_or_env(&app_data.sqlx_pool, "GAMES_ADDRESS").await
-        .expect("GAMES_ADDRESS env var missing");
+    let hostname = Setting::get_or_env(&app_data.sqlx_pool, "ADDRESS").await
+        .expect("ADDRESS env var missing");
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (HelpTemplate { hostname })
         .render()

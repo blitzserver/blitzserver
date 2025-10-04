@@ -212,7 +212,8 @@ impl Game {
             mercslots              = $38,
             provs_per_player       = $39,
             randommap_wrapping     = $40,
-            log_level = $41
+            log_level              = $41,
+            binary_id              = $42
         WHERE
             id                     = $1
         RETURNING
@@ -310,7 +311,8 @@ impl Game {
                 self.mercslots,
                 self.provs_per_player,
                 mapwrapping_i64,
-                self.log_level
+                self.log_level,
+                self.binary_id
                 ).fetch_one(&mut *tx).await?;
 
         tx.commit().await?;
@@ -742,8 +744,7 @@ impl NewGame {
     {
         sqlx::query_as!(Game, r#"
         INSERT INTO games ( name, era, maps_dom6_id, port, thrones_t1, thrones_t2, thrones_t3, throne_points_required, research_diff, research_rand, hof_size, global_size, indepstr, magicsites, eventrarity, richness, resources, recruitment, supplies, startprov, renaming, scoregraphs, nationinfo, artrest, teamgame, clustered, storyevents, newailvl, password, masterpass, binary_id)
-        SELECT              $1,   $2,  $3,     $4,   $5,         $6,         $7,         $8,                     $9,            $10,           $11,      $12,         $13,      $14,        $15,         $16,      $17,       $18,         $19,      $20,       $21,      $22,         $23,        $24,     $25,      $26,       $27,         $28,      $29,      $30,        b.binary_id
-        FROM (SELECT binary_id FROM binaries  ORDER BY binary_id DESC LIMIT 1) b
+        VALUES              ($1,   $2,  $3,     $4,   $5,         $6,         $7,         $8,                     $9,            $10,           $11,      $12,         $13,      $14,        $15,         $16,      $17,       $18,         $19,      $20,       $21,      $22,         $23,        $24,     $25,      $26,       $27,         $28,      $29,      $30,        NULL)
         RETURNING
             id "id!: i32",
             name,

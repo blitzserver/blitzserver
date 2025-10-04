@@ -16,6 +16,7 @@ use crate::models::{
     AdminLog, Disciple, Game, Map, MapProvince, Mod, Nation, NewAdminLog, NewGame, Player,
     PlayerTurn, Turn,
 };
+use crate::models::binary::Binary;
 use crate::models::settings::Setting;
 use crate::packets::map_req;
 use actix_web::http::header;
@@ -78,6 +79,7 @@ struct GameSettings {
     #[serde(default,                   deserialize_with ="from_str")     ] provs_per_player:       i32,
     #[serde(default,                   deserialize_with ="from_str")     ] randommap_wrapping:     i32,
     #[serde(default,                   deserialize_with ="from_str")     ] log_level:              i32,
+    #[serde(default,                   deserialize_with ="from_str_opt") ] binary_id:              Option<i32>,
 //Markertotellwhethertheformisonitsfirstload
     #[serde(default)]loaded:Option<String>,
 }
@@ -129,6 +131,7 @@ impl From<(&Game, &[Mod])> for GameSettings {
             provs_per_player: game.provs_per_player,
             randommap_wrapping: game.randommap_wrapping as i32,
             log_level: game.log_level,
+            binary_id: game.binary_id,
         }
     }
 }
@@ -259,6 +262,7 @@ struct GameDetailsTemplate<'a> {
     nations: &'a Vec<Nation>,
     mods: &'a Vec<Mod>,
     maps: &'a Vec<MapSummary>,
+    binaries: &'a Vec<Binary>,
     provinces: &'a Vec<MapProvince>,
     authed: AuthStatus,
     logs: Vec<GameJobDisplay>,
@@ -868,7 +872,7 @@ async fn details(
     } else {
         (&game, &game.get_mods(&sqlx_db).await.unwrap()[..]).into()
     };
-    let (maps, mods): (Vec<MapSummary>, Vec<Mod>) = if authed == AuthStatus::AuthSuccess {
+    let (maps, mods, binaries): (Vec<MapSummary>, Vec<Mod>, Vec<Binary>) = if authed == AuthStatus::AuthSuccess {
         (
             {
                 let mapfilter_pattern = format!("%{}%", game_settings.mapfilter);
@@ -930,6 +934,7 @@ async fn details(
                     })
                     .collect()
             },
+            Binary::get_all(&sqlx_db).await.unwrap_or_else(|_| Vec::new()),
         )
     } else {
         (
@@ -974,6 +979,7 @@ async fn details(
             .fetch_all(&sqlx_db)
             .await
             .unwrap(),
+            Binary::get_all(&sqlx_db).await.unwrap_or_else(|_| Vec::new()),
         )
     };
     // Insert log entry first
@@ -1057,11 +1063,12 @@ async fn details(
             }),
             maps: &maps,
             mods: &mods,
+            binaries: &binaries,
             players: &players,
             disciples: &disciples,
             nations: &nations,
             turns: player_turn_map,
-            games_address: Setting::get_or_env(&app_data.sqlx_pool, "GAMES_ADDRESS").await
+            games_address: Setting::get_or_env(&app_data.sqlx_pool, "ADDRESS").await
                 .unwrap_or_else(|| "localhost".to_string()),
             admin_logs: &admin_logs,
             unhealthy: sqlx::query!(r#"WITH top as (select MAX(job_id) as last FROM jobs where finished_at is not null and game_id=$1)
@@ -1188,7 +1195,7 @@ async fn list(
     query: serde_qs::actix::QsQuery<GamesListPayload>,
 ) -> Result<HttpResponse> {
     let sqlx_db = app_data.sqlx_pool.clone();
-    let games_address = Setting::get_or_env(&app_data.sqlx_pool, "GAMES_ADDRESS").await
+    let games_address = Setting::get_or_env(&app_data.sqlx_pool, "ADDRESS").await
         .unwrap_or_else(|| "localhost".to_string());
 
     // BACKLOAD MISSSING PROVINCES
@@ -1502,6 +1509,7 @@ async fn settings_post(
     game.provs_per_player = body.provs_per_player;
     game.randommap_wrapping = body.randommap_wrapping.into();
     game.log_level = body.log_level;
+    game.binary_id = body.binary_id;
     game = game.update(&body.cmods, &sqlx_db).await.unwrap();
     let mods = game.get_mods(&sqlx_db).await.unwrap();
     if mods.len() != old_mods.len()

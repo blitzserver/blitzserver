@@ -3,7 +3,6 @@
 INSERT OR IGNORE INTO settings (key, value) VALUES
     ('UPLOAD_ADDRESS', 'http://localhost:8080'),
     ('ADDRESS', 'http://localhost:8080'),
-    ('GAMES_ADDRESS', 'localhost'),
     ('PORT_RANGE', '10000,10999'),
     ('ANTIBOT_QUESTION', NULL),
     ('ANTIBOT_ANSWER', NULL),

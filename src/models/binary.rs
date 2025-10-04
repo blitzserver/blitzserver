@@ -97,6 +97,18 @@ impl Binary {
                 .unwrap();
             let mut zip = ZipArchive::new(std::io::Cursor::new(&binary.filebinary)).unwrap();
             zip.extract(Path::new(&binary_path)).unwrap();
+
+            // Set executable permission on dom6_amd64 for Windows-uploaded binaries
+            let executable_path = binary_path.join(&binary.executable_path);
+            if executable_path.exists() {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let mut perms = std::fs::metadata(&executable_path).unwrap().permissions();
+                    perms.set_mode(perms.mode() | 0o111); // Add execute permission for owner, group, and others
+                    std::fs::set_permissions(&executable_path, perms).unwrap();
+                }
+            }
         }
 
         return Ok(PathBuf::from(&binary_path).join(std::path::Path::new(&binary.executable_path)));

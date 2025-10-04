@@ -7,10 +7,14 @@ where
     S: std::str::FromStr + Default,
 {
     let s = <&str as serde::Deserialize>::deserialize(deserializer)?;
-    Ok(match S::from_str(&s) {
-        Ok(s) => Some(s),
-        Err(_) => None
-    })
+    if s.trim().is_empty() {
+        Ok(None)
+    } else {
+        Ok(match S::from_str(&s) {
+            Ok(s) => Some(s),
+            Err(_) => None
+        })
+    }
 }
 pub fn from_str<'de, D, S>(deserializer: D) -> Result<S, D::Error>
 where
