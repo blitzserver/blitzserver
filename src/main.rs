@@ -67,7 +67,11 @@ async fn main() -> std::io::Result<()> {
     let db_loc = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://./db".to_string());
     let sqlx_pool = sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(20)
-        .connect_with(SqliteConnectOptions::from_str(&db_loc).unwrap().create_if_missing(true))
+        .connect_with(
+            SqliteConnectOptions::from_str(&db_loc)
+                .unwrap()
+                .create_if_missing(true),
+        )
         .await
         .unwrap();
     sqlx::migrate!("./migrations")
@@ -104,15 +108,68 @@ async fn main() -> std::io::Result<()> {
                 .collect::<String>();
 
             // Save the generated key to the database
-            Setting::update(&sqlx_pool, "COOKIE_KEY", Some(&generated_key)).await
+            Setting::update(&sqlx_pool, "COOKIE_KEY", Some(&generated_key))
+                .await
                 .expect("Failed to save generated COOKIE_KEY to database");
 
             println!("Generated new COOKIE_KEY and saved to database");
             generated_key
         }
     };
-    let web_port = Setting::get_or_env(&sqlx_pool, "WEB_PORT").await
+    let web_port = Setting::get_or_env(&sqlx_pool, "WEB_PORT")
+        .await
         .unwrap_or_else(|| "8080".to_string());
+
+    // Check if ADMIN_PASSWORD is set, and if not, open browser to admin page
+    let admin_password_set = Setting::get_or_env(&sqlx_pool, "ADMIN_PASSWORD")
+        .await
+        .is_some();
+    if !admin_password_set {
+        let admin_url = format!("http://localhost:{}/admin", web_port);
+        println!("⚠️  ADMIN_PASSWORD not set! Opening browser to admin page...");
+        println!("   Admin page: {}", admin_url);
+
+        // Spawn browser opening in background after a short delay
+        let url_clone = admin_url.clone();
+        std::thread::spawn(move || {
+            // Wait a bit for server to start
+            std::thread::sleep(std::time::Duration::from_secs(2));
+
+            // Try to open browser with platform-specific commands
+            let open_cmd = if cfg!(target_os = "macos") {
+                std::process::Command::new("open").arg(&url_clone).spawn()
+            } else if cfg!(target_os = "windows") {
+                std::process::Command::new("cmd")
+                    .args(["/c", "start", &url_clone])
+                    .spawn()
+            } else {
+                // Linux/Unix - try common browsers
+                std::process::Command::new("xdg-open")
+                    .arg(&url_clone)
+                    .spawn()
+                    .or_else(|_| {
+                        std::process::Command::new("firefox")
+                            .arg(&url_clone)
+                            .spawn()
+                    })
+                    .or_else(|_| {
+                        std::process::Command::new("chromium")
+                            .arg(&url_clone)
+                            .spawn()
+                    })
+                    .or_else(|_| {
+                        std::process::Command::new("google-chrome")
+                            .arg(&url_clone)
+                            .spawn()
+                    })
+            };
+
+            if let Err(e) = open_cmd {
+                println!("Could not open browser automatically: {}", e);
+                println!("Please manually open: {}", url_clone);
+            }
+        });
+    }
 
     HttpServer::new(move || {
         // TODO: Hack here, we create the map thumbnail dir VERY ahead of time since the file
@@ -168,8 +225,7 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::help::help)
             .service(frontend::settings::admin)
             .service(frontend::settings::admin_post)
-            .service(frontend::binaries::list)
-            .service(frontend::binaries::upload)
+            .service(frontend::settings::admin_upload_binary)
             // .service(frontend::api::game_json)
             .service(actix_files::Files::new("/", "./content"))
     })

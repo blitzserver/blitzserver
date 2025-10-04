@@ -6,7 +6,6 @@ pub mod games;
 pub mod utils;
 pub mod help;
 pub mod settings;
-pub mod binaries;
 pub mod fragments;
 pub mod api;
 
