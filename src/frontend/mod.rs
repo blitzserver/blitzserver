@@ -11,7 +11,7 @@ pub mod api;
 
 #[derive(Clone)]
 pub struct AppData {
-    pub sqlx_pool: sqlx::postgres::PgPool,
+    pub sqlx_pool: sqlx::sqlite::SqlitePool,
 }
 
 impl AppData {

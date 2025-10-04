@@ -1,5 +1,6 @@
 use crate::{models::{Player, Mod, self}, packets::astralpacket_resp::AstralPacketResp};
-use std::{io::Read, collections::HashMap};
+use std::{io::Read};
+use chrono::Utc;
 use crate::packets::{ MapImageFileResp, ModFileResp, TwoHResp, DmFileResp, MapWinterFileResp,  Submit2hResp, MapFileResp, TrnResp, MapResp, TwoHCrcResp, BodyContents, PasswordsResp, PAResp, DisconnectResp, GameInfoResp, LoadingMessageResp, Packet };
 use std::io::BufReader;
 use std::net::TcpStream;
@@ -33,20 +34,28 @@ pub enum Dom5ConnErr {
 pub struct Dom5Conn {
     pub stream: TcpStream,
     pub game_id: i32,
-    pub db_pool: sqlx::postgres::PgPool,
+    pub db_pool: sqlx::sqlite::SqlitePool,
     pub active_connection_ids: Vec<i32>,
 }
 
 impl Drop for Dom5Conn {
     fn drop(&mut self) {
         smol::block_on(async {
-            sqlx::query!("UPDATE connections SET disconnected=NOW() WHERE id = ANY($1::int[])", &self.active_connection_ids).execute(&self.db_pool).await.unwrap();
+            if !self.active_connection_ids.is_empty() {
+                let placeholders = (0..self.active_connection_ids.len()).map(|i| format!("${}", i + 1)).collect::<Vec<_>>().join(",");
+                let query = format!("UPDATE connections SET disconnected=datetime('now') WHERE id IN ({})", placeholders);
+                let mut query = sqlx::query(&query);
+                for id in &self.active_connection_ids {
+                    query = query.bind(id);
+                }
+                query.execute(&self.db_pool).await.unwrap();
+            }
         })
     }
 }
 
 impl Dom5Conn {
-    pub fn new(stream: std::net::TcpStream, game_id: i32, db_pool: sqlx::postgres::PgPool) -> Self {
+    pub fn new(stream: std::net::TcpStream, game_id: i32, db_pool: sqlx::sqlite::SqlitePool) -> Self {
         Self {
             stream,
             game_id,
@@ -78,7 +87,7 @@ impl Dom5Conn {
             // Make sure cdkey isnt violated
             let old_cdkey = Player::get_cdkey(self.game_id, twoh.header.nationid, &self.db_pool).map_err(|_| UploadPretenderErr::CdKeyDiffer)?;
             if let Some(old_cdkey) = old_cdkey {
-                if old_cdkey != twoh.header.cdkey as i64 {
+                if old_cdkey != twoh.header.cdkey {
                     return Err(UploadPretenderErr::CdKeyDiffer);
                 }
             }
@@ -88,30 +97,34 @@ impl Dom5Conn {
                 return Err(UploadPretenderErr::PassswordRequired);
             }
             // Insert
-            sqlx::query!(r#"
-            WITH 
-                updated_game as (
-                    UPDATE games SET last_activity=NOW() WHERE id=$1),
-                inserted_file as (
-                    INSERT INTO files (filename, filebinary) 
-                    SELECT CONCAT(n.filename, '.2h'), $6 FROM nations n WHERE n.game_id=$1 AND n.nation_id=$2
-                    ON CONFLICT (filename,digest(filebinary, 'sha1'::text)) 
-                    DO UPDATE SET filename=EXCLUDED.filename
-                    RETURNING *)
-            INSERT INTO players (file_id, game_id, nationid, name, password, cdkey) 
-            SELECT id, $1, $2, $3, $4, $5 FROM inserted_file
-            ON CONFLICT (game_id, nationid) DO UPDATE SET file_id=EXCLUDED.file_id, name=EXCLUDED.name, password=EXCLUDED.password
-            "#,
-            self.game_id,
-            twoh.header.nationid,
-            if let Body::NewlordContents(nl) = twoh.body {
+            // Update game activity
+            sqlx::query!("UPDATE games SET last_activity=datetime('now') WHERE id=$1", self.game_id).execute(&self.db_pool).await.map_err(|_|UploadPretenderErr::IllegalNation)?;
+
+            // Insert file and get ID
+            let file_record = sqlx::query!(r#"
+                INSERT INTO files (filename, filebinary)
+                SELECT n.filename || '.2h', $3 FROM nations n WHERE n.game_id=$1 AND n.nation_id=$2
+                RETURNING id
+            "#, self.game_id, twoh.header.nationid, req.pretender_contents).fetch_one(&self.db_pool).await.map_err(|_|UploadPretenderErr::IllegalNation)?;
+
+            let name = if let Body::NewlordContents(nl) = twoh.body {
                 nl.get_name().to_owned()
             } else {
                 "".to_string()
-            },
+            };
+
+            // Insert/update player
+            sqlx::query!(r#"
+                INSERT INTO players (file_id, game_id, nationid, name, password, cdkey)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                ON CONFLICT (game_id, nationid) DO UPDATE SET file_id=EXCLUDED.file_id, name=EXCLUDED.name, password=EXCLUDED.password
+            "#,
+            file_record.id,
+            self.game_id,
+            twoh.header.nationid,
+            name,
             twoh.header.password,
-            twoh.header.cdkey as i64,
-            &req.pretender_contents).execute(&self.db_pool).await.map_err(|_|UploadPretenderErr::IllegalNation)?;
+            twoh.header.cdkey).execute(&self.db_pool).await.map_err(|_|UploadPretenderErr::IllegalNation)?;
             return Ok(());
         })
     }
@@ -125,24 +138,24 @@ impl Dom5Conn {
                                     renaming, 
                                     research_9_slow,
                                     formal_diplo,
-                                    era, 
+                                    era "era: i32", 
                                     teamgame, 
-                                    g.next_turn, 
-                                    t.turn_number as "turn_number?"
+                                    g.next_turn "next_turn: chrono::DateTime<Utc>", 
+                                    t.turn_number "turn_number: u32"
                                 FROM games g
-                                LEFT JOIN LATERAL (
+                                LEFT JOIN (
                                     SELECT turn_number, game_id
                                     FROM turns t
-                                    WHERE t.game_id=g.id AND t.archived != TRUE
+                                    WHERE t.archived != TRUE
                                     ORDER BY t.turn_number DESC
                                     LIMIT 1
                                 ) AS t ON t.game_id=g.id
                                 WHERE g.id=$1"#,
                                 self.game_id
                             ).fetch_one(&self.db_pool).await,
-                            sqlx::query!(r#"SELECT d.nation_id, d.is_disciple, d.team FROM disciples d WHERE d.game_id=$1"#, self.game_id).fetch_all(&self.db_pool) .await,
+                            sqlx::query!(r#"SELECT d.nation_id "nation_id: i32", d.is_disciple, d.team FROM disciples d WHERE d.game_id=$1"#, self.game_id).fetch_all(&self.db_pool) .await,
                             sqlx::query!(r#"SELECT
-                                p.nationid,
+                                p.nationid "nationid: i32",
                                 pt.status AS "status?",
                                 c.connected as "connected?"
                                 FROM players p 
@@ -235,8 +248,9 @@ impl Dom5Conn {
                          * User wishes the game to be started, set the next_turn to 5 seconds
                          */
                         crate::packets::Body::StartGameReq(_) => {
+                            let in_5_seconds = chrono::Utc::now() + chrono::Duration::seconds(5);
                             if let Err(e) = sqlx::query!("UPDATE games SET next_turn=$1 WHERE id=$2",
-                                                         chrono::Utc::now() + chrono::Duration::seconds(5),
+                                                         in_5_seconds,
                                                          self.game_id)
                                 .execute(&self.db_pool).await {
                                     log::error!( "Failed to set countdown for game {}: {:?}", self.game_id, e);
@@ -302,7 +316,10 @@ impl Dom5Conn {
                                     struct R { motd: Option<String>, max: Option<i32>, winner_name: Option<String> }
                                     match sqlx::query_as!(R, r#"
                                          WITH tt as (SELECT MAX(turn_number) as max, game_id from turns where archived != true GROUP BY game_id)
-                                         SELECT tt.max as "max?", g.motd as "motd?", n.name as "winner_name?"
+                                         SELECT 
+                                            tt.max "max: i32", 
+                                            g.motd "motd?", 
+                                            n.name "winner_name?"
                                          FROM games g
                                          LEFT JOIN tt ON tt.game_id=g.id
                                          LEFT JOIN turns t ON t.turn_number=tt.max AND t.archived IS NOT TRUE and t.game_id=g.id
@@ -341,10 +358,15 @@ impl Dom5Conn {
                          * Player sesssion started and nations selected
                          */
                         crate::packets::Body::NationsSelectedReq(pkt) => {
-                            match sqlx::query!("INSERT INTO connections
+                            let nations = serde_json::to_string(&pkt.nations_selected).unwrap();
+                            let ip = self.stream.peer_addr().map(|p| p.to_string()).unwrap_or("Unknown IP".to_owned());
+                            match sqlx::query!(r#"INSERT INTO connections
                                 (connected, game_id, nation_id, ip)
-                                VALUES (NOW(), $1, UNNEST($2::Integer[]), $3) RETURNING *",
-                                self.game_id, &pkt.nations_selected, self.stream.peer_addr().map(|p| p.to_string()).unwrap_or("Unknown IP".to_owned())).fetch_all(&self.db_pool).await {
+                                SELECT datetime('now'), $1, value, $3 FROM json_each($2) RETURNING id "id: i32""#,
+                                self.game_id, 
+                                nations,
+                                ip
+                                ).fetch_all(&self.db_pool).await {
                                 Ok(connections) => {
                                     self.active_connection_ids = connections.into_iter().map(|c| c.id).collect(); 
                                 }
@@ -367,14 +389,17 @@ impl Dom5Conn {
                             if let Err(e) = sqlx::query!("
                                     WITH current_pretender as (SELECT COUNT(*) as p_count FROM disciples WHERE game_id=$1 AND team=$3 AND team>0 AND is_disciple=0 GROUP BY game_id),
                                     existing as (SELECT is_disciple FROM disciples WHERE game_id=$1 AND nation_id=$2),
-                                    insert_vars as (SELECT $1::Int as game_id, $2::Int as nation_id, $3::Int as team)
+                                    insert_vars as (SELECT $1 as game_id, $2 as nation_id, $3 as team)
                                     INSERT INTO disciples AS d (game_id,nation_id, team, is_disciple)
-                                    SELECT iv.*,GREATEST(0, existing.is_disciple, p_count)
+                                    SELECT iv.*,MAX(0, existing.is_disciple, p_count)
                                     FROM insert_vars iv
                                     LEFT JOIN current_pretender cp ON 1=1
                                     LEFT JOIN existing ON 1=1
                                     ON CONFLICT (game_id,nation_id) DO UPDATE SET (team, is_disciple) = (EXCLUDED.team, EXCLUDED.is_disciple)
-                                    ", self.game_id, pkt.nation_id as i32, pkt.team as i32).execute(&self.db_pool).await {
+                                    ", 
+                                    self.game_id, 
+                                    pkt.nation_id, 
+                                    pkt.team).execute(&self.db_pool).await {
                                 log::error!("Unable to set team for nation {} game {}: {:?}", pkt.nation_id, self.game_id, e);
                                 self.send_message("Could not set team! Contact the admin!");
                             }
@@ -385,12 +410,28 @@ impl Dom5Conn {
                             // pretender, so we don't have to check if we're actually setting
                             // ourselves to be a pretender, since if we're not, then everything 
                             // will already be a disciple anyway).
-                            if let Err(e) = sqlx::query!("
-                                                         WITH inserted as (INSERT INTO disciples (is_disciple, game_id, nation_id) VALUES ($3, $1, $2) 
-                                                         ON CONFLICT (game_id, nation_id) DO UPDATE SET is_disciple=EXCLUDED.is_disciple RETURNING *)
-                                                         UPDATE disciples d SET is_disciple=1 FROM inserted WHERE d.team=inserted.team AND d.team>0 AND d.game_id=inserted.game_id", self.game_id, pkt.nation_id as i32, pkt.is_disc as i32).execute(&self.db_pool).await {
-                                log::error!("Unable to set disciple status for nation {} game {}: {:?}", pkt.nation_id, self.game_id, e);
-                                self.send_message("Could not set disciple status! Contact the admin!");
+                            // Insert/update disciple record
+                            let disciple_result = sqlx::query!("
+                                INSERT INTO disciples (is_disciple, game_id, nation_id) VALUES ($3, $1, $2)
+                                ON CONFLICT (game_id, nation_id) DO UPDATE SET is_disciple=EXCLUDED.is_disciple
+                                RETURNING team", self.game_id, 
+                                pkt.nation_id, 
+                                pkt.is_disc).fetch_one(&self.db_pool).await;
+
+                            match disciple_result {
+                                Ok(record) => {
+                                    if let Some(team) = record.team {
+                                        if team > 0 {
+                                            if let Err(e) = sqlx::query!("UPDATE disciples SET is_disciple=1 WHERE team=$1 AND team>0 AND game_id=$2", team, self.game_id).execute(&self.db_pool).await {
+                                                log::error!("Unable to update team disciples for nation {} game {}: {:?}", pkt.nation_id, self.game_id, e);
+                                            }
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!("Unable to set disciple status for nation {} game {}: {:?}", pkt.nation_id, self.game_id, e);
+                                    self.send_message("Could not set disciple status! Contact the admin!");
+                                }
                             }
                         }
                         /*
@@ -398,7 +439,7 @@ impl Dom5Conn {
                          * that it may prompt the user to enter them
                          */
                         crate::packets::Body::PasswordsReq(_) => {
-                            match sqlx::query!("SELECT nationid FROM players WHERE password IS NOT NULL AND game_id=$1", self.game_id).fetch_all(&self.db_pool).await {
+                            match sqlx::query!(r#"SELECT nationid "nationid: i32" FROM players WHERE password IS NOT NULL AND game_id=$1"#, self.game_id).fetch_all(&self.db_pool).await {
                                 Err(e) => {
                                     log::error!("Failed to determine passwords: {:?}", e);
                                     PasswordsResp::new(&vec![]).write_packet(&mut self.stream, None);
@@ -448,7 +489,9 @@ impl Dom5Conn {
                             INNER JOIN top_turn tt ON tt.max=pt.turn_number
                             INNER JOIN files f ON f.id=pt.trnfile_id
                             WHERE pt.nation_id = $2 AND pt.game_id=$1 AND pt.archived != TRUE"#,
-                            self.game_id, pkt.nation_desired as i32).fetch_one(&self.db_pool).await {
+                            self.game_id, 
+                            pkt.nation_desired
+                            ).fetch_one(&self.db_pool).await {
                                 Err(e) => {
                                     log::error!("Failed to get trn for nation {}: {:?}", pkt.nation_desired, e);
                                     TrnResp { trn_contents: vec![] }.write_packet(&mut self.stream, None);
@@ -592,7 +635,9 @@ impl Dom5Conn {
                             FROM player_turns pt
                             INNER JOIN topturn tt ON tt.turn_number=pt.turn_number
                             INNER JOIN files f ON f.id=pt.twohfile_id
-                            WHERE pt.nation_id=$2 AND pt.archived != TRUE AND game_id=$1"#, self.game_id, pkt.nation_desired as i32).fetch_one(&self.db_pool).await {
+                            WHERE pt.nation_id=$2 AND pt.archived != TRUE AND game_id=$1"#, 
+                            self.game_id, 
+                            pkt.nation_desired).fetch_one(&self.db_pool).await {
                                 Ok(filebinary) => {
                                     TwoHResp {
                                         nation_id: pkt.nation_desired as u16,
@@ -612,7 +657,7 @@ impl Dom5Conn {
                         crate::packets::Body::Submit2hReq(pkt) => {
                             match crate::files::saves::SaveFile::read_contents( std::io::Cursor::new(&pkt.twoh_contents)) {
                                 Ok(twoh) => {
-                                    match sqlx::query!("SELECT MAX(turn_number) turn_number FROM turns WHERE game_id=$1 AND archived != TRUE", self.game_id).fetch_one(&self.db_pool).await {
+                                    match sqlx::query!(r#"SELECT MAX(turn_number) "turn_number: i32" FROM turns WHERE game_id=$1 AND archived != TRUE"#, self.game_id).fetch_one(&self.db_pool).await {
                                         Ok(t) => if t.turn_number != Some(twoh.header.turnnumber) {
                                             Submit2hResp {}.write_packet(&mut self.stream, None);
                                             continue;
@@ -624,19 +669,32 @@ impl Dom5Conn {
                                         }
                                     }
                                     let twoh_crc = crate::util::calculate_crc(&pkt.twoh_contents[..]);
-                                    match sqlx::query!(r#"
-                                        WITH 
-                                            topturn AS (SELECT MAX(turn_number) as turn_number FROM turns WHERE game_id=$3 AND archived != TRUE),
-                                            inserted as (INSERT INTO files (filename, filebinary) 
-                                            SELECT concat(n.filename, '.2h'), $1
-                                            FROM nations n WHERE n.nation_id=$2 AND n.game_id=$3 
-                                            ON CONFLICT (filename,digest(filebinary, 'sha1'::text)) DO UPDATE 
-                                                SET filename=EXCLUDED.filename RETURNING *),
-                                            updated as (UPDATE games SET last_activity=NOW() WHERE id=$3)
-                                        UPDATE player_turns pt SET twohfile_id=inserted.id, twoh_crc=$5, status=$6
-                                        FROM topturn tt, inserted
-                                        WHERE archived != TRUE AND pt.game_id=$3 AND pt.nation_id=$2 AND pt.turn_number=tt.turn_number AND pt.turn_number=$4 RETURNING pt.id"#,
-                                        pkt.twoh_contents, twoh.header.nationid, self.game_id, twoh.header.turnnumber, twoh_crc as i32, if twoh.header.status == 1 { 1 } else { 2 } ).fetch_one(&self.db_pool).await {
+                                    // Update game activity
+                                    sqlx::query!("UPDATE games SET last_activity=datetime('now') WHERE id=$1", self.game_id).execute(&self.db_pool).await.ok();
+
+                                    // Insert file and get ID
+                                    let file_result = sqlx::query!(r#"
+                                        INSERT INTO files (filename, filebinary)
+                                        SELECT n.filename || '.2h', $1
+                                        FROM nations n WHERE n.nation_id=$2 AND n.game_id=$3
+                                        RETURNING id
+                                    "#, pkt.twoh_contents, twoh.header.nationid, self.game_id).fetch_one(&self.db_pool).await;
+
+                                    match file_result {
+                                        Ok(file_record) => {
+                                            let status = if twoh.header.status == 1 { 1 } else { 2 };
+                                            match sqlx::query!(r#"
+                                                UPDATE player_turns SET twohfile_id=$1, twoh_crc=$2, status=$3
+                                                WHERE archived != TRUE AND game_id=$4 AND nation_id=$5 AND turn_number=$6
+                                                RETURNING id
+                                            "#, 
+                                            file_record.id, 
+                                            twoh_crc, 
+                                            status,
+                                            self.game_id, 
+                                            twoh.header.nationid, 
+                                            twoh.header.turnnumber
+                                            ).fetch_one(&self.db_pool).await {
                                         Ok(_) => {
                                             Submit2hResp {}.write_packet(&mut self.stream, None);
                                         }
@@ -646,6 +704,13 @@ impl Dom5Conn {
                                             Submit2hResp {}.write_packet(&mut self.stream, None);
                                         }
                                     }
+                                }
+                                Err(e) => {
+                                    log::error!("Failed to insert file for 2h submission: {:?}", e);
+                                    self.send_message("There was an issue submitting your turn! You may have to contact the admin!");
+                                    Submit2hResp {}.write_packet(&mut self.stream, None);
+                                }
+                            }
                                 },
                                 Err(e) => {
                                     log::error!("Corrupt orders received for game {}", self.game_id);
@@ -659,7 +724,8 @@ impl Dom5Conn {
                          * enabled for the game as reported by the astral packet.
                          */
                         crate::packets::Body::DmFileReq(pkt) => {
-                            match sqlx::query!("SELECT gm.mod_id, m.file_id,m.dm_filename FROM game_mods gm LEFT JOIN mods m ON m.id=gm.mod_id WHERE game_id=$1 AND m.dm_filename ILIKE $2", self.game_id, format!("%{}", pkt.filename)).fetch_one(&self.db_pool).await {
+                            let filename = format!("%{}", pkt.filename);
+                            match sqlx::query!("SELECT gm.mod_id, m.file_id,m.dm_filename FROM game_mods gm LEFT JOIN mods m ON m.id=gm.mod_id WHERE game_id=$1 AND m.dm_filename LIKE $2", self.game_id, filename).fetch_one(&self.db_pool).await {
                                 Err(e) => {
                                     log::error!("Unable to find mod with dm file {} in game {}", pkt.filename, self.game_id);
                                     self.send_message(&format!("Somethings wrong with the mods finding DM file {}. Contact the admin!", pkt.filename));
@@ -712,7 +778,7 @@ impl Dom5Conn {
                                 }
                             }
                         crate::packets::Body::ModFileReq(pkt) => {
-                            match sqlx::query!("SELECT gm.mod_id, m.file_id,m.dm_filename FROM game_mods gm LEFT JOIN mods m ON m.id=gm.mod_id WHERE game_id=$1", self.game_id).fetch_all(&self.db_pool).await {
+                            match sqlx::query!(r#"SELECT gm.mod_id, m.file_id,m.dm_filename "dm_filename!" FROM game_mods gm LEFT JOIN mods m ON m.id=gm.mod_id WHERE game_id=$1"#, self.game_id).fetch_all(&self.db_pool).await {
                                 Err(e) => {
                                     log::error!("Unable to find mod list for game {}", self.game_id);
                                     self.send_message("Somethings wrong with the mods. Contact the admin!");

@@ -1,5 +1,5 @@
 pub struct Scheduler {
-    pub db_pool: sqlx::postgres::PgPool,
+    pub db_pool: sqlx::sqlite::SqlitePool,
 }
 
 impl Scheduler {
@@ -8,44 +8,48 @@ impl Scheduler {
             smol::block_on(async {
                 loop {
                     if let Err(e) = sqlx::query!(r#"
-                                                 UPDATE games 
-                                                 SET archived=true, port=NULL 
-                                                 WHERE last_activity < NOW() - interval '2 weeks' AND archived!=true"#
+                                                 UPDATE games
+                                                 SET archived=true, port=NULL
+                                                 WHERE last_activity < datetime('now', '-14 days') AND archived!=true"#
                                                 ).execute(&self.db_pool).await {
                         log::error!("Failed to archive stale games {:?}", e);
                     }
+                    // First, reap old jobs
+                    if let Err(e) = sqlx::query!("UPDATE jobs SET reaped=TRUE, finished_at=datetime('now') WHERE datetime('now') > datetime(updated_at, '+30 seconds') AND finished_at IS NULL").execute(&self.db_pool).await {
+                        log::error!("Failed to reap old jobs: {:?}", e);
+                    }
+
+                    // Then find games that need hosting
                     match sqlx::query!(r#"
-                        WITH 
-                          top_turn as (SELECT game_id,MAX(turn_number) as turn_number FROM turns WHERE archived!=TRUE GROUP BY game_id),
-                          reaped_jobs as (UPDATE jobs SET reaped=TRUE, finished_at=NOW() WHERE NOW() > updated_at + interval '30 seconds' AND finished_at IS NULL RETURNING *)
+                        WITH top_turn as (SELECT game_id,MAX(turn_number) as turn_number FROM turns WHERE archived!=TRUE GROUP BY game_id)
                         INSERT INTO jobs ("game_id", "turn_number", "started_at", "updated_at")
-                        SELECT g.id, COALESCE(t.turn_number, 0), NOW(), NOW()
+                        SELECT g.id, COALESCE(t.turn_number, 0), datetime('now'), datetime('now')
                         FROM games g
-                        LEFT JOIN top_turn t 
-                            ON t.game_id=g.id 
+                        LEFT JOIN top_turn t
+                            ON t.game_id=g.id
                         LEFT JOIN turns tt
                             ON tt.game_id=g.id AND tt.turn_number=t.turn_number AND tt.archived != TRUE
-                        LEFT JOIN jobs j 
+                        LEFT JOIN jobs j
                             ON j.game_id=g.id AND j.turn_number=COALESCE(t.turn_number, 0) AND j.reaped!=TRUE AND finished_at IS NULL
-                        LEFT JOIN player_turns pt 
-                            ON pt.archived!=TRUE 
-                            AND pt.game_id=g.id 
+                        LEFT JOIN player_turns pt
+                            ON pt.archived!=TRUE
+                            AND pt.game_id=g.id
                             AND pt.turn_number=t.turn_number
                             AND pt.status IN (0,1)
                             AND COALESCE((
-                                SELECT COUNT(*) 
-                                FROM player_turns pt2 
-                                WHERE pt2.turn_number < t.turn_number 
-                                  AND pt2.turn_number >= (t.turn_number - g.max_stales) 
-                                  AND pt2.archived!=TRUE 
-                                  AND pt2.status=0 
-                                  AND pt2.game_id=g.id 
+                                SELECT COUNT(*)
+                                FROM player_turns pt2
+                                WHERE pt2.turn_number < t.turn_number
+                                  AND pt2.turn_number >= (t.turn_number - g.max_stales)
+                                  AND pt2.archived!=TRUE
+                                  AND pt2.status=0
+                                  AND pt2.game_id=g.id
                                   AND pt2.nation_id=pt.nation_id
                                 ) < g.max_stales, TRUE)
                         WHERE g.archived != TRUE AND tt.winner IS NULL AND j.job_id IS NULL
                         GROUP BY g.id,t.turn_number
-                        HAVING g.next_turn < NOW() OR (COUNT(pt.id) = 0 AND t.turn_number > 0)
-                        RETURNING *;
+                        HAVING g.next_turn < datetime('now') OR (COUNT(pt.id) = 0 AND t.turn_number > 0)
+                        RETURNING *
                       "#)
                         .fetch_all(&self.db_pool)
                         .await {

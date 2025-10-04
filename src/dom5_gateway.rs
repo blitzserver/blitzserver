@@ -1,11 +1,11 @@
 use crate::dom5_conn::Dom5Conn;
 use futures::future::select_all;
-use sqlx::postgres::PgPool;
+use sqlx::sqlite::SqlitePool;
 use std::net::TcpListener;
 use thiserror::Error;
 
 pub struct Gateway {
-    pub pool: PgPool,
+    pub pool: SqlitePool,
 }
 
 #[derive(Error, Debug)]
@@ -21,7 +21,7 @@ impl Gateway {
             smol::block_on(async {
                 let mut listen_pool = std::collections::HashMap::<i32, TcpListener>::new();
                 if let Err(e) = sqlx::query!(
-                    "UPDATE connections SET disconnected=NOW() WHERE disconnected IS NULL"
+                    "UPDATE connections SET disconnected=datetime('now') WHERE disconnected IS NULL"
                 )
                 .execute(&pool)
                 .await
@@ -33,7 +33,7 @@ impl Gateway {
                 }
                 loop {
                     for port in sqlx::query!(
-                        "SELECT port FROM games WHERE archived != TRUE AND port IS NOT NULL"
+                        r#"SELECT port "port: i32" FROM games WHERE archived != TRUE AND port IS NOT NULL"#
                     )
                     .fetch_all(&pool)
                     .await
@@ -70,9 +70,10 @@ impl Gateway {
                     for (stream, _) in listen_pool.values().flat_map(|l| l.accept()) {
                         match stream.local_addr() {
                             Ok(la) => {
+                                let port = la.port();
                                 match sqlx::query!(
-                                    "SELECT id FROM games WHERE port = $1",
-                                    la.port() as i32
+                                    r#"SELECT id "id: i32" FROM games WHERE port = $1"#,
+                                    port
                                 )
                                 .fetch_one(&pool)
                                 .await

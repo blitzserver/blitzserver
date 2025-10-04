@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use futures::executor;
-use sqlx::{Executor, Postgres};
+use sqlx::{Executor, Sqlite};
 use zip::ZipArchive;
 
 pub struct Binary {
@@ -13,39 +13,50 @@ pub struct Binary {
 }
 
 impl Binary {
-    pub async fn new<'q, D>(
+    pub async fn new(
         version: &str,
         filename: &str,
         contents: &[u8],
         executable_path: &str,
-        db: D,
-    ) -> Result<Self, sqlx::error::Error>
-    where
-        D: Executor<'q, Database = Postgres>,
-    {
-        sqlx::query_file_as!(
+        db: &sqlx::sqlite::SqlitePool,
+    ) -> Result<Self, sqlx::error::Error> {
+        let mut tx = db.begin().await?;
+
+        // Insert file first
+        let file = sqlx::query!("INSERT INTO files (filename, filebinary) VALUES($1, $2) RETURNING *",
+            filename, contents)
+            .fetch_one(&mut *tx)
+            .await?;
+
+        // Insert binary
+        let binary = sqlx::query_as!(
             Binary,
-            "src/sql/insert_binary.sql",
-            filename,
-            contents,
+            "INSERT INTO binaries (binary_id, executable_path, version)
+            VALUES($1, $2, $3)
+            ON CONFLICT(binary_id) DO UPDATE SET version=EXCLUDED.version
+            RETURNING *",
+            file.id,
             executable_path,
             version
         )
-        .fetch_one(db)
-        .await
+        .fetch_one(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(binary)
     }
     pub async fn get_all<'q, D>(db: D) -> Result<Vec<Self>, sqlx::error::Error>
     where
-        D: Executor<'q, Database = Postgres>,
+        D: Executor<'q, Database = Sqlite>,
     {
         sqlx::query_file_as!(Binary, "src/sql/get_binaries.sql")
             .fetch_all(db)
             .await
     }
 
-    pub async fn extract_to_tmp<'q, D>(game_id: i32, db: &D) -> Result<PathBuf, sqlx::error::Error>
+    pub async fn extract_to_tmp<'q, D>(game_id: i64, db: &D) -> Result<PathBuf, sqlx::error::Error>
     where
-        for<'a> &'a D: Executor<'q, Database = Postgres>,
+        for<'a> &'a D: Executor<'q, Database = Sqlite>,
     {
         let binary = sqlx::query_file!("src/sql/get_binary_version.sql", game_id)
             .fetch_one(db)

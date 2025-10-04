@@ -48,8 +48,8 @@ impl std::ops::DerefMut for AutokilledProc {
 }
 
 pub struct Dom5Turn {
-    pub db_pool: sqlx::postgres::PgPool,
-    pub game_id: i32,
+    pub db_pool: sqlx::sqlite::SqlitePool,
+    pub game_id: i64,
 }
 
 #[derive(Debug, Error)]
@@ -459,15 +459,16 @@ impl Dom5Turn {
                     }
                 }
             }
-            sqlx::query!(r#"
-                        INSERT 
-                        INTO nations 
-                            (game_id, nation_id, name, epithet, filename) 
-                        SELECT $1, UNNEST($2::integer[]),  UNNEST($3::text[]), UNNEST($4::text[]), UNNEST($5::text[])
-                        ON CONFLICT (game_id, nation_id)
-                        DO UPDATE SET name=EXCLUDED.name, epithet=EXCLUDED.epithet, filename=EXCLUDED.filename
-                        "#,
-            self.game_id, &nation_ids, &names, &epithets, &filenames).execute(&self.db_pool).await?;
+            // Insert/update nations individually since SQLite doesn't support array operations
+            for i in 0..nation_ids.len() {
+                sqlx::query!(r#"
+                    INSERT INTO nations (game_id, nation_id, name, epithet, filename)
+                    VALUES ($1, $2, $3, $4, $5)
+                    ON CONFLICT (game_id, nation_id)
+                    DO UPDATE SET name=EXCLUDED.name, epithet=EXCLUDED.epithet, filename=EXCLUDED.filename
+                "#,
+                self.game_id, nation_ids[i], names[i], epithets[i], filenames[i]).execute(&self.db_pool).await?;
+            }
             proc.kill().map_err(Dom5TurnErr::ProcessError)?;
             proc.wait().map_err(Dom5TurnErr::ProcessError)?;
             Ok(())
@@ -495,51 +496,57 @@ impl Dom5Turn {
                 0 => self.populate_pretenders()?,
                 tt => self.populate_saves(tt)?,
             }
+            // Update previous subjob and job
+            sqlx::query!("UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1", subjob.subjob_id).execute(&self.db_pool).await?;
+            sqlx::query!("UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1", job_id).execute(&self.db_pool).await?;
+
+            // Insert new subjob
             let subjob = sqlx::query!(
-                "
-                WITH _0 as (UPDATE subjobs SET finished_at=NOW() WHERE subjob_id=$2),
-                     _1 as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1)
-                INSERT INTO subjobs (job_id, label) VALUES ($1, 'populate maps') RETURNING *",
-                job_id,
-                subjob.subjob_id
+                "INSERT INTO subjobs (job_id, label) VALUES ($1, 'populate maps') RETURNING *",
+                job_id
             )
             .fetch_one(&self.db_pool)
             .await?;
             self.populate_maps()?;
+            // Update previous subjob and job
+            sqlx::query!("UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1", subjob.subjob_id).execute(&self.db_pool).await?;
+            sqlx::query!("UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1", job_id).execute(&self.db_pool).await?;
+
+            // Insert new subjob
             let subjob = sqlx::query!(
-                "
-                WITH _0 as (UPDATE subjobs SET finished_at=NOW() WHERE subjob_id=$2),
-                     _1 as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1)
-                INSERT INTO subjobs (job_id, label) VALUES ($1, 'populate mods') RETURNING *",
-                job_id,
-                subjob.subjob_id
+                "INSERT INTO subjobs (job_id, label) VALUES ($1, 'populate mods') RETURNING *",
+                job_id
             )
             .fetch_one(&self.db_pool)
             .await?;
             self.populate_mods()?;
+            // Update previous subjob and job
+            sqlx::query!("UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1", subjob.subjob_id).execute(&self.db_pool).await?;
+            sqlx::query!("UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1", job_id).execute(&self.db_pool).await?;
+
+            // Insert new subjob
             let subjob = sqlx::query!(
-                "
-                WITH _0 as (UPDATE subjobs SET finished_at=NOW() WHERE subjob_id=$2),
-                     _1 as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1)
-                INSERT INTO subjobs (job_id, label) VALUES ($1, 'update nations') RETURNING *",
-                job_id,
-                subjob.subjob_id
+                "INSERT INTO subjobs (job_id, label) VALUES ($1, 'update nations') RETURNING *",
+                job_id
             )
             .fetch_one(&self.db_pool)
             .await?;
             self._update_nations(Some(subjob.subjob_id))?;
-            let subjob = sqlx::query!("
-                WITH _0 as (UPDATE subjobs SET finished_at=NOW() WHERE subjob_id=$2),
-                     _1 as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1)
-                INSERT INTO subjobs (job_id, label) VALUES ($1, 'dom5 processing turn') RETURNING *", job_id, subjob.subjob_id).fetch_one(&self.db_pool).await?;
+            // Update previous subjob and job
+            sqlx::query!("UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1", subjob.subjob_id).execute(&self.db_pool).await?;
+            sqlx::query!("UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1", job_id).execute(&self.db_pool).await?;
+
+            // Insert new subjob
+            let subjob = sqlx::query!("INSERT INTO subjobs (job_id, label) VALUES ($1, 'dom5 processing turn') RETURNING *", job_id).fetch_one(&self.db_pool).await?;
             let game = sqlx::query!(
-                r#"SELECT DISTINCT ON (g.id) g.*,MAX(t.turn_number) as "turn?",f.filename as "mapfilename?" FROM games g
+                r#"SELECT g.*,MAX(t.turn_number) as "turn?",f.filename as "mapfilename?" FROM games g
                                     LEFT JOIN turns t ON t.game_id=g.id AND t.archived != TRUE
                                     LEFT JOIN maps_dom6 m ON g.maps_dom6_id=m.map_id
                                     LEFT JOIN map_planes mp ON mp.map_id=m.map_id
                                     LEFT JOIN files f ON f.id=mp.map_file_id
-                                    WHERE g.id=$1 
-                                    GROUP BY g.id, f.filename"#,
+                                    WHERE g.id=$1
+                                    GROUP BY g.id, f.filename
+                                    LIMIT 1"#,
                 self.game_id
             )
             .fetch_one(&self.db_pool)
@@ -779,11 +786,12 @@ impl Dom5Turn {
                             job.turn_number,
                             game.id
                         );
+                        sqlx::query!("UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1", job_id)
+                            .execute(&self.db_pool)
+                            .await
+                            .map_err(|e| Dom5TurnErr::DbError(e))?;
                         sqlx::query!(
-                            "WITH _ as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1)
-                            UPDATE subjobs SET logs=concat(logs, $3::text, $4::text) WHERE subjob_id=$2
-                            ",
-                            job_id,
+                            "UPDATE subjobs SET logs=logs || $3 || $4 WHERE subjob_id=$2",
                             subjob.subjob_id,
                             outbuf,
                             errbuf
@@ -802,8 +810,8 @@ impl Dom5Turn {
                 } else {
                     waits = 0;
                 }
-                sqlx::query!("WITH _ as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1) UPDATE subjobs SET logs=concat(logs, $3::text, $4::text) WHERE subjob_id=$2",
-                    job_id,
+                sqlx::query!("UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1", job_id).execute(&self.db_pool).await?;
+                sqlx::query!("UPDATE subjobs SET logs=logs || $3 || $4 WHERE subjob_id=$2",
                     subjob.subjob_id,
                     outbuf,
                     errbuf
@@ -815,13 +823,14 @@ impl Dom5Turn {
                     break;
                 }
             }
+            // Update previous subjob and job
+            sqlx::query!("UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1", subjob.subjob_id).execute(&self.db_pool).await?;
+            sqlx::query!("UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1", job_id).execute(&self.db_pool).await?;
+
+            // Insert new subjob
             let subjob = sqlx::query!(
-                "
-                WITH _0 as (UPDATE subjobs SET finished_at=NOW() WHERE subjob_id=$2),
-                     _1 as (UPDATE jobs SET updated_at=NOW() WHERE job_id=$1)
-                INSERT INTO subjobs (job_id, label) VALUES ($1, 'commit new turn') RETURNING *",
-                job_id,
-                subjob.subjob_id
+                "INSERT INTO subjobs (job_id, label) VALUES ($1, 'commit new turn') RETURNING *",
+                job_id
             )
             .fetch_one(&self.db_pool)
             .await?;
@@ -918,17 +927,20 @@ impl Dom5Turn {
                 _ => return Err(Dom5TurnErr::FtherlndMixup),
             };
             let turn_number = ftherlnd.header.turnnumber;
+            // Insert file and get ID
+            let file_record = sqlx::query!(
+                "INSERT INTO files (filename, filebinary) VALUES('ftherlnd', $1) RETURNING id",
+                &contents
+            )
+            .fetch_one(&mut *transaction)
+            .await?;
+
+            // Insert turn
             sqlx::query!(
-                r#"
-            WITH inserted AS (INSERT INTO files (filename, filebinary) 
-                VALUES('ftherlnd', $1) 
-            ON CONFLICT (filename,digest(filebinary, 'sha1'::text)) DO UPDATE 
-                SET filename=EXCLUDED.filename RETURNING *)
-            INSERT INTO turns (game_id, turn_number, file_id, turnkey, winner)
-            SELECT $2, $3, id, $4, $5 FROM inserted"#,
-                &contents,
+                "INSERT INTO turns (game_id, turn_number, file_id, turnkey, winner) VALUES ($1, $2, $3, $4, $5)",
                 self.game_id,
                 turn_number,
+                file_record.id,
                 ftherlnd.header.turnkey as i32,
                 winner
             )
@@ -960,17 +972,19 @@ impl Dom5Turn {
                         player_turn_file
                             .read_to_end(&mut contents)
                             .map_err(Dom5TurnErr::MissingTrn)?;
-                        sqlx::query!(
-                            "
-                        WITH inserted AS (INSERT INTO files (filename, filebinary) 
-                            VALUES($1, $2) 
-                        ON CONFLICT (filename,digest(filebinary, 'sha1'::text)) DO UPDATE 
-                            SET filebinary=EXCLUDED.filebinary RETURNING *)
-                        INSERT INTO player_turns
-                        (trnfile_id, nation_id, game_id, turn_number, status)
-                        SELECT id, $3, $4, $5, $6 FROM inserted",
+                        // Insert file and get ID
+                        let file_record = sqlx::query!(
+                            "INSERT INTO files (filename, filebinary) VALUES($1, $2) RETURNING id",
                             &nation.filename,
-                            &contents,
+                            &contents
+                        )
+                        .fetch_one(&mut *transaction)
+                        .await?;
+
+                        // Insert player turn
+                        sqlx::query!(
+                            "INSERT INTO player_turns (trnfile_id, nation_id, game_id, turn_number, status) VALUES ($1, $2, $3, $4, $5)",
+                            file_record.id,
                             *nation_id as i32,
                             self.game_id,
                             turn_number,
@@ -989,26 +1003,32 @@ impl Dom5Turn {
                     }
                 }
             }
-            // Bulk insert player_turns without files
-            sqlx::query!(
-                "
-            WITH inserted AS (INSERT INTO player_turns
-            (status, game_id, nation_id, turn_number)
-            SELECT 3, $1, UNNEST($3::integer[]), $2)
-            INSERT INTO player_turns
-            (status, game_id, nation_id, turn_number)
-            SELECT 4, $1, UNNEST($4::integer[]), $2;
-            ",
-                self.game_id,
-                turn_number,
-                &computer_nationids,
-                &defeated_nationids
-            )
-            .execute(&mut *transaction)
-            .await?;
+            // Insert computer player turns
+            for nation_id in computer_nationids {
+                sqlx::query!(
+                    "INSERT INTO player_turns (status, game_id, nation_id, turn_number) VALUES (3, $1, $2, $3)",
+                    self.game_id,
+                    nation_id,
+                    turn_number
+                )
+                .execute(&mut *transaction)
+                .await?;
+            }
+
+            // Insert defeated player turns
+            for nation_id in defeated_nationids {
+                sqlx::query!(
+                    "INSERT INTO player_turns (status, game_id, nation_id, turn_number) VALUES (4, $1, $2, $3)",
+                    self.game_id,
+                    nation_id,
+                    turn_number
+                )
+                .execute(&mut *transaction)
+                .await?;
+            }
 
             if winner.is_none() {
-                sqlx::query!("UPDATE games SET next_turn=NOW()+ timer * interval '1 minute' WHERE id=$1 AND timer IS NOT NULL", self.game_id).execute(&mut *transaction).await?;
+                sqlx::query!("UPDATE games SET next_turn=datetime('now', '+' || timer || ' minutes') WHERE id=$1 AND timer IS NOT NULL", self.game_id).execute(&mut *transaction).await?;
             } else {
                 sqlx::query!(
                     "UPDATE games SET next_turn=NULL WHERE id=$1 AND timer IS NOT NULL",
@@ -1031,15 +1051,9 @@ impl Dom5Turn {
                 transaction.commit().await?;
             }
 
-            sqlx::query!(
-                "
-                WITH _0 as (UPDATE subjobs SET finished_at=NOW() WHERE subjob_id=$2)
-                UPDATE jobs SET finished_at=NOW(), updated_at=NOW() WHERE job_id=$1",
-                job_id,
-                subjob.subjob_id
-            )
-            .execute(&self.db_pool)
-            .await?;
+            // Update subjob and job to mark completion
+            sqlx::query!("UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1", subjob.subjob_id).execute(&self.db_pool).await?;
+            sqlx::query!("UPDATE jobs SET finished_at=datetime('now'), updated_at=datetime('now') WHERE job_id=$1", job_id).execute(&self.db_pool).await?;
 
             Ok(())
         })

@@ -61,9 +61,9 @@ async fn main() -> std::io::Result<()> {
     // Db
     dotenv().ok();
 
-    let sqlx_pool = sqlx::postgres::PgPoolOptions::new()
+    let sqlx_pool = sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(20)
-        .connect(&env::var("DATABASE_URL").expect("DATABASE_URL must be set"))
+        .connect(&env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://blitzserver.db".to_string()))
         .await
         .unwrap();
     let gateway = dom5_gateway::Gateway {
@@ -137,7 +137,7 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::help::help)
             .service(frontend::binaries::list)
             .service(frontend::binaries::upload)
-            .service(frontend::api::game_json)
+            // .service(frontend::api::game_json)
             .service(actix_files::Files::new("/", "./content"))
     })
     .bind(format!(

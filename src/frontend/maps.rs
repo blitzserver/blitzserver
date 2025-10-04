@@ -32,13 +32,40 @@ struct ThumbQuery {
 
 #[get("/map/{id}")]
 pub async fn details(
-    (app_data, path_id): (web::Data<AppData>, web::Path<i32>),
+    (app_data, path_id): (web::Data<AppData>, web::Path<i64>),
 ) -> Result<HttpResponse> {
     let sqlx_pool = app_data.sqlx_pool.clone();
-    let map = sqlx::query_as!(Map, "SELECT * FROM maps WHERE id=$1", *path_id)
+    let map_result = sqlx::query!(r#"SELECT
+        id "id: i32",
+        name,
+        mapfile_id "mapfile_id: i32",
+        tgafile_id "tgafile_id: i32",
+        winterfile_id "winterfile_id: i32",
+        province_count "province_count: i32",
+        uw_count "uw_count: i32",
+        archived,
+        map_crc "map_crc: i32",
+        tga_crc "tga_crc: i32",
+        winter_crc "winter_crc: i32",
+        min_version "min_version: i32"
+        FROM maps WHERE id=$1"#, *path_id)
         .fetch_one(&sqlx_pool)
         .await
         .unwrap();
+    let map = Map {
+        id: map_result.id,
+        name: map_result.name,
+        mapfile_id: map_result.mapfile_id,
+        tgafile_id: map_result.tgafile_id,
+        winterfile_id: map_result.winterfile_id,
+        province_count: map_result.province_count,
+        uw_count: map_result.uw_count,
+        archived: map_result.archived,
+        map_crc: map_result.map_crc.map(|x| x as i64),
+        tga_crc: map_result.tga_crc.map(|x| x as i64),
+        winter_crc: map_result.winter_crc.map(|x| x as i64),
+        min_version: map_result.min_version,
+    };
     Ok(HttpResponse::Ok()
         .content_type("text/html")
         .body((MapDetailsTemplate { map: &map }).render().unwrap()))
@@ -48,7 +75,7 @@ pub async fn details(
 pub async fn image(
     (app_data, path, query): (
         web::Data<AppData>,
-        web::Path<(i32, i32)>,
+        web::Path<(i64, i32)>,
         web::Query<ThumbQuery>,
     ),
 ) -> Result<HttpResponse> {
@@ -131,7 +158,7 @@ impl<'a> ListMapsTemplate<'a> {
 }
 
 #[get("/map/{id}/download")]
-async fn download((app_data, mapid): (web::Data<AppData>, web::Path<i32>)) -> Result<HttpResponse> {
+async fn download((app_data, mapid): (web::Data<AppData>, web::Path<i64>)) -> Result<HttpResponse> {
     let db = app_data.sqlx_pool.clone();
 
     let archive = crate::models::maps::Map::get_archive(*mapid, &db)

@@ -4,3 +4,4 @@
 .env
 .build
 src/schema.rs
+db

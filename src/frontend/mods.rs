@@ -37,7 +37,15 @@ pub async fn list(app_data: web::Data<AppData>) -> Result<HttpResponse> {
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (ListModsTemplate {
             errors: &vec![],
-            mods: sqlx::query_as!(Mod, "SELECT * FROM mods")
+            mods: sqlx::query_as!(Mod,
+                r#"SELECT
+                    id "id: i32",
+                    dm_filename,
+                    name,
+                    file_id "file_id: i32",
+                    icon_file_id "icon_file_id: i32",
+                    crc
+                FROM mods"#)
                 .fetch_all(&db)
                 .await
                 .unwrap(),
@@ -49,12 +57,18 @@ pub async fn list(app_data: web::Data<AppData>) -> Result<HttpResponse> {
 
 #[get("/images/mods/{id}.jpg")]
 pub async fn image(
-    (app_data, path_id): (web::Data<AppData>, web::Path<i32>),
+    (app_data, path_id): (web::Data<AppData>, web::Path<i64>),
 ) -> Result<HttpResponse> {
     let db = app_data.sqlx_pool.clone();
     if let Ok(file) = sqlx::query_as!(
         File,
-        r#"SELECT f.* FROM mods m INNER JOIN files f ON f.id = m.icon_file_id WHERE m.id=$1"#,
+        r#"SELECT
+            f.id "id: i32",
+            f.filename,
+            f.filebinary
+        FROM mods m
+        INNER JOIN files f ON f.id = m.icon_file_id
+        WHERE m.id=$1"#,
         *path_id
     )
     .fetch_one(&db)
@@ -173,7 +187,22 @@ pub async fn upload_post(
                                 let new_file =
                                     NewFile::new(content_type.get_filename().unwrap(), &contents);
                                 let file: File = new_file.insert(&sqlx_db).await.unwrap();
-                                sqlx::query_as!(Mod, "INSERT INTO mods (name, dm_filename, file_id, icon_file_id) VALUES ($1, $2, $3, $4) RETURNING *", &name, &dm_filename, file.id,banner_file.map(|bf| bf.id)).fetch_one(&sqlx_db).await.unwrap();
+                                let file_id = file.id;
+                                let icon_file_id = banner_file.map(|bf| bf.id);
+                                let name_ref = &name;
+                                let dm_filename_ref = &dm_filename;
+                                sqlx::query_as!(Mod,
+                                    "INSERT INTO mods (name, dm_filename, file_id, icon_file_id)
+                                    VALUES ($1, $2, $3, $4)
+                                    RETURNING
+                                        CAST(id AS INTEGER) as \"id: i32\",
+                                        dm_filename,
+                                        name,
+                                        CAST(file_id AS INTEGER) as \"file_id: i32\",
+                                        CAST(icon_file_id AS INTEGER) as \"icon_file_id: Option<i32>\",
+                                        crc",
+                                    name_ref, dm_filename_ref, file_id, icon_file_id)
+                                    .fetch_one(&sqlx_db).await.unwrap();
                                 let address = std::env::var("ADDRESS")
                                     .expect("ADDRESS env var not specified");
                                 return Ok(HttpResponse::Found()
@@ -184,7 +213,15 @@ pub async fn upload_post(
                                 return Ok(HttpResponse::Ok().content_type("text/html").body(
                                     (ListModsTemplate {
                                         errors: &vec!["Unable to find mod in zip (make sure there's a file that ends in .dm)".to_string()],
-                                        mods: sqlx::query_as!(Mod, "SELECT * FROM mods")
+                                        mods: sqlx::query_as!(Mod,
+                "SELECT
+                    CAST(id AS INTEGER) as \"id: i32\",
+                    dm_filename,
+                    name,
+                    CAST(file_id AS INTEGER) as \"file_id: i32\",
+                    CAST(icon_file_id AS INTEGER) as \"icon_file_id: Option<i32>\",
+                    crc
+                FROM mods")
                                             .fetch_all(&sqlx_db)
                                             .await
                                             .unwrap(),
@@ -198,7 +235,15 @@ pub async fn upload_post(
                     _ => {
                         return Ok(HttpResponse::Ok().content_type("text/html").body(
                             (ListModsTemplate {
-                                mods: sqlx::query_as!(Mod, "SELECT * FROM mods")
+                                mods: sqlx::query_as!(Mod,
+                "SELECT
+                    CAST(id AS INTEGER) as \"id: i32\",
+                    dm_filename,
+                    name,
+                    CAST(file_id AS INTEGER) as \"file_id: i32\",
+                    CAST(icon_file_id AS INTEGER) as \"icon_file_id: Option<i32>\",
+                    crc
+                FROM mods")
                                     .fetch_all(&sqlx_db)
                                     .await
                                     .unwrap(),
@@ -215,7 +260,15 @@ pub async fn upload_post(
     }
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (ListModsTemplate {
-            mods: sqlx::query_as!(Mod, "SELECT * FROM mods")
+            mods: sqlx::query_as!(Mod,
+                "SELECT
+                    CAST(id AS INTEGER) as \"id: i32\",
+                    dm_filename,
+                    name,
+                    CAST(file_id AS INTEGER) as \"file_id: i32\",
+                    CAST(icon_file_id AS INTEGER) as \"icon_file_id: Option<i32>\",
+                    crc
+                FROM mods")
                 .fetch_all(&sqlx_db)
                 .await
                 .unwrap(),
@@ -228,10 +281,17 @@ pub async fn upload_post(
 
 #[get("/mod/{id}")]
 pub async fn details(
-    (app_data, path): (web::Data<AppData>, web::Path<i32>),
+    (app_data, path): (web::Data<AppData>, web::Path<i64>),
 ) -> Result<HttpResponse> {
     let sqlx_db = app_data.sqlx_pool.clone();
-    let cmod = sqlx::query_as!(Mod, "SELECT * FROM mods WHERE id=$1", *path)
+    let cmod = sqlx::query_as!(Mod, r#"SELECT
+        id "id: i32",
+        dm_filename,
+        name,
+        file_id "file_id: i32",
+        icon_file_id "icon_file_id: i32",
+        crc
+        FROM mods WHERE id=$1"#, *path)
         .fetch_one(&sqlx_db)
         .await
         .unwrap();
@@ -239,7 +299,7 @@ pub async fn details(
 }
 
 #[get("/mod/{id}/download")]
-async fn download((app_data, modid): (web::Data<AppData>, web::Path<i32>)) -> Result<HttpResponse> {
+async fn download((app_data, modid): (web::Data<AppData>, web::Path<i64>)) -> Result<HttpResponse> {
     let sqlx_db = app_data.sqlx_pool.clone();
     let zipfile = sqlx::query!(
         "SELECT filebinary FROM files f INNER JOIN mods m ON m.file_id=f.id AND m.id=$1",

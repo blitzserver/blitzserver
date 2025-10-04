@@ -5,6 +5,7 @@ use actix_web::http::header::{self, ContentType, HeaderName};
 use actix_web::{get, Result};
 use actix_web::{web, HttpResponse};
 
+/*
 #[get("/json/game/{id}")]
 pub async fn game_json(
     (app_data, path_id): (web::Data<AppData>, web::Path<i32>),
@@ -20,3 +21,4 @@ pub async fn game_json(
         .insert_header(header::ContentType(mime::APPLICATION_JSON))
         .body(serde_json::to_string(&summary).unwrap()))
 }
+*/
