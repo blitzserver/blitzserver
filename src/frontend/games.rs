@@ -20,7 +20,7 @@ use crate::models::binary::Binary;
 use crate::models::settings::Setting;
 use crate::packets::map_req;
 use actix_web::http::header;
-use actix_web::{HttpResponse, Result, get, post, web};
+use actix_web::{HttpRequest, HttpResponse, Result, get, post, web};
 use askama::Template;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -786,11 +786,12 @@ async fn old_details(path_id: web::Path<String>) -> Result<HttpResponse> {
 }
 #[get("/game/{id}")]
 async fn details(
-    (app_data, path_id, session, payload): (
+    (app_data, path_id, session, payload, req): (
         web::Data<AppData>,
         web::Path<i32>,
         actix_session::Session,
         serde_qs::actix::QsQuery<GameDetailsPayload>,
+        HttpRequest,
     ),
 ) -> Result<HttpResponse> {
     let game_settings = &payload.game_settings;
@@ -1068,8 +1069,14 @@ async fn details(
             disciples: &disciples,
             nations: &nations,
             turns: player_turn_map,
-            games_address: Setting::get_or_env(&app_data.sqlx_pool, "ADDRESS").await
-                .unwrap_or_else(|| "localhost".to_string()),
+            games_address: req.headers()
+                .get("host")
+                .and_then(|h| h.to_str().ok())
+                .unwrap_or("localhost")
+                .split(':')
+                .next()
+                .unwrap_or("localhost")
+                .to_string(),
             admin_logs: &admin_logs,
             unhealthy: sqlx::query!(r#"WITH top as (select MAX(job_id) as last FROM jobs where finished_at is not null and game_id=$1)
             SELECT reaped as "reaped" FROM jobs INNER JOIN top ON top.last=jobs.job_id"#,game.id).fetch_all(&sqlx_db).await.unwrap().into_iter().next().map_or(false, |t| t.reaped),
@@ -1193,10 +1200,17 @@ async fn list(
     app_data: web::Data<AppData>,
     session: actix_session::Session,
     query: serde_qs::actix::QsQuery<GamesListPayload>,
+    req: HttpRequest,
 ) -> Result<HttpResponse> {
     let sqlx_db = app_data.sqlx_pool.clone();
-    let games_address = Setting::get_or_env(&app_data.sqlx_pool, "ADDRESS").await
-        .unwrap_or_else(|| "localhost".to_string());
+    let games_address = req.headers()
+        .get("host")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("localhost")
+        .split(':')
+        .next()
+        .unwrap_or("localhost")
+        .to_string();
 
     // BACKLOAD MISSSING PROVINCES
     let missing_map_provs = sqlx::query!(

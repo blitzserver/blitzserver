@@ -48,7 +48,7 @@ impl Scheduler {
                                 ) < g.max_stales, TRUE)
                         WHERE g.archived != TRUE AND tt.winner IS NULL AND j.job_id IS NULL
                         GROUP BY g.id,t.turn_number
-                        HAVING g.next_turn < datetime('now') OR (COUNT(pt.id) = 0 AND t.turn_number > 0)
+                        HAVING datetime(g.next_turn) <= datetime('now') OR (COUNT(pt.id) = 0 AND t.turn_number > 0)
                         RETURNING game_id "game_id: i32", job_id "job_id: i32", turn_number "turn_number: i32"
                       "#)
                         .fetch_all(&self.db_pool)

@@ -16,7 +16,7 @@ use actix_session::storage::CookieSessionStore;
 use actix_web::http::header;
 use actix_web::{App, HttpResponse, HttpServer, Result, get, middleware};
 use sqlx::migrate::MigrateDatabase;
-use sqlx::sqlite::SqliteConnectOptions;
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode};
 use std::env;
 use std::fs::exists;
 use std::str::FromStr;
@@ -70,6 +70,7 @@ async fn main() -> std::io::Result<()> {
         .connect_with(
             SqliteConnectOptions::from_str(&db_loc)
                 .unwrap()
+                .journal_mode(SqliteJournalMode::Wal)
                 .create_if_missing(true),
         )
         .await

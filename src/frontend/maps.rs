@@ -148,15 +148,8 @@ struct ListMapsTemplate<'a> {
 }
 
 impl<'a> ListMapsTemplate<'a> {
-    pub async fn get_upload_location(pool: &sqlx::SqlitePool) -> String {
-        let upload_address = Setting::get_or_env(pool, "UPLOAD_ADDRESS").await;
-        let address = if upload_address.is_some() {
-            upload_address.unwrap()
-        } else {
-            Setting::get_or_env(pool, "ADDRESS").await
-                .expect("ADDRESS env var not specified, needed for map upload form")
-        };
-        return format!("{}/maps/upload", address);
+    pub fn get_upload_location() -> String {
+        return "/maps/upload".to_string();
     }
 }
 
@@ -182,7 +175,7 @@ async fn download((app_data, mapid): (web::Data<AppData>, web::Path<i64>)) -> Re
 async fn list(app_data: web::Data<AppData>) -> Result<HttpResponse> {
     let sqlx_db = app_data.sqlx_pool.clone();
     let result_maps = MapSummary::get_map_list(&sqlx_db).await.unwrap();
-    let upload_location = ListMapsTemplate::get_upload_location(&sqlx_db).await;
+    let upload_location = ListMapsTemplate::get_upload_location();
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (ListMapsTemplate {
             errors: &vec![],
@@ -330,7 +323,7 @@ async fn upload_post(
     }
     if errors.len() > 0 {
         let result_maps = MapSummary::get_map_list(&sqlx_db).await.unwrap();
-        let upload_location = ListMapsTemplate::get_upload_location(&sqlx_db).await;
+        let upload_location = ListMapsTemplate::get_upload_location();
         return Ok(HttpResponse::Ok().content_type("text/html").body(
             (ListMapsTemplate {
                 errors: &errors,
@@ -341,9 +334,8 @@ async fn upload_post(
             .unwrap(),
         ));
     } else {
-        let address = Setting::get_or_env(&app_data.sqlx_pool, "ADDRESS").await.expect("ADDRESS env var not specified");
         return Ok(HttpResponse::Found()
-            .append_header((header::LOCATION, format!("{}/maps", address)))
+            .append_header((header::LOCATION, "/maps"))
             .finish());
     }
 }

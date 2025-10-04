@@ -1,5 +1,5 @@
 use askama::Template;
-use actix_web::{get, HttpResponse, Result, web};
+use actix_web::{get, HttpRequest, HttpResponse, Result, web};
 use crate::models::settings::Setting;
 use super::AppData;
 
@@ -8,9 +8,15 @@ use super::AppData;
 struct HelpTemplate { hostname: String }
 
 #[get("/help")]
-pub async fn help(app_data: web::Data<AppData>) -> Result<HttpResponse> {
-    let hostname = Setting::get_or_env(&app_data.sqlx_pool, "ADDRESS").await
-        .expect("ADDRESS env var missing");
+pub async fn help(app_data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse> {
+    let hostname = req.headers()
+        .get("host")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("localhost:8080")
+        .split(':')
+        .next()
+        .unwrap_or("localhost")
+        .to_string();
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (HelpTemplate { hostname })
         .render()
