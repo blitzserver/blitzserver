@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO admin_logs (game_id, datetime, action) VALUES ($1, datetime('now'), 'Reinstated game')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "49ba5cc4d99ef5705968cc090aed5cd8ed710aa399136e45f32c76a1ea2ccc76"
+}

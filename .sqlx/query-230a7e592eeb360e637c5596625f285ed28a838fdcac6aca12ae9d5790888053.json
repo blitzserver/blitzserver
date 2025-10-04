@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                    SELECT mapf.filebinary as mapbinary, tgaf.filebinary as tgabinary, winf.filebinary as \"winbinary?\"\n                    FROM maps m\n                    INNER JOIN files mapf ON mapf.id=m.mapfile_id\n                    INNER JOIN files tgaf ON tgaf.id=m.tgafile_id\n                    LEFT JOIN files winf ON winf.id=m.winterfile_id\n                    WHERE m.id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "mapbinary",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "tgabinary",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "winbinary?",
+        "ordinal": 2,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "230a7e592eeb360e637c5596625f285ed28a838fdcac6aca12ae9d5790888053"
+}

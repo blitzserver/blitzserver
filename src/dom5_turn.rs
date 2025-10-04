@@ -1,10 +1,10 @@
-use crate::files::saves::DomSaveReadError;
 use crate::files::MapFile;
+use crate::files::saves::DomSaveReadError;
 use crate::models::binary::Binary;
 use crate::models::maps::{Plane, PlaneImage};
 use crate::models::{Map, MapWrapping};
 use crate::util::calculate_crc;
-use encoding::{all::ISO_8859_1, DecoderTrap, Encoding};
+use encoding::{DecoderTrap, Encoding, all::ISO_8859_1};
 use itertools::Itertools;
 use nonblock::NonBlockingReader;
 use serde::Deserialize;
@@ -49,7 +49,7 @@ impl std::ops::DerefMut for AutokilledProc {
 
 pub struct Dom5Turn {
     pub db_pool: sqlx::sqlite::SqlitePool,
-    pub game_id: i64,
+    pub game_id: i32,
 }
 
 #[derive(Debug, Error)]
@@ -340,9 +340,10 @@ impl Dom5Turn {
                 .await
                 .unwrap();
             if let Some(subjob_id) = subjob_id {
+                let args = arguments.join(" ");
                 sqlx::query!(
                     "UPDATE subjobs SET meta=$1 WHERE subjob_id=$2",
-                    &arguments.join(" "),
+                    args,
                     subjob_id
                 )
                 .execute(&self.db_pool)
@@ -405,7 +406,7 @@ impl Dom5Turn {
                 std::thread::sleep(std::time::Duration::from_secs(1));
             }
             let nation_info_regex = regex::Regex::new( r#"Nation\t([0-9]+)\t[0-9]+\t[0-9]+\t[0-9]+\t[0-9]+\t([a-zA-Z_0-9]+)\t([^\t]+)\t([^$]+)"#).unwrap();
-            let mut nation_ids = vec![];
+            let mut nation_ids: Vec<i32> = vec![];
             let mut filenames = vec![];
             let mut names = vec![];
             let mut epithets = vec![];
@@ -417,7 +418,7 @@ impl Dom5Turn {
                     sqlx::query!(
                         "UPDATE subjobs SET logs=concat(logs, $2::text) WHERE subjob_id=$1",
                         subjob_id,
-                        &*statusdump_str
+                        statusdump_str
                     )
                     .execute(&self.db_pool)
                     .await?;
@@ -482,12 +483,15 @@ impl Dom5Turn {
     }
     pub fn run(mut self, job_id: i32) -> Result<(), Dom5TurnErr> {
         smol::block_on(async {
-            let job = sqlx::query!("SELECT * FROM jobs WHERE job_id=$1", job_id)
-                .fetch_one(&self.db_pool)
-                .await?;
+            let job = sqlx::query!(
+                r#"SELECT turn_number "turn_number: i32" FROM jobs WHERE job_id=$1"#,
+                job_id
+            )
+            .fetch_one(&self.db_pool)
+            .await?;
 
             let subjob = sqlx::query!(
-                "INSERT INTO subjobs (job_id, label) VALUES ($1, 'populate saves/pretenders') RETURNING *",
+                r#"INSERT INTO subjobs (job_id, label) VALUES ($1, 'populate saves/pretenders') RETURNING subjob_id "subjob_id: i32""#,
                 job_id
             )
             .fetch_one(&self.db_pool)
@@ -497,8 +501,18 @@ impl Dom5Turn {
                 tt => self.populate_saves(tt)?,
             }
             // Update previous subjob and job
-            sqlx::query!("UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1", subjob.subjob_id).execute(&self.db_pool).await?;
-            sqlx::query!("UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1", job_id).execute(&self.db_pool).await?;
+            sqlx::query!(
+                "UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1",
+                subjob.subjob_id
+            )
+            .execute(&self.db_pool)
+            .await?;
+            sqlx::query!(
+                "UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1",
+                job_id
+            )
+            .execute(&self.db_pool)
+            .await?;
 
             // Insert new subjob
             let subjob = sqlx::query!(
@@ -509,8 +523,18 @@ impl Dom5Turn {
             .await?;
             self.populate_maps()?;
             // Update previous subjob and job
-            sqlx::query!("UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1", subjob.subjob_id).execute(&self.db_pool).await?;
-            sqlx::query!("UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1", job_id).execute(&self.db_pool).await?;
+            sqlx::query!(
+                "UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1",
+                subjob.subjob_id
+            )
+            .execute(&self.db_pool)
+            .await?;
+            sqlx::query!(
+                "UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1",
+                job_id
+            )
+            .execute(&self.db_pool)
+            .await?;
 
             // Insert new subjob
             let subjob = sqlx::query!(
@@ -521,36 +545,97 @@ impl Dom5Turn {
             .await?;
             self.populate_mods()?;
             // Update previous subjob and job
-            sqlx::query!("UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1", subjob.subjob_id).execute(&self.db_pool).await?;
-            sqlx::query!("UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1", job_id).execute(&self.db_pool).await?;
+            sqlx::query!(
+                "UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1",
+                subjob.subjob_id
+            )
+            .execute(&self.db_pool)
+            .await?;
+            sqlx::query!(
+                "UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1",
+                job_id
+            )
+            .execute(&self.db_pool)
+            .await?;
 
             // Insert new subjob
             let subjob = sqlx::query!(
-                "INSERT INTO subjobs (job_id, label) VALUES ($1, 'update nations') RETURNING *",
+                r#"INSERT INTO subjobs (job_id, label) VALUES ($1, 'update nations') RETURNING subjob_id "subjob_id: i32""#,
                 job_id
             )
             .fetch_one(&self.db_pool)
             .await?;
             self._update_nations(Some(subjob.subjob_id))?;
             // Update previous subjob and job
-            sqlx::query!("UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1", subjob.subjob_id).execute(&self.db_pool).await?;
-            sqlx::query!("UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1", job_id).execute(&self.db_pool).await?;
+            sqlx::query!(
+                "UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1",
+                subjob.subjob_id
+            )
+            .execute(&self.db_pool)
+            .await?;
+            sqlx::query!(
+                "UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1",
+                job_id
+            )
+            .execute(&self.db_pool)
+            .await?;
 
             // Insert new subjob
             let subjob = sqlx::query!("INSERT INTO subjobs (job_id, label) VALUES ($1, 'dom5 processing turn') RETURNING *", job_id).fetch_one(&self.db_pool).await?;
             let game = sqlx::query!(
-                r#"SELECT g.*,MAX(t.turn_number) as "turn?",f.filename as "mapfilename?" FROM games g
-                                    LEFT JOIN turns t ON t.game_id=g.id AND t.archived != TRUE
-                                    LEFT JOIN maps_dom6 m ON g.maps_dom6_id=m.map_id
-                                    LEFT JOIN map_planes mp ON mp.map_id=m.map_id
-                                    LEFT JOIN files f ON f.id=mp.map_file_id
-                                    WHERE g.id=$1
-                                    GROUP BY g.id, f.filename
-                                    LIMIT 1"#,
+                r#"SELECT
+                    g.log_level "log_level!",
+                    g.renaming "renaming!",
+                    g.thrones_t1 "thrones_t1!: i32",
+                    g.thrones_t2 "thrones_t2!: i32",
+                    g.thrones_t3 "thrones_t3!: i32",
+                    g.conq_all "conq_all!",
+                    g.throne_points_required "throne_points_required!: i32",
+                    g.research_diff "research_diff!: i32",
+                    g.research_rand "research_rand!",
+                    g.hof_size "hof_size!: i32",
+                    g.global_size "global_size!: i32",
+                    g.mercslots "mercslots!: i32",
+                    g.cheat_detection "cheat_detection!",
+                    g.indepstr "indepstr!: i32",
+                    g.magicsites "magicsites!: i32",
+                    g.eventrarity "eventrarity!: i32",
+                    g.richness "richness!: i32",
+                    g.resources "resources!: i32",
+                    g.recruitment "recruitment!: i32",
+                    g.supplies "supplies!: i32",
+                    g.startprov "startprov!: i32",
+                    g.research_9_slow "research_9_slow!",
+                    g.formal_diplo "formal_diplo!: i32",
+                    g.scoregraphs "scoregraphs!",
+                    g.nationinfo "nationinfo!",
+                    g.era "era!: i32",
+                    g.artrest "artrest!",
+                    g.teamgame "teamgame!",
+                    g.clustered "clustered!",
+                    g.storyevents "storyevents!: i32",
+                    g.name "name!",
+                    g.provs_per_player "provs_per_player!: i32",
+                    g.randommap_wrapping "randommap_wrapping!: i32",
+                    g.newailvl "newailvl!: i32",
+                    g.cataclysm "cataclysm?: i32",
+                    g.masterpass "masterpass",
+                    g.borked "borked!",
+                    g.id "id!: i32",
+                    MAX(t.turn_number) as "turn?",
+                    f.filename as "mapfilename?"
+                FROM games g
+                    LEFT JOIN turns t ON t.game_id=g.id AND t.archived != TRUE
+                    LEFT JOIN maps_dom6 m ON g.maps_dom6_id=m.map_id
+                    LEFT JOIN map_planes mp ON mp.map_id=m.map_id
+                    LEFT JOIN files f ON f.id=mp.map_file_id
+                WHERE g.id=$1
+                GROUP BY g.id, f.filename LIMIT 1"#,
                 self.game_id
             )
             .fetch_one(&self.db_pool)
-            .await.unwrap();
+            .await
+            .unwrap();
             let disciples = sqlx::query!(
                 "SELECT
                 is_disciple, team, nation_id
@@ -722,9 +807,10 @@ impl Dom5Turn {
             let path = Binary::extract_to_tmp(self.game_id, &self.db_pool)
                 .await
                 .unwrap();
+            let args = arguments.iter().join(" ");
             sqlx::query!(
                 "UPDATE subjobs SET meta=$1 WHERE subjob_id=$2",
-                &arguments.iter().join(" "),
+                args,
                 subjob.subjob_id
             )
             .execute(&self.db_pool)
@@ -786,10 +872,13 @@ impl Dom5Turn {
                             job.turn_number,
                             game.id
                         );
-                        sqlx::query!("UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1", job_id)
-                            .execute(&self.db_pool)
-                            .await
-                            .map_err(|e| Dom5TurnErr::DbError(e))?;
+                        sqlx::query!(
+                            "UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1",
+                            job_id
+                        )
+                        .execute(&self.db_pool)
+                        .await
+                        .map_err(|e| Dom5TurnErr::DbError(e))?;
                         sqlx::query!(
                             "UPDATE subjobs SET logs=logs || $3 || $4 WHERE subjob_id=$2",
                             subjob.subjob_id,
@@ -810,8 +899,14 @@ impl Dom5Turn {
                 } else {
                     waits = 0;
                 }
-                sqlx::query!("UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1", job_id).execute(&self.db_pool).await?;
-                sqlx::query!("UPDATE subjobs SET logs=logs || $3 || $4 WHERE subjob_id=$2",
+                sqlx::query!(
+                    "UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1",
+                    job_id
+                )
+                .execute(&self.db_pool)
+                .await?;
+                sqlx::query!(
+                    "UPDATE subjobs SET logs=logs || $3 || $4 WHERE subjob_id=$2",
                     subjob.subjob_id,
                     outbuf,
                     errbuf
@@ -824,8 +919,18 @@ impl Dom5Turn {
                 }
             }
             // Update previous subjob and job
-            sqlx::query!("UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1", subjob.subjob_id).execute(&self.db_pool).await?;
-            sqlx::query!("UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1", job_id).execute(&self.db_pool).await?;
+            sqlx::query!(
+                "UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1",
+                subjob.subjob_id
+            )
+            .execute(&self.db_pool)
+            .await?;
+            sqlx::query!(
+                "UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1",
+                job_id
+            )
+            .execute(&self.db_pool)
+            .await?;
 
             // Insert new subjob
             let subjob = sqlx::query!(
@@ -930,7 +1035,7 @@ impl Dom5Turn {
             // Insert file and get ID
             let file_record = sqlx::query!(
                 "INSERT INTO files (filename, filebinary) VALUES('ftherlnd', $1) RETURNING id",
-                &contents
+                contents
             )
             .fetch_one(&mut *transaction)
             .await?;
@@ -941,15 +1046,18 @@ impl Dom5Turn {
                 self.game_id,
                 turn_number,
                 file_record.id,
-                ftherlnd.header.turnkey as i32,
+                ftherlnd.header.turnkey,
                 winner
             )
             .execute(&mut *transaction)
             .await?;
 
-            let nations = sqlx::query!("SELECT * FROM nations WHERE game_id=$1", self.game_id)
-                .fetch_all(&mut *transaction)
-                .await?;
+            let nations = sqlx::query!(
+                r#"SELECT nation_id "nation_id: i32", filename FROM nations WHERE game_id=$1"#,
+                self.game_id
+            )
+            .fetch_all(&mut *transaction)
+            .await?;
             let mut computer_nationids = vec![];
             let mut defeated_nationids = vec![];
             for (nation_id, kingdom) in kingdoms {
@@ -959,12 +1067,11 @@ impl Dom5Turn {
                         let status = match kingdom.kingdom_type {
                             KingdomType::DefeatedWithTurn => 5,
                             KingdomType::Human => 0,
-                            _ => panic!("Impossible to reach defeated & human branch without being defeated or human")
+                            _ => panic!(
+                                "Impossible to reach defeated & human branch without being defeated or human"
+                            ),
                         };
-                        let nation = nations
-                            .iter()
-                            .find(|n| n.nation_id == *nation_id as i32)
-                            .unwrap();
+                        let nation = nations.iter().find(|n| n.nation_id == *nation_id).unwrap();
                         let mut player_turn_file =
                             std::fs::File::open(save_dir.join(format!("{}.trn", nation.filename)))
                                 .map_err(Dom5TurnErr::MissingTrn)?;
@@ -975,8 +1082,8 @@ impl Dom5Turn {
                         // Insert file and get ID
                         let file_record = sqlx::query!(
                             "INSERT INTO files (filename, filebinary) VALUES($1, $2) RETURNING id",
-                            &nation.filename,
-                            &contents
+                            nation.filename,
+                            contents
                         )
                         .fetch_one(&mut *transaction)
                         .await?;
@@ -985,7 +1092,7 @@ impl Dom5Turn {
                         sqlx::query!(
                             "INSERT INTO player_turns (trnfile_id, nation_id, game_id, turn_number, status) VALUES ($1, $2, $3, $4, $5)",
                             file_record.id,
-                            *nation_id as i32,
+                            nation_id,
                             self.game_id,
                             turn_number,
                             status
@@ -1052,7 +1159,12 @@ impl Dom5Turn {
             }
 
             // Update subjob and job to mark completion
-            sqlx::query!("UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1", subjob.subjob_id).execute(&self.db_pool).await?;
+            sqlx::query!(
+                "UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1",
+                subjob.subjob_id
+            )
+            .execute(&self.db_pool)
+            .await?;
             sqlx::query!("UPDATE jobs SET finished_at=datetime('now'), updated_at=datetime('now') WHERE job_id=$1", job_id).execute(&self.db_pool).await?;
 
             Ok(())

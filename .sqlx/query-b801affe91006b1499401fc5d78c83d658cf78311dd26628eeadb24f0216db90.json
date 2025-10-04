@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT nation_id \"nation_id: i32\", filename FROM nations WHERE game_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "nation_id: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "filename",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b801affe91006b1499401fc5d78c83d658cf78311dd26628eeadb24f0216db90"
+}

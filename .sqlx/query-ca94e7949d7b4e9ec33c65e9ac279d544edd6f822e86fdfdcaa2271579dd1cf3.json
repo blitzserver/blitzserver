@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                                INSERT INTO disciples (is_disciple, game_id, nation_id) VALUES ($3, $1, $2)\n                                ON CONFLICT (game_id, nation_id) DO UPDATE SET is_disciple=EXCLUDED.is_disciple\n                                RETURNING team",
+  "describe": {
+    "columns": [
+      {
+        "name": "team",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "ca94e7949d7b4e9ec33c65e9ac279d544edd6f822e86fdfdcaa2271579dd1cf3"
+}

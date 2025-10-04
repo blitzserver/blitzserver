@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT filename, filebinary\n            FROM map_plane_images\n            INNER JOIN files f ON f.id=image_file_id\n            WHERE map_file_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "filename",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "filebinary",
+        "ordinal": 1,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "30d022a98ee587bbfa4385d9043ad9f8bf0cdabf468843de3ba97a46237ccb4e"
+}

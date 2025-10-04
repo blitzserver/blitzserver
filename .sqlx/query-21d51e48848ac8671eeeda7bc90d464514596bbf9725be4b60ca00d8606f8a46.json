@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE player_turns SET archived=TRUE WHERE game_id=$1 AND turn_number=$2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "21d51e48848ac8671eeeda7bc90d464514596bbf9725be4b60ca00d8606f8a46"
+}

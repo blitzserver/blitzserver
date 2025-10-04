@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT d.nation_id \"nation_id: i32\", d.is_disciple, d.team FROM disciples d WHERE d.game_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "nation_id: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "is_disciple",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "team",
+        "ordinal": 2,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "81a46ea0a49b1d77398f59b813babd8bacad8a19ec9a67c37808b059f7442554"
+}

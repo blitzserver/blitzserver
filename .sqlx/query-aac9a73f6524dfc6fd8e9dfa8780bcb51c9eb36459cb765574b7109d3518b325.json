@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": " SELECT \n                dm.\"name\" \"name\",\n                pf.filename m_filename, pf.filebinary m_filebinary,\n                if.filename i_filename, if.filebinary i_filebinary\n            FROM maps_dom6 dm \n            INNER JOIN map_planes mp ON mp.map_id=dm.map_id\n            INNER JOIN files pf ON pf.id=mp.map_file_id\n            INNER JOIN map_plane_images mi ON mp.map_file_id=mi.map_file_id AND mp.map_id=mi.map_id\n            INNER JOIN files if ON if.id=mi.image_file_id\n            WHERE dm.map_id=$1\n            ORDER BY pf.filename ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "name",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "m_filename",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "m_filebinary",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "i_filename",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "i_filebinary",
+        "ordinal": 4,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "aac9a73f6524dfc6fd8e9dfa8780bcb51c9eb36459cb765574b7109d3518b325"
+}

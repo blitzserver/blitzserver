@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO subjobs (job_id, label) VALUES ($1, 'populate saves/pretenders') RETURNING subjob_id \"subjob_id: i32\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "subjob_id: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "65716686acc77e5aa9fbd84172179adcd510b38a6bfc6f56ce341907224cec7a"
+}

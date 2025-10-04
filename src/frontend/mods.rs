@@ -192,15 +192,15 @@ pub async fn upload_post(
                                 let name_ref = &name;
                                 let dm_filename_ref = &dm_filename;
                                 sqlx::query_as!(Mod,
-                                    "INSERT INTO mods (name, dm_filename, file_id, icon_file_id)
+                                    r#"INSERT INTO mods (name, dm_filename, file_id, icon_file_id)
                                     VALUES ($1, $2, $3, $4)
                                     RETURNING
-                                        CAST(id AS INTEGER) as \"id: i32\",
+                                        id "id: i32",
                                         dm_filename,
                                         name,
-                                        CAST(file_id AS INTEGER) as \"file_id: i32\",
-                                        CAST(icon_file_id AS INTEGER) as \"icon_file_id: Option<i32>\",
-                                        crc",
+                                        file_id "file_id: i32",
+                                        icon_file_id "icon_file_id: i32",
+                                        crc"#,
                                     name_ref, dm_filename_ref, file_id, icon_file_id)
                                     .fetch_one(&sqlx_db).await.unwrap();
                                 let address = std::env::var("ADDRESS")
@@ -214,14 +214,14 @@ pub async fn upload_post(
                                     (ListModsTemplate {
                                         errors: &vec!["Unable to find mod in zip (make sure there's a file that ends in .dm)".to_string()],
                                         mods: sqlx::query_as!(Mod,
-                "SELECT
-                    CAST(id AS INTEGER) as \"id: i32\",
+                r#"SELECT
+                    id "id: i32",
                     dm_filename,
                     name,
-                    CAST(file_id AS INTEGER) as \"file_id: i32\",
-                    CAST(icon_file_id AS INTEGER) as \"icon_file_id: Option<i32>\",
+                    file_id "file_id: i32",
+                    icon_file_id "icon_file_id: i32",
                     crc
-                FROM mods")
+                FROM mods"#)
                                             .fetch_all(&sqlx_db)
                                             .await
                                             .unwrap(),
@@ -236,14 +236,14 @@ pub async fn upload_post(
                         return Ok(HttpResponse::Ok().content_type("text/html").body(
                             (ListModsTemplate {
                                 mods: sqlx::query_as!(Mod,
-                "SELECT
-                    CAST(id AS INTEGER) as \"id: i32\",
+                r#"SELECT
+                    id "id: i32",
                     dm_filename,
                     name,
-                    CAST(file_id AS INTEGER) as \"file_id: i32\",
-                    CAST(icon_file_id AS INTEGER) as \"icon_file_id: Option<i32>\",
+                    file_id "file_id: i32",
+                    icon_file_id "icon_file_id: i32",
                     crc
-                FROM mods")
+                FROM mods"#)
                                     .fetch_all(&sqlx_db)
                                     .await
                                     .unwrap(),
@@ -261,14 +261,14 @@ pub async fn upload_post(
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (ListModsTemplate {
             mods: sqlx::query_as!(Mod,
-                "SELECT
-                    CAST(id AS INTEGER) as \"id: i32\",
+                r#"SELECT
+                    id "id: i32",
                     dm_filename,
                     name,
-                    CAST(file_id AS INTEGER) as \"file_id: i32\",
-                    CAST(icon_file_id AS INTEGER) as \"icon_file_id: Option<i32>\",
+                    file_id "file_id: i32",
+                    icon_file_id "icon_file_id: i32",
                     crc
-                FROM mods")
+                FROM mods"#)
                 .fetch_all(&sqlx_db)
                 .await
                 .unwrap(),

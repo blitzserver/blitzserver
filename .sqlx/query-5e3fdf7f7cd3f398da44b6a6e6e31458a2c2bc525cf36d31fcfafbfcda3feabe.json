@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE jobs SET finished_at=datetime('now'), updated_at=datetime('now') WHERE job_id=$1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "5e3fdf7f7cd3f398da44b6a6e6e31458a2c2bc525cf36d31fcfafbfcda3feabe"
+}

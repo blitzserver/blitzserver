@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT filebinary FROM files WHERE id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "filebinary",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "34de512b75c772b94a9a79c796db8aa955bce7ee555ce329e7e9624becc04bda"
+}

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH RECURSIVE series(num) AS (\n                SELECT $1 as num\n                UNION ALL\n                SELECT num + 1 FROM series WHERE num < $2\n            )\n            SELECT MIN(num) as port FROM series\n            LEFT OUTER JOIN games g ON g.port=num\n            WHERE g.port IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "name": "port",
+        "ordinal": 0,
+        "type_info": "Int"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "2d909fa6ee0c81e9756709d97848a232200d52604f94d0ced2545fb9ea08343a"
+}

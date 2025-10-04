@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT ma.id \"map_id: i32\", ma.filename map_filename, ma.filebinary map_binary, i.id \"image_id: i32\", i.filename image_filename, i.filebinary image_binary, wi.id \"winter_id: Option<i32>\", wi.filename \"wi_filename?\", wi.filebinary \"winter_binary?\"\n        FROM maps m\n        INNER JOIN files i ON i.id=m.tgafile_id\n        INNER JOIN files ma ON ma.id=m.mapfile_id\n        LEFT JOIN files wi ON wi.id=m.winterfile_id\n        WHERE m.id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "map_id: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "map_filename",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "map_binary",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "image_id: i32",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "image_filename",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "image_binary",
+        "ordinal": 5,
+        "type_info": "Blob"
+      },
+      {
+        "name": "winter_id: Option<i32>",
+        "ordinal": 6,
+        "type_info": "Int64"
+      },
+      {
+        "name": "wi_filename?",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "winter_binary?",
+        "ordinal": 8,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "02dec32b0752c5098ae30675342216c13b5086d4d9bbb73cbd4ec10551a4f618"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE subjobs SET logs=concat(logs, $2::text, $3::text) WHERE subjob_id=$1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "5ab083998264c3efcb3d327396264dce14a05c502e4536bd66ba9d75a6cfb438"
+}

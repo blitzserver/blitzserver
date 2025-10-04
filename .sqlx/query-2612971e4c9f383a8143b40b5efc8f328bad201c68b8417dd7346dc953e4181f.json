@@ -1,0 +1,86 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT \n                    m.id, \n                    modified_mapcrc \"modified_mapcrc: u32\", \n                    COUNT(p.id) AS \"custom_starts: Option<i32>\", \n                    m.map_crc \"map_crc: u32\", mapf.filename as mapfilename, length(mapf.filebinary) \"mapflen: u32\",\n                    m.tga_crc \"tga_crc: u32\", tgaf.filename as tgafilename, length(tgaf.filebinary) \"tgaflen: u32\",\n                    m.winter_crc as \"winter_crc: u32\", winf.filename as \"winterfilename?\", length(winf.filebinary) as \"winflen?: u32\"\n                FROM games g\n                    LEFT JOIN maps m ON m.id=g.map_id\n                    INNER JOIN files mapf ON mapf.id=m.mapfile_id\n                    INNER JOIN files tgaf ON tgaf.id=m.tgafile_id\n                    LEFT JOIN files winf ON winf.id=m.winterfile_id\n                    LEFT JOIN players p ON p.game_id=g.id AND p.startprov IS NOT NULL\n                WHERE g.id=$1\n                GROUP BY g.id, m.id, mapf.id, tgaf.id, winf.id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "modified_mapcrc: u32",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "custom_starts: Option<i32>",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "map_crc: u32",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "mapfilename",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "mapflen: u32",
+        "ordinal": 5,
+        "type_info": "Null"
+      },
+      {
+        "name": "tga_crc: u32",
+        "ordinal": 6,
+        "type_info": "Int64"
+      },
+      {
+        "name": "tgafilename",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "tgaflen: u32",
+        "ordinal": 8,
+        "type_info": "Null"
+      },
+      {
+        "name": "winter_crc: u32",
+        "ordinal": 9,
+        "type_info": "Int64"
+      },
+      {
+        "name": "winterfilename?",
+        "ordinal": 10,
+        "type_info": "Text"
+      },
+      {
+        "name": "winflen?: u32",
+        "ordinal": 11,
+        "type_info": "Null"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      true,
+      false,
+      null,
+      true,
+      false,
+      null,
+      true,
+      true,
+      null
+    ]
+  },
+  "hash": "2612971e4c9f383a8143b40b5efc8f328bad201c68b8417dd7346dc953e4181f"
+}

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT nationid, startprov FROM players WHERE game_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "nationid",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "startprov",
+        "ordinal": 1,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "1f9b1852f575675a26a150f78b4c731674f06075d7b95f7c8a102956b8be4066"
+}

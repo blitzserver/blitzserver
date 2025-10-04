@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT g.era, g.name FROM games g WHERE g.id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "era",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "2babfc2896d7c0ccc4f340c78c0f47fea507ac3ea545020dfe34c5d8f6ff8d29"
+}

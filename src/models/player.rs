@@ -28,40 +28,57 @@ impl Player {
         D: sqlx::Executor<'q, Database = Sqlite>,
     {
         let result = sqlx::query!(
-            "UPDATE players SET startprov=$2 WHERE id=$1 RETURNING *",
+            r#"UPDATE players SET startprov=$2 WHERE id=$1 RETURNING
+                id "id!",
+                nationid "nationid: i32",
+                game_id "game_id!",
+                file_id "file_id!",
+                name,
+                password,
+                startprov "startprov: i32",
+                cdkey"#,
             self.id,
             province
         )
         .fetch_one(db)
         .await?;
         Ok(Player {
-            id: result.id.unwrap(),
-            nationid: result.nationid.unwrap() as i32,
-            game_id: result.game_id.unwrap(),
-            file_id: result.file_id.unwrap(),
-            name: result.name.unwrap(),
+            id: result.id,
+            nationid: result.nationid,
+            game_id: result.game_id,
+            file_id: result.file_id,
+            name: result.name,
             password: result.password,
-            startprov: result.startprov.map(|x| x as i32),
+            startprov: result.startprov,
             cdkey: result.cdkey,
         })
     }
-    pub async fn get_players<'q, D>(game_id: i64, db: D) -> Result<Vec<Player>, sqlx::error::Error>
+    pub async fn get_players<'q, D>(game_id: i32, db: D) -> Result<Vec<Player>, sqlx::error::Error>
     where
         D: sqlx::Executor<'q, Database = Sqlite>,
     {
-        let results = sqlx::query!("SELECT * FROM players WHERE game_id=$1", game_id)
+        let results = sqlx::query!(r#"SELECT
+            id,
+            nationid "nationid: i32",
+            game_id,
+            file_id,
+            name,
+            password,
+            startprov "startprov: i32",
+            cdkey
+            FROM players WHERE game_id=$1"#, game_id)
             .fetch_all(db)
             .await?;
         Ok(results
             .into_iter()
             .map(|result| Player {
-                id: result.id.unwrap(),
-                nationid: result.nationid.unwrap() as i32,
-                game_id: result.game_id.unwrap(),
-                file_id: result.file_id.unwrap(),
-                name: result.name.unwrap(),
+                id: result.id,
+                nationid: result.nationid,
+                game_id: result.game_id,
+                file_id: result.file_id,
+                name: result.name,
                 password: result.password,
-                startprov: result.startprov.map(|x| x as i32),
+                startprov: result.startprov,
                 cdkey: result.cdkey,
             })
             .collect())
@@ -84,15 +101,23 @@ impl Player {
     where
         D: sqlx::Executor<'q, Database = Sqlite>,
     {
-        let result = sqlx::query!("DELETE FROM players WHERE id=$1 RETURNING *", self.id)
+        let result = sqlx::query!(r#"DELETE FROM players WHERE id=$1 RETURNING
+            id "id!",
+            nationid "nationid: i32",
+            game_id "game_id!",
+            file_id "file_id!",
+            name,
+            password,
+            startprov "startprov: i32",
+            cdkey"#, self.id)
             .fetch_one(db)
             .await?;
         Ok(Player {
-            id: result.id.unwrap(),
-            nationid: result.nationid.unwrap() as i32,
-            game_id: result.game_id.unwrap(),
-            file_id: result.file_id.unwrap(),
-            name: result.name.unwrap(),
+            id: result.id,
+            nationid: result.nationid as i32,
+            game_id: result.game_id,
+            file_id: result.file_id,
+            name: result.name,
             password: result.password,
             startprov: result.startprov.map(|x| x as i32),
             cdkey: result.cdkey,
@@ -154,13 +179,21 @@ impl NewPlayer {
     where
         D: sqlx::Executor<'q, Database = Sqlite>,
     {
-        let result = sqlx::query!("INSERT INTO players (nationid, game_id, file_id, name, password) VALUES ($1, $2, $3, $4, $5) RETURNING *", self.nationid, self.game_id, self.file_id, self.name, self.password).fetch_one(db).await?;
+        let result = sqlx::query!(r#"INSERT INTO players (nationid, game_id, file_id, name, password) VALUES ($1, $2, $3, $4, $5) RETURNING
+            id "id!",
+            nationid "nationid: i32",
+            game_id "game_id!",
+            file_id "file_id!",
+            name,
+            password,
+            startprov "startprov: i32",
+            cdkey"#, self.nationid, self.game_id, self.file_id, self.name, self.password).fetch_one(db).await?;
         Ok(Player {
-            id: result.id.unwrap(),
-            nationid: result.nationid.unwrap() as i32,
-            game_id: result.game_id.unwrap(),
-            file_id: result.file_id.unwrap(),
-            name: result.name.unwrap(),
+            id: result.id,
+            nationid: result.nationid as i32,
+            game_id: result.game_id,
+            file_id: result.file_id,
+            name: result.name,
             password: result.password,
             startprov: result.startprov.map(|x| x as i32),
             cdkey: result.cdkey,

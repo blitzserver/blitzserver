@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT \n  b.executable_path, \n  b.version,\n  f.filename, \n  f.filebinary \nFROM \n  files f, \n  binaries b,\n  games g\nWHERE g.id=$1 AND f.id=g.binary_id AND b.binary_id=g.binary_id;\n\n\n",
+  "describe": {
+    "columns": [
+      {
+        "name": "executable_path",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "version",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "filename",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "filebinary",
+        "ordinal": 3,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "0e8ae2187fe060ef50fa59618566470c2d294833f30ba923951b4fd2b75b52c4"
+}

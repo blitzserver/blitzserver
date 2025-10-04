@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT MAX(turn_number) as max_turn FROM turns WHERE game_id=$1 AND archived != TRUE",
+  "describe": {
+    "columns": [
+      {
+        "name": "max_turn",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "35011f76c75584204db2551198b18343b4f55aeaa5fbfe43927fa675be796019"
+}

@@ -45,7 +45,7 @@ impl MapSummary {
     where
         D: sqlx::Executor<'q, Database = Sqlite>
     {
-        let results = sqlx::query!(r#"SELECT m.map_id, m.is_randommap, m.name,
+        let results = sqlx::query!(r#"SELECT m.map_id "map_id!: i32", m.is_randommap, m.name,
             (SELECT json_group_array(mp.prov_count)
              FROM map_planes mp
              WHERE mp.map_id=m.map_id
@@ -55,9 +55,9 @@ impl MapSummary {
             .fetch_all(db).await?;
 
         Ok(results.into_iter().map(|r| MapSummary {
-            map_id: r.map_id.unwrap(),
-            is_randommap: r.is_randommap.unwrap(),
-            name: r.name.unwrap(),
+            map_id: r.map_id,
+            is_randommap: r.is_randommap,
+            name: r.name,
             planes: r.planes.and_then(|p| serde_json::from_str(&p).ok())
         }).collect())
     }
@@ -68,9 +68,9 @@ impl Map {
         where D: Executor<'q, Database = Sqlite>
     {
         let mapstuff = sqlx::query!(r#"
-            SELECT 
-                pf.filename m_filename, mp.hash m_hash, CAST(length(pf.filebinary) AS INTEGER) as "m_length: i32",
-                if.filename i_filename, mi.hash i_hash, CAST(length(if.filebinary) AS INTEGER) as "i_length: i32"
+            SELECT
+                pf.filename m_filename, mp.hash m_hash, length(pf.filebinary) as "m_length: i32",
+                if.filename i_filename, mi.hash i_hash, length(if.filebinary) as "i_length: i32"
             FROM games g
             INNER JOIN maps_dom6 dm ON dm.map_id=g.maps_dom6_id
             INNER JOIN map_planes mp ON mp.map_id=dm.map_id
@@ -106,7 +106,7 @@ impl Map {
         INNER JOIN files f ON f.id=mp.image_file_id
         WHERE m.map_id=$1
         ORDER BY map_file_id ASC LIMIT 1 OFFSET $2
-        "#, map_id, plane_id as i64).fetch_one(db).await?;
+        "#, map_id, plane_id).fetch_one(db).await?;
         return Ok(PlaneImage {
             filename: stuff.filename,
             hash: stuff.hash as u32,
@@ -174,7 +174,7 @@ impl Map {
                 "INSERT INTO map_planes (map_id, map_file_id, hash) VALUES ($1, $2, $3)",
                 map.map_id,
                 file.id,
-                plane.hash as i32
+                plane.hash
             )
             .execute(&mut *transaction)
             .await?;
@@ -199,7 +199,7 @@ impl Map {
                     "INSERT INTO map_plane_images (map_id, map_file_id, hash, image_file_id) VALUES ($1, $2, $3, $4)",
                     map.map_id,
                     plane_file_id,
-                    image.hash as i32,
+                    image.hash,
                     img_file.id
                 )
                 .execute(&mut *transaction)

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "b9f82e83ba6ff4e7b5549fa7d620d12fbf1cd537c45bc4b96e1989af7346d41f"
+}

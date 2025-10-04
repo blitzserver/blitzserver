@@ -1,6 +1,5 @@
 use std::path::{Path, PathBuf};
 
-use futures::executor;
 use sqlx::{Executor, Sqlite};
 use zip::ZipArchive;
 
@@ -23,21 +22,45 @@ impl Binary {
         let mut tx = db.begin().await?;
 
         // Insert file first
-        let file = sqlx::query!("INSERT INTO files (filename, filebinary) VALUES($1, $2) RETURNING *",
-            filename, contents)
-            .fetch_one(&mut *tx)
-            .await?;
+        let file = sqlx::query!(
+            "INSERT INTO files (filename, filebinary) VALUES($1, $2) RETURNING *",
+            filename,
+            contents
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+
+        println!("Version {}", &version);
+        let version_regex = regex::Regex::new("([.0-9]+)").unwrap();
+        let version_number: String = version_regex
+            .captures(&version)
+            .unwrap()
+            .get(1)
+            .unwrap()
+            .as_str()
+            .to_owned()
+            .replace(".", "");
+        println!("Version number {} {}", &version, &version_number);
+        let version_number: i32 = version_number.parse().unwrap();
+        let foldered_maps = version_number > 561;
 
         // Insert binary
         let binary = sqlx::query_as!(
             Binary,
-            "INSERT INTO binaries (binary_id, executable_path, version)
-            VALUES($1, $2, $3)
+            r#"INSERT INTO binaries (binary_id, executable_path, version, version_number, foldered_maps)
+            VALUES($1, $2, $3, $4, $5)
             ON CONFLICT(binary_id) DO UPDATE SET version=EXCLUDED.version
-            RETURNING *",
+            RETURNING
+                binary_id "binary_id: i32",
+                executable_path,
+                version,
+                version_number "version_number: i32",
+                foldered_maps"#,
             file.id,
             executable_path,
-            version
+            version,
+            version_number,
+            foldered_maps
         )
         .fetch_one(&mut *tx)
         .await?;
@@ -54,7 +77,7 @@ impl Binary {
             .await
     }
 
-    pub async fn extract_to_tmp<'q, D>(game_id: i64, db: &D) -> Result<PathBuf, sqlx::error::Error>
+    pub async fn extract_to_tmp<'q, D>(game_id: i32, db: &D) -> Result<PathBuf, sqlx::error::Error>
     where
         for<'a> &'a D: Executor<'q, Database = Sqlite>,
     {

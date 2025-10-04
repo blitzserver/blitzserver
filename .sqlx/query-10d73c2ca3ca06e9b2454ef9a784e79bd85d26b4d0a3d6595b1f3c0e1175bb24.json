@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n    SELECT j.turn_number \"turn_number: i32\", j.started_at, sj.label as \"label?\"\n    FROM jobs j\n    LEFT JOIN subjobs sj ON sj.job_id=j.job_id AND sj.finished_at IS NULL\n    WHERE j.game_id=$1 AND j.finished_at IS NULL AND reaped!=TRUE",
+  "describe": {
+    "columns": [
+      {
+        "name": "turn_number: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "started_at",
+        "ordinal": 1,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "label?",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "10d73c2ca3ca06e9b2454ef9a784e79bd85d26b4d0a3d6595b1f3c0e1175bb24"
+}

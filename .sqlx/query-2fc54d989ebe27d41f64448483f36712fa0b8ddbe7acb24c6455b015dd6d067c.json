@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT reaped FROM jobs WHERE job_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "reaped",
+        "ordinal": 0,
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2fc54d989ebe27d41f64448483f36712fa0b8ddbe7acb24c6455b015dd6d067c"
+}

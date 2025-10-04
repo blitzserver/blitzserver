@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, cdkey \"cdkey: u32\", file_id FROM players WHERE game_id=$1 AND nationid=$2",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "cdkey: u32",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "file_id",
+        "ordinal": 2,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "61fb442411efd6fd71c93a05da7f1f55a0a466d9eb1c37788a212f3c77cd3fe8"
+}

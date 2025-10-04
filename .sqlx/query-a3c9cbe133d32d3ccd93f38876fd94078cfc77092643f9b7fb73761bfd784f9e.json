@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                                    SELECT filebinary as \"filebinary!\"\n                                    FROM games g\n                                    INNER JOIN maps_dom6 md ON md.map_id=g.maps_dom6_id\n                                    INNER JOIN map_plane_images pi ON pi.map_id=md.map_id\n                                    INNER JOIN files f ON f.id=pi.image_file_id AND f.filename=$2\n                                    WHERE g.id=$1\n                                    UNION ALL\n                                    SELECT filebinary as \"filebinary!\"\n                                    FROM games g\n                                    INNER JOIN maps_dom6 md ON md.map_id=g.maps_dom6_id\n                                    INNER JOIN map_planes pl ON pl.map_id=md.map_id\n                                    INNER JOIN files f ON f.id=pl.map_file_id AND f.filename=$2\n                                    WHERE g.id=$1\n                                    ",
+  "describe": {
+    "columns": [
+      {
+        "name": "filebinary!",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a3c9cbe133d32d3ccd93f38876fd94078cfc77092643f9b7fb73761bfd784f9e"
+}

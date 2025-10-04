@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n    binary_id \"binary_id: i32\",\n    executable_path,\n    version,\n    version_number \"version_number: i32\",\n    foldered_maps\nFROM binaries;\n",
+  "describe": {
+    "columns": [
+      {
+        "name": "binary_id: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "executable_path",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "version",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "version_number: i32",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "foldered_maps",
+        "ordinal": 4,
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "296cbcbff0005a76442474a2d2de877a73bd359cd610d2687a3787bf434a77f5"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE games SET next_turn=$1 WHERE id=$2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "41c15e11c8d9e6b65502e33f8031f009aeff738085457ae340abf66de579673c"
+}

@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n            f.id \"id: i32\",\n            f.filename,\n            f.filebinary\n        FROM mods m\n        INNER JOIN files f ON f.id = m.icon_file_id\n        WHERE m.id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "filename",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "filebinary",
+        "ordinal": 2,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4f40596c241978903f854f964e26656f36c8924cdb14288f13513eaff6b0f3f1"
+}

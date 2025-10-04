@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                            WITH top_turn AS (SELECT MAX(turn_number) as max FROM turns WHERE game_id=$1 AND archived != TRUE)\n                            SELECT f.filebinary\n                            FROM player_turns pt \n                            INNER JOIN top_turn tt ON tt.max=pt.turn_number\n                            INNER JOIN files f ON f.id=pt.trnfile_id\n                            WHERE pt.nation_id = $2 AND pt.game_id=$1 AND pt.archived != TRUE",
+  "describe": {
+    "columns": [
+      {
+        "name": "filebinary",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "30f6079ea9c6a34702cdc34e048470f32b801adbf16ba40413721d35b0ce5bce"
+}

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT f.filebinary\n            FROM games g\n            INNER JOIN game_mods gm ON gm.game_id=g.id\n            INNER JOIN mods m ON m.id=gm.mod_id\n            INNER JOIN files f ON f.id=m.file_id\n            WHERE g.id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "filebinary",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f57262af10996d56d0a8d9c28b8254240e542b653304f9c733d53fecb07631f1"
+}

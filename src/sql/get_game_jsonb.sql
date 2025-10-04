@@ -4,7 +4,7 @@ SELECT
     'name', g.name,
     'id', g.id,
     'next_turn', datetime(g.next_turn),
-    'next_turn_unix', CAST(strftime('%s', g.next_turn) AS INTEGER),
+    'next_turn_unix', strftime('%s', g.next_turn),
     'current_turn', COALESCE((
       SELECT MAX(t.turn_number)
       FROM turns t

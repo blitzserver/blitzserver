@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT trn.filename as trnfn, trn.filebinary as trnfb, twoh.filename \"twohfn?\", twoh.filebinary \"twohfb?\"\n                FROM games g\n                INNER JOIN player_turns pt ON pt.turn_number=$2 AND pt.game_id=g.id AND pt.archived!=TRUE\n                INNER JOIN files trn ON trn.id=pt.trnfile_id\n                LEFT JOIN files twoh ON twoh.id=pt.twohfile_id\n                WHERE g.id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "trnfn",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "trnfb",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "twohfn?",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "twohfb?",
+        "ordinal": 3,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "6b3a0cb172deb96a6ef4dd7ceb61b48ef57ac6042ff36088559885228005d6f4"
+}

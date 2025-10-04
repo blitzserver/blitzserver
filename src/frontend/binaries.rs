@@ -1,12 +1,12 @@
 use actix_multipart::Multipart;
-use actix_web::{get, http::header, post, web::Data, HttpResponse, Result};
-use async_std::fs::create_dir;
+use actix_web::{HttpResponse, Result, get, http::header, post, web::Data};
+use async_std::{fs::create_dir, io::stdout};
 use html_node::{html, text};
 use smol::stream::StreamExt;
 
 use crate::{models::binary::Binary, views::container::wrap_container};
 
-use super::{utils::ActixHtmlNode, AppData};
+use super::{AppData, utils::ActixHtmlNode};
 
 struct ListTemplate<'a> {
     binaries: &'a [Binary],

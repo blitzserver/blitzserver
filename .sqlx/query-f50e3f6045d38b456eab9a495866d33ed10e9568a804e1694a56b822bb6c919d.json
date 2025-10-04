@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                                                UPDATE player_turns SET twohfile_id=$1, twoh_crc=$2, status=$3\n                                                WHERE archived != TRUE AND game_id=$4 AND nation_id=$5 AND turn_number=$6\n                                                RETURNING id\n                                            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "f50e3f6045d38b456eab9a495866d33ed10e9568a804e1694a56b822bb6c919d"
+}

@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT mp.hash, f.filename, f.filebinary\n        FROM maps_dom6 m\n        INNER JOIN map_plane_images mp ON mp.map_id=m.map_id\n        INNER JOIN files f ON f.id=mp.image_file_id\n        WHERE m.map_id=$1\n        ORDER BY map_file_id ASC LIMIT 1 OFFSET $2\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "hash",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "filename",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "filebinary",
+        "ordinal": 2,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7377a4a0830b0b77193bf74c9bab128ffdf59623ce9e52bfd5465935f9fda9ee"
+}

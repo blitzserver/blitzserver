@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                id \"id!: i32\",\n                game_id \"game_id: i32\",\n                nation_id \"nation_id: i32\",\n                name,\n                epithet,\n                filename\n            FROM nations\n            WHERE game_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "game_id: i32",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "nation_id: i32",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "name",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "epithet",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "filename",
+        "ordinal": 5,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "19950950172c6677e060862f57d3b5c29ad8c5701a78421783ece9b0d65ef84d"
+}

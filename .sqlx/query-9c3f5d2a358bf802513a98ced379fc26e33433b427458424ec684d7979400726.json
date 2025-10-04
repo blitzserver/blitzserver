@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT gm.mod_id, m.file_id,m.dm_filename \"dm_filename!\" FROM game_mods gm LEFT JOIN mods m ON m.id=gm.mod_id WHERE game_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "mod_id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "file_id",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "dm_filename!",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "9c3f5d2a358bf802513a98ced379fc26e33433b427458424ec684d7979400726"
+}

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                            WITH top_turn AS (SELECT MAX(turn_number) as max FROM turns WHERE game_id=$1 AND archived != TRUE)\n                            SELECT pt.twoh_crc,pt.nation_id\n                            FROM player_turns pt\n                            INNER JOIN top_turn tt ON tt.max=pt.turn_number\n                            WHERE pt.game_id=$1 AND pt.archived != TRUE",
+  "describe": {
+    "columns": [
+      {
+        "name": "twoh_crc",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "nation_id",
+        "ordinal": 1,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "796288de6d267e3594427008fd92153f0da07bd628a1bbe8bc8fe406bdc41eb3"
+}

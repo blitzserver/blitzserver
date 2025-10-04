@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n            id,\n            nationid \"nationid: i32\",\n            game_id,\n            file_id,\n            name,\n            password,\n            startprov \"startprov: i32\",\n            cdkey\n            FROM players WHERE game_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "nationid: i32",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "game_id",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "file_id",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "name",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "password",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "startprov: i32",
+        "ordinal": 6,
+        "type_info": "Int64"
+      },
+      {
+        "name": "cdkey",
+        "ordinal": 7,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "76679f8ad11453e1197949744a3e91c9b5c51c5f917c3e86c0c596926c1a0368"
+}

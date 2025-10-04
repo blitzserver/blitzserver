@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO turns (game_id, turn_number, file_id, turnkey, winner) VALUES ($1, $2, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "dba5b33e1ea473e82ed7260b24ccbba87cd14f863636825d23e1e317af395fd6"
+}

@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT INTO maps_dom6 (\"name\", \"is_randommap\") VALUES ($1, $2) RETURNING *\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "map_id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_randommap",
+        "ordinal": 2,
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "2c2b1a71beb83f41b2353f6a6e21e39d093fccce5395e9e0ed383348a25efef0"
+}

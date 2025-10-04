@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT m.dm_filename\n            FROM games g\n            INNER JOIN game_mods gm ON gm.game_id=g.id\n            INNER JOIN mods m ON m.id=gm.mod_id\n            WHERE g.id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "dm_filename",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9a74103228d913e2a6ccc9e57f723fb696904974571e8d0b7644659a1df4eec1"
+}

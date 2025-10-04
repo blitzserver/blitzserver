@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE games SET port=NULL, archived=TRUE, last_activity=datetime('now') WHERE id=$1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "e92b15f8ea33a5c9f2c3ad8689c45411cfdbaf6900f87a3a4709b7062ecbb7e1"
+}

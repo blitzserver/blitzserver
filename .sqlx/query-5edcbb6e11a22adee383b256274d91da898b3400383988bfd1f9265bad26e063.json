@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                                    WITH current_pretender as (SELECT COUNT(*) as p_count FROM disciples WHERE game_id=$1 AND team=$3 AND team>0 AND is_disciple=0 GROUP BY game_id),\n                                    existing as (SELECT is_disciple FROM disciples WHERE game_id=$1 AND nation_id=$2),\n                                    insert_vars as (SELECT $1 as game_id, $2 as nation_id, $3 as team)\n                                    INSERT INTO disciples AS d (game_id,nation_id, team, is_disciple)\n                                    SELECT iv.*,MAX(0, existing.is_disciple, p_count)\n                                    FROM insert_vars iv\n                                    LEFT JOIN current_pretender cp ON 1=1\n                                    LEFT JOIN existing ON 1=1\n                                    ON CONFLICT (game_id,nation_id) DO UPDATE SET (team, is_disciple) = (EXCLUDED.team, EXCLUDED.is_disciple)\n                                    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "5edcbb6e11a22adee383b256274d91da898b3400383988bfd1f9265bad26e063"
+}

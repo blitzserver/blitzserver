@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n            m.id \"id!: i32\",\n            m.dm_filename,\n            m.name,\n            m.file_id \"file_id: i32\",\n            m.icon_file_id \"icon_file_id: i32\",\n            m.crc\n        FROM mods m INNER JOIN game_mods gm ON gm.mod_id=m.id AND gm.game_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "dm_filename",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "name",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "file_id: i32",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "icon_file_id: i32",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "crc",
+        "ordinal": 5,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "150a0a843284fcdcd38656ebfaf7f912dfb4e0f686b8fbbe6cf824ce09b0845c"
+}

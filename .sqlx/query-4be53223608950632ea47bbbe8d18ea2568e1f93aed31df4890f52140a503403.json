@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO player_turns (status, game_id, nation_id, turn_number) VALUES (4, $1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "4be53223608950632ea47bbbe8d18ea2568e1f93aed31df4890f52140a503403"
+}

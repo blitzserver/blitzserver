@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO subjobs (job_id, label) VALUES ($1, 'update nations') RETURNING subjob_id \"subjob_id: i32\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "subjob_id: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "02331ec6c44ea6e9f7c5583348007691edeb3f630171da8e1860ac98b0ddf07d"
+}

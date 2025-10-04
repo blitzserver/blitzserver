@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT nationid \"nationid: i32\" FROM players WHERE password IS NOT NULL AND game_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "nationid: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ea0f609e22413ce1d7e7e505f75ec92dc7ebb5f87bcceee509ad865bec6d3900"
+}

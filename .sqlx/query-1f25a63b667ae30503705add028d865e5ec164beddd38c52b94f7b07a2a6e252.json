@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                SELECT g.name as \"game_name!\", m.is_randommap \"is_randommap!\", m.name as \"name!\", mf.filename as \"filename!\", mf.filebinary as \"filebinary!\"\n                FROM games g\n                INNER JOIN maps_dom6 m ON m.map_id=g.maps_dom6_id\n                INNER JOIN map_planes mp ON mp.map_id=m.map_id\n                INNER JOIN files mf ON mf.id=mp.map_file_id\n                WHERE g.id=$1\n                UNION ALL\n                SELECT g.name as \"game_name!\", m.is_randommap \"is_randommap!\", m.name as \"name!\", mf.filename as \"filename!\", mf.filebinary as \"filebinary!\"\n                FROM games g\n                INNER JOIN maps_dom6 m ON m.map_id=g.maps_dom6_id\n                INNER JOIN map_planes mp ON mp.map_id=m.map_id\n                INNER JOIN map_plane_images mi ON mi.map_file_id=mp.map_file_id\n                INNER JOIN files mf ON mf.id=mi.image_file_id\n                WHERE g.id=$1\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "game_name!",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "is_randommap!",
+        "ordinal": 1,
+        "type_info": "Bool"
+      },
+      {
+        "name": "name!",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "filename!",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "filebinary!",
+        "ordinal": 4,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1f25a63b667ae30503705add028d865e5ec164beddd38c52b94f7b07a2a6e252"
+}

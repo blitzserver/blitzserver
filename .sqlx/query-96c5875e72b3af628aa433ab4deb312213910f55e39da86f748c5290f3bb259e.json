@@ -1,0 +1,44 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT INTO disciples (game_id, nation_id, is_disciple) VALUES($1, $2, 0) ON CONFLICT (game_id, nation_id) DO UPDATE SET nation_id=EXCLUDED.nation_id RETURNING\n            id \"id!: i32\",\n            game_id \"game_id: i32\",\n            nation_id \"nation_id: i32\",\n            is_disciple \"is_disciple: i32\",\n            team \"team: i32\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "game_id: i32",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "nation_id: i32",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "is_disciple: i32",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "team: i32",
+        "ordinal": 4,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "96c5875e72b3af628aa433ab4deb312213910f55e39da86f748c5290f3bb259e"
+}

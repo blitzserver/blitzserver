@@ -225,7 +225,7 @@ struct GameDetailsPlayer {
     pub password: Option<String>,
     pub startprov: Option<i32>,
     pub cdkey: Option<i64>,
-    pub playing: Option<i32>,
+    pub playing: Option<bool>,
     pub turn_status: Option<i32>,
 }
 #[derive(Debug)]
@@ -421,7 +421,7 @@ impl<'a> GameDetailsTemplate<'a> {
                         player_id: p.id,
                         playing: p.playing.unwrap_or(false),
                         unsubmitted: p.turn_status.unwrap_or(2) < 2,
-                        duplicate_cdkey_nationnames: p.duplicate_cdkey_nationnames.clone(),
+                        duplicate_cdkey_nationnames: None, //  p.duplicate_cdkey_nationnames.clone(),
                         team,
                         status: self
                             .turns
@@ -707,7 +707,7 @@ async fn postpone(
     .unwrap();
     NewAdminLog {
         game_id: *path_id,
-        datetime: Utc::now().naive_utc(),
+        datetime: Utc::now(),
         action: format!("Postponed timer to {} minutes", timer_form.timer),
     }
     .insert(&db)
@@ -729,7 +729,7 @@ async fn forcehost(
         .unwrap();
     NewAdminLog {
         game_id: *path_id,
-        datetime: Utc::now().naive_utc(),
+        datetime: Utc::now(),
         action: "Forcehosted".to_string(),
     }
     .insert(&db)
@@ -766,7 +766,7 @@ async fn timer(
     .unwrap();
     NewAdminLog {
         game_id: *path_id,
-        datetime: Utc::now().naive_utc(),
+        datetime: Utc::now(),
         action: format!("Set timer to {} minutes", timer_form.timer),
     }
     .insert(&db)
@@ -894,7 +894,7 @@ async fn details(
     } else {
         (
             sqlx::query!(
-                r#"SELECT m.map_id, m.is_randommap, m.name,
+                r#"SELECT m.map_id "map_id: i32", m.is_randommap, m.name,
                 (SELECT json_group_array(mp.prov_count)
                  FROM map_planes mp
                  WHERE mp.map_id=m.map_id
@@ -959,10 +959,10 @@ async fn details(
     WHERE j.game_id=$1
     GROUP BY j.job_id, j.started_at
     ORDER BY j.started_at DESC"#, game.id, payload.log_output).fetch_all(&sqlx_db).await.unwrap();
-    let staling_players: Vec<i64> = sqlx::query!(
+    let staling_players: Vec<i32> = sqlx::query!(
         r#"
         WITH tt AS (SELECT MAX(turn_number) as tt FROM turns WHERE game_id=$1 AND archived!=TRUE)
-        SELECT nation_id
+        SELECT nation_id "nation_id: i32"
         FROM player_turns pt
         LEFT JOIN games g ON g.id=$1
         INNER JOIN tt ON tt.tt=pt.turn_number
@@ -1056,7 +1056,7 @@ async fn launch(
     .unwrap();
     NewAdminLog {
         game_id: *path_id,
-        datetime: Utc::now().naive_utc(),
+        datetime: Utc::now(),
         action: format!("Set game to start in {} hours", form.countdown.unwrap_or(0)),
     }
     .insert(&sqlx_db)
@@ -1116,7 +1116,7 @@ async fn create_post(
     new_game.name = params.name;
     new_game.password = params.password.clone();
     new_game.masterpass = Some(params.password);
-    new_game.map_id = sqlx::query!("SELECT map_id FROM maps_dom6 ORDER BY map_id DESC LIMIT 1")
+    new_game.map_id = sqlx::query!(r#"SELECT map_id "map_id: i32" FROM maps_dom6 ORDER BY map_id DESC LIMIT 1"#)
         .fetch_one(&sqlx_db)
         .await
         .unwrap()
@@ -1195,7 +1195,59 @@ async fn list(
 WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),
 topturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)
 SELECT
-g.*,
+g.id "id!: i32",
+g.name,
+g.era "era: i32",
+g.map_id "map_id: i32",
+g.maps_dom6_id "maps_dom6_id: i32",
+g.port "port: i32",
+g.timer "timer?: Option<i32>",
+g.thrones_t1 "thrones_t1: i32",
+g.thrones_t2 "thrones_t2: i32",
+g.thrones_t3 "thrones_t3: i32",
+g.throne_points_required "throne_points_required: i32",
+g.research_diff "research_diff: i32",
+g.research_rand,
+g.hof_size "hof_size: i32",
+g.global_size "global_size: i32",
+g.indepstr "indepstr: i32",
+g.magicsites "magicsites: i32",
+g.eventrarity "eventrarity: i32",
+g.richness "richness: i32",
+g.resources "resources: i32",
+g.recruitment "recruitment: i32",
+g.supplies "supplies: i32",
+g.startprov "startprov: i32",
+g.renaming,
+g.scoregraphs,
+g.nationinfo,
+g.artrest,
+g.teamgame,
+g.clustered,
+g.storyevents "storyevents: i32",
+g.newailvl "newailvl: i32",
+g.next_turn,
+g.password,
+g.archived,
+g.masterpass,
+g.private,
+g.last_activity,
+g.require_password,
+g.select_start "select_start: i32",
+g.modified_mapcrc "modified_mapcrc?: Option<i32>",
+g.cataclysm "cataclysm?: Option<i32>",
+g.max_stales "max_stales?: Option<i32>",
+g.motd,
+g.conq_all,
+g.binary_id "binary_id?: Option<i32>",
+g.formal_diplo "formal_diplo: i32",
+g.research_9_slow,
+g.cheat_detection,
+g.mercslots "mercslots: i32",
+g.provs_per_player "provs_per_player: i32",
+g.randommap_wrapping "randommap_wrapping: i32",
+g.log_level "log_level: i32",
+g.borked,
 (SELECT json_group_array(mp.prov_count)
  FROM map_planes mp
  WHERE mp.map_id=g.maps_dom6_id
@@ -1206,7 +1258,7 @@ MAX(p.nationid) AS "playing?: Option<i32>",
 MIN(pt.status) as "turn_status?: Option<i32>"
 FROM games g
   LEFT JOIN topturn tt ON tt.game_id=g.id
-  LEFT JOIN players p ON p.id IN (SELECT CAST(value AS INTEGER) FROM json_each($1)) AND p.game_id=g.id
+  LEFT JOIN players p ON p.id IN (SELECT value FROM json_each($1)) AND p.game_id=g.id
   LEFT JOIN player_turns pt ON pt.nation_id=p.nationid AND pt.game_id=g.id AND pt.turn_number=tt.max AND pt.archived IS NOT TRUE
 LEFT JOIN (
   SELECT last.game_id, COUNT(*) failed_count, MAX(cj.job_id) "current_job"
@@ -1220,26 +1272,27 @@ GROUP BY g.id , ls.game_id, ls.failed_count, ls.current_job
 ORDER BY MIN(pt.status), MAX(p.nationid), g.id
 
         "#, watch_ids_json).fetch_all(&sqlx_db).await.unwrap();
+    let game_ids = &results.iter().map(|g| g.id).collect::<Vec<i32>>();
     let player_counts = crate::models::Game::get_player_count(
-        &results.iter().map(|g| g.id.unwrap_or(0)).collect::<Vec<i64>>(),
+        &game_ids,
         &sqlx_db,
     )
     .await
     .unwrap();
     let turn_summaries = crate::models::Turn::turn_summary(
-        &results.iter().map(|g| g.id.unwrap_or(0)).collect::<Vec<i64>>(),
+        game_ids,
         &sqlx_db,
     );
     let archived_games: Vec<ArchivedGame> = results
         .extract_if(.., |g| g.archived)
-        .map(|g| ArchivedGame { id: g.id.unwrap_or(0) })
+        .map(|g| ArchivedGame { id: g.id })
         .collect();
     let abandoned_games: Vec<AbandonedGame> = results
         .extract_if(.., |g| {
             chrono::Utc::now().signed_duration_since(g.last_activity.and_utc()) > chrono::Duration::days(7)
         })
         .map(|g| AbandonedGame {
-            id: g.id.unwrap_or(0),
+            id: g.id,
             map_id: g.maps_dom6_id.unwrap_or(0),
             planes: g.planes.as_ref().and_then(|p| serde_json::from_str(p).ok()).unwrap_or_else(|| vec![]),
             name: g.name.clone(),
@@ -1265,9 +1318,9 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
         })
         .collect();
     let active_games: Vec<ActiveGame> = results
-        .extract_if(.., |g| turn_summaries.iter().find(|t| t.game_id == g.id.unwrap_or(0)).is_some())
+        .extract_if(.., |g| turn_summaries.iter().find(|t| t.game_id == g.id).is_some())
         .map(|g| ActiveGame {
-            id: g.id.unwrap_or(0),
+            id: g.id,
             fail_count: g.fail_count.unwrap_or(0) as i32,
             map_id: g.maps_dom6_id.unwrap_or(0),
             planes: g.planes.as_ref().and_then(|p| serde_json::from_str(p).ok()).unwrap_or_else(|| vec![]),
@@ -1275,7 +1328,7 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
             hosting: g.current_job.is_some(),
             turn_summary: turn_summaries
                 .iter()
-                .find(|t| t.game_id == g.id.unwrap_or(0))
+                .find(|t| t.game_id == g.id)
                 .unwrap()
                 .clone(),
             name: g.name.clone(),
@@ -1289,15 +1342,12 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
     let pending_games: Vec<PendingGame> = results
         .iter()
         .map(|g| PendingGame {
-            id: g.id.unwrap_or(0),
+            id: g.id,
             fail_count: g.fail_count.unwrap_or(0) as i32,
             map_id: g.maps_dom6_id.unwrap_or(0),
             planes: g.planes.as_ref().and_then(|p| serde_json::from_str(p).ok()).unwrap_or_else(|| vec![]),
             joined: g.playing.is_some(),
-            players: match g.id {
-                Some(id) => player_counts.get(&id).copied().unwrap_or(0),
-                None => 0,
-            },
+            players: player_counts.get(&g.id).copied().unwrap_or(0),
             address: format!(
                 "{}:{}",
                 std::env::var("GAMES_ADDRESS").unwrap(),
@@ -1443,10 +1493,9 @@ pub async fn archive_post(
             .append_header((header::LOCATION, format!("/game/{}#schedule", *path_id)))
             .finish());
     }
-    let sqlx_db = app_data.sqlx_pool.clone();
     match form.archived {
-        true => Game::archive(*path_id, &sqlx_db).await.unwrap(),
-        false => Game::unarchive(*path_id, &sqlx_db).await.unwrap(),
+        true => Game::archive(*path_id, &app_data.sqlx_pool).await.unwrap(),
+        false => Game::unarchive(*path_id, &app_data.sqlx_pool).await.unwrap(),
     }
 
     return Ok(HttpResponse::Found()
@@ -1488,7 +1537,7 @@ pub async fn remove_post(
                     .unwrap();
                 NewAdminLog {
                     game_id: path_id,
-                    datetime: Utc::now().naive_utc(),
+                    datetime: Utc::now(),
                     action: format!("Removed {}", nation.name),
                 }
                 .insert(&sqlx_db)
@@ -1516,8 +1565,7 @@ pub async fn rollback_post(
             .header(header::LOCATION, format!("/game/{}#schedule", path_id))
             .finish());
     }
-    let sqlx_db = app_data.sqlx_pool.clone();
-    Game::rollback(*path_id, &sqlx_db).await.unwrap();
+    Game::rollback(*path_id, &app_data.sqlx_pool).await.unwrap();
     return Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#schedule", path_id))
         .finish());
@@ -1537,9 +1585,8 @@ pub async fn unstart_post(
             .header(header::LOCATION, format!("/game/{}#schedule", *path_id))
             .finish());
     }
-    let sqlx_db = app_data.sqlx_pool.clone();
-    Game::unstart(*path_id, &sqlx_db).await.unwrap();
-    Game::remove_timer(*path_id, &sqlx_db).await.unwrap();
+    Game::unstart(*path_id, &app_data.sqlx_pool).await.unwrap();
+    Game::remove_timer(*path_id, &app_data.sqlx_pool).await.unwrap();
     return Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#schedule", *path_id))
         .finish());

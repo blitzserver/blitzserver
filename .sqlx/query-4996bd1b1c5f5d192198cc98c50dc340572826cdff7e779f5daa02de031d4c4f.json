@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE maps SET map_crc=$2, tga_crc=$3, winter_crc=$4 WHERE id=$1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "4996bd1b1c5f5d192198cc98c50dc340572826cdff7e779f5daa02de031d4c4f"
+}

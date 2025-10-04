@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                INSERT INTO files (filename, filebinary)\n                SELECT n.filename || '.2h', $3 FROM nations n WHERE n.game_id=$1 AND n.nation_id=$2\n                RETURNING id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "32739a20ef422bd18c15b4cb754d06ec2c5a4afac0f3ebbe0bb33c71697dae5f"
+}

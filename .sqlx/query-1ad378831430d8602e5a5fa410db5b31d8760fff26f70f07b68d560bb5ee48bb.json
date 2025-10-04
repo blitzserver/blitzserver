@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        SELECT\n            id,\n            turn_number \"turn_number: i32\",\n            nation_id \"nation_id: i32\",\n            game_id \"game_id: i32\",\n            trnfile_id,\n            twohfile_id,\n            archived,\n            status \"status: i32\",\n            twoh_crc \"twoh_crc: i32\"\n        FROM player_turns WHERE game_id=$1 AND archived=false ORDER BY turn_number",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "turn_number: i32",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "nation_id: i32",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "game_id: i32",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "trnfile_id",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "twohfile_id",
+        "ordinal": 5,
+        "type_info": "Int64"
+      },
+      {
+        "name": "archived",
+        "ordinal": 6,
+        "type_info": "Bool"
+      },
+      {
+        "name": "status: i32",
+        "ordinal": 7,
+        "type_info": "Int64"
+      },
+      {
+        "name": "twoh_crc: i32",
+        "ordinal": 8,
+        "type_info": "Int64"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "1ad378831430d8602e5a5fa410db5b31d8760fff26f70f07b68d560bb5ee48bb"
+}

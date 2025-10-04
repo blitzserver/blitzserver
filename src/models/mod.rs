@@ -3,7 +3,7 @@ pub mod binary;
 pub mod maps;
 
 use std::{ env};
-use chrono::NaiveDateTime;
+use chrono::{Utc, DateTime};
 pub use player::{NewPlayer, Player};
 use serde_json::Value;
 use sqlx::Sqlite;
@@ -20,7 +20,6 @@ impl Era {
 }
 
 #[derive(Clone, Copy, Debug, derive_more::From)]
-#[repr(i32)]
 pub enum MapWrapping {
     None = 0,
     Both = 1,
@@ -134,7 +133,7 @@ pub struct SqlxGame {
     pub archived: bool,
     pub masterpass: Option<String>,
     pub private: bool,
-    pub last_activity: chrono::NaiveDateTime,
+    pub last_activity: chrono::DateTime<Utc>,
     pub require_password: bool,
     pub select_start: i32,
     pub formal_diplo: i32,
@@ -170,7 +169,8 @@ impl Game {
                 self.id, mod_id).execute(&mut *tx).await?;
         }
 
-        let result = sqlx::query_as!(Game, "
+        let mapwrapping_i64 = self.randommap_wrapping as i64;
+        let result = sqlx::query_as!(Game, r#"
         UPDATE games SET
             era                    = $2,
             thrones_t1             = $3,
@@ -214,8 +214,61 @@ impl Game {
             log_level = $41
         WHERE
             id                     = $1
-        RETURNING *
-        " , 
+        RETURNING
+            id "id!: i32",
+            name,
+            era "era!: i32",
+            map_id "map_id!: i32",
+            maps_dom6_id "maps_dom6_id?: i32",
+            port "port?: i32",
+            timer "timer?: i32",
+            thrones_t1 "thrones_t1!: i32",
+            thrones_t2 "thrones_t2!: i32",
+            thrones_t3 "thrones_t3!: i32",
+            throne_points_required "throne_points_required!: i32",
+            research_diff "research_diff!: i32",
+            research_rand,
+            hof_size "hof_size!: i32",
+            global_size "global_size!: i32",
+            indepstr "indepstr!: i32",
+            magicsites "magicsites!: i32",
+            eventrarity "eventrarity!: i32",
+            richness "richness!: i32",
+            resources "resources!: i32",
+            recruitment "recruitment!: i32",
+            supplies "supplies!: i32",
+            startprov "startprov!: i32",
+            renaming,
+            scoregraphs,
+            nationinfo,
+            artrest,
+            teamgame,
+            clustered,
+            storyevents "storyevents!: i32",
+            newailvl "newailvl!: i32",
+            next_turn "next_turn: DateTime<Utc>",
+            password,
+            archived,
+            masterpass,
+            private,
+            last_activity "last_activity: DateTime<Utc>",
+            require_password,
+            select_start "select_start!: i32",
+            modified_mapcrc "modified_mapcrc?: i32",
+            cataclysm "cataclysm?: i32",
+            max_stales "max_stales?: i32",
+            motd,
+            conq_all,
+            binary_id "binary_id?: i32",
+            formal_diplo "formal_diplo!: i32",
+            research_9_slow,
+            cheat_detection,
+            mercslots "mercslots!: i32",
+            provs_per_player "provs_per_player!: i32",
+            randommap_wrapping "randommap_wrapping!: i32",
+            log_level "log_level!: i32",
+            borked
+        "#, 
                 self.id,
                 self.era,
                 self.thrones_t1,
@@ -255,7 +308,7 @@ impl Game {
                 self.cheat_detection,
                 self.mercslots,
                 self.provs_per_player,
-                self.randommap_wrapping as i32,
+                mapwrapping_i64,
                 self.log_level
                 ).fetch_one(&mut *tx).await?;
 
@@ -265,7 +318,7 @@ impl Game {
     pub async fn get_mods<'c, D: sqlx::Executor<'c, Database = Sqlite>>(&self, db: D) -> Result<Vec<Mod>, sqlx::error::Error>
     {
         sqlx::query_as!(Mod, r#"SELECT
-            m.id "id: i32",
+            m.id "id!: i32",
             m.dm_filename,
             m.name,
             m.file_id "file_id: i32",
@@ -276,58 +329,58 @@ impl Game {
     pub async fn get<'c, D: sqlx::Executor<'c , Database = Sqlite>>(game_id: i32, db: D) -> Result<Game, sqlx::error::Error>
     {
         return sqlx::query_as!(Game, r#"SELECT
-            id "id: i32",
+            id "id!: i32",
             name,
-            era "era: i32",
-            map_id "map_id: i32",
-            maps_dom6_id "maps_dom6_id: i32",
-            port "port: i32",
-            timer "timer: i32",
-            thrones_t1 "thrones_t1: i32",
-            thrones_t2 "thrones_t2: i32",
-            thrones_t3 "thrones_t3: i32",
-            throne_points_required "throne_points_required: i32",
-            research_diff "research_diff: i32",
+            era "era!: i32",
+            map_id "map_id!: i32",
+            maps_dom6_id "maps_dom6_id?: i32",
+            port "port?: i32",
+            timer "timer?: i32",
+            thrones_t1 "thrones_t1!: i32",
+            thrones_t2 "thrones_t2!: i32",
+            thrones_t3 "thrones_t3!: i32",
+            throne_points_required "throne_points_required!: i32",
+            research_diff "research_diff!: i32",
             research_rand,
-            hof_size "hof_size: i32",
-            global_size "global_size: i32",
-            indepstr "indepstr: i32",
-            magicsites "magicsites: i32",
-            eventrarity "eventrarity: i32",
-            richness "richness: i32",
-            resources "resources: i32",
-            recruitment "recruitment: i32",
-            supplies "supplies: i32",
-            startprov "startprov: i32",
+            hof_size "hof_size!: i32",
+            global_size "global_size!: i32",
+            indepstr "indepstr!: i32",
+            magicsites "magicsites!: i32",
+            eventrarity "eventrarity!: i32",
+            richness "richness!: i32",
+            resources "resources!: i32",
+            recruitment "recruitment!: i32",
+            supplies "supplies!: i32",
+            startprov "startprov!: i32",
             renaming,
             scoregraphs,
             nationinfo,
             artrest,
             teamgame,
             clustered,
-            storyevents "storyevents: i32",
-            newailvl "newailvl: i32",
-            next_turn,
+            storyevents "storyevents!: i32",
+            newailvl "newailvl!: i32",
+            next_turn "next_turn: DateTime<Utc>",
             password,
             archived,
             masterpass,
             private,
-            last_activity,
+            last_activity "last_activity: DateTime<Utc>",
             require_password,
-            select_start "select_start: i32",
-            modified_mapcrc "modified_mapcrc: i32",
-            cataclysm "cataclysm: i32",
-            max_stales "max_stales: i32",
+            select_start "select_start!: i32",
+            modified_mapcrc "modified_mapcrc?: i32",
+            cataclysm "cataclysm?: i32",
+            max_stales "max_stales?: i32",
             motd,
             conq_all,
-            binary_id "binary_id: i32",
-            formal_diplo "formal_diplo: i32",
+            binary_id "binary_id?: i32",
+            formal_diplo "formal_diplo!: i32",
             research_9_slow,
             cheat_detection,
-            mercslots "mercslots: i32",
-            provs_per_player "provs_per_player: i32",
-            randommap_wrapping "randommap_wrapping: i32",
-            log_level "log_level: i32",
+            mercslots "mercslots!: i32",
+            provs_per_player "provs_per_player!: i32",
+            randommap_wrapping "randommap_wrapping!: i32",
+            log_level "log_level!: i32",
             borked
         FROM games WHERE id=$1"#, game_id).fetch_one(db).await
     }
@@ -335,7 +388,60 @@ impl Game {
     pub async fn schedule_turn<'c, D>( &self, next_turn: chrono::DateTime::<chrono::Utc>, db: D) -> Result<Game, sqlx::error::Error>
         where D: sqlx::Executor<'c, Database = Sqlite>
     {
-        sqlx::query_as!(Game, "UPDATE games SET next_turn=$2 WHERE id=$1 RETURNING *", self.id, next_turn).fetch_one(db).await
+        sqlx::query_as!(Game, r#"UPDATE games SET next_turn=$2 WHERE id=$1 RETURNING
+            id "id!: i32",
+            name,
+            era "era!: i32",
+            map_id "map_id!: i32",
+            maps_dom6_id "maps_dom6_id?: i32",
+            port "port?: i32",
+            timer "timer?: i32",
+            thrones_t1 "thrones_t1!: i32",
+            thrones_t2 "thrones_t2!: i32",
+            thrones_t3 "thrones_t3!: i32",
+            throne_points_required "throne_points_required!: i32",
+            research_diff "research_diff!: i32",
+            research_rand,
+            hof_size "hof_size!: i32",
+            global_size "global_size!: i32",
+            indepstr "indepstr!: i32",
+            magicsites "magicsites!: i32",
+            eventrarity "eventrarity!: i32",
+            richness "richness!: i32",
+            resources "resources!: i32",
+            recruitment "recruitment!: i32",
+            supplies "supplies!: i32",
+            startprov "startprov!: i32",
+            renaming,
+            scoregraphs,
+            nationinfo,
+            artrest,
+            teamgame,
+            clustered,
+            storyevents "storyevents!: i32",
+            newailvl "newailvl!: i32",
+            next_turn "next_turn: DateTime<Utc>",
+            password,
+            archived,
+            masterpass,
+            private,
+            last_activity "last_activity: DateTime<Utc>",
+            require_password,
+            select_start "select_start!: i32",
+            modified_mapcrc "modified_mapcrc?: i32",
+            cataclysm "cataclysm?: i32",
+            max_stales "max_stales?: i32",
+            motd,
+            conq_all,
+            binary_id "binary_id?: i32",
+            formal_diplo "formal_diplo!: i32",
+            research_9_slow,
+            cheat_detection,
+            mercslots "mercslots!: i32",
+            provs_per_player "provs_per_player!: i32",
+            randommap_wrapping "randommap_wrapping!: i32",
+            log_level "log_level!: i32",
+            borked"#, self.id, next_turn).fetch_one(db).await
     }
     pub fn next_turn_string(&self) -> String {
         if self.archived {
@@ -390,17 +496,15 @@ impl Game {
         }
     }
 
-    pub async fn unstart<'a, D>(game_id: i32, db: D) -> Result<(), sqlx::error::Error>
-    where
-        D: sqlx::Executor<'a, Database = Sqlite>
+    pub async fn unstart<'a>(game_id: i32, db: &sqlx::Pool<Sqlite>) -> Result<(), sqlx::error::Error>
     {
         // Archive turns
         sqlx::query!("UPDATE turns SET archived=TRUE WHERE game_id=$1", game_id)
-            .execute(&mut *db).await?;
+            .execute(db).await?;
 
         // Archive player turns
         sqlx::query!("UPDATE player_turns SET archived=TRUE WHERE game_id=$1", game_id)
-            .execute(&mut *db).await?;
+            .execute(db).await?;
 
         // Log the action
         sqlx::query!(
@@ -410,27 +514,26 @@ impl Game {
         Ok(())
     }
 
-    pub async fn rollback<'a, D>(game_id: i32, db: D) -> Result<(), sqlx::error::Error>
-    where
-        D: sqlx::Executor<'a, Database = Sqlite>
+    pub async fn rollback<'a>(game_id: i32, db: &sqlx::Pool<Sqlite>) -> Result<(), sqlx::error::Error>
     {
         // Get the max turn number
         let max_turn = sqlx::query!("SELECT MAX(turn_number) as max_turn FROM turns WHERE game_id=$1 AND archived != TRUE", game_id)
-            .fetch_one(&mut *db).await.unwrap().max_turn.unwrap_or(0);
+            .fetch_one(db).await.unwrap().max_turn.unwrap_or(0);
 
         if max_turn > 1 {
             // Archive the latest turn
             sqlx::query!("UPDATE turns SET archived=TRUE WHERE game_id=$1 AND turn_number=$2", game_id, max_turn)
-                .execute(&mut *db).await.unwrap();
+                .execute(db).await.unwrap();
 
             // Archive player turns for that turn
             sqlx::query!("UPDATE player_turns SET archived=TRUE WHERE game_id=$1 AND turn_number=$2", game_id, max_turn)
-                .execute(&mut *db).await.unwrap();
+                .execute(db).await.unwrap();
 
+            let prev_turn = max_turn - 1;
             // Unfinish previous turn's player turns
             sqlx::query!("UPDATE player_turns SET status=1 WHERE game_id=$1 AND turn_number=$2 AND status=2",
-                game_id, max_turn - 1)
-                .execute(&mut *db).await.unwrap();
+                game_id, prev_turn)
+                .execute(db).await.unwrap();
 
             // Log the action
             sqlx::query!("INSERT INTO admin_logs (game_id, datetime, action) VALUES ($1, datetime('now'), 'Rolled back turn')",
@@ -446,41 +549,88 @@ impl Game {
     {
         let game_ids_json = serde_json::to_string(game_ids).unwrap();
         Ok(sqlx::query!(
-            "SELECT game_id, CAST(COUNT(*) AS INTEGER) as \"count: i64\" FROM players WHERE game_id IN (SELECT CAST(value AS INTEGER) FROM json_each($1)) GROUP BY game_id",
+            r#"SELECT game_id "game_id!: i32", COUNT(*) as "count!: i32" FROM players WHERE game_id IN (SELECT value FROM json_each($1)) GROUP BY game_id"#,
             game_ids_json
         )
         .fetch_all(db)
         .await?
         .iter()
         .fold(std::collections::HashMap::new(), |mut hm, row| {
-            hm.insert(row.game_id, row.count as i32);
+            hm.insert(row.game_id, row.count);
             hm
         }))
     }
 
-    pub async fn remove_timer<'a, D>(game_id: i32, db: D) -> Result<Self, sqlx::error::Error>
-    where
-        D: sqlx::Executor<'a, Database = Sqlite>
+    pub async fn remove_timer<'a>(game_id: i32, db: &sqlx::Pool<Sqlite>) -> Result<Self, sqlx::error::Error>
     {
-        sqlx::query_as!(Game, "UPDATE games SET next_turn = NULL, timer = NULL WHERE id=$1 RETURNING *", game_id).fetch_one(db).await
+        sqlx::query_as!(Game, r#"UPDATE games SET next_turn = NULL, timer = NULL WHERE id=$1 RETURNING
+            id "id!: i32",
+            name,
+            era "era!: i32",
+            map_id "map_id!: i32",
+            maps_dom6_id "maps_dom6_id?: i32",
+            port "port?: i32",
+            timer "timer?: i32",
+            thrones_t1 "thrones_t1!: i32",
+            thrones_t2 "thrones_t2!: i32",
+            thrones_t3 "thrones_t3!: i32",
+            throne_points_required "throne_points_required!: i32",
+            research_diff "research_diff!: i32",
+            research_rand,
+            hof_size "hof_size!: i32",
+            global_size "global_size!: i32",
+            indepstr "indepstr!: i32",
+            magicsites "magicsites!: i32",
+            eventrarity "eventrarity!: i32",
+            richness "richness!: i32",
+            resources "resources!: i32",
+            recruitment "recruitment!: i32",
+            supplies "supplies!: i32",
+            startprov "startprov!: i32",
+            renaming,
+            scoregraphs,
+            nationinfo,
+            artrest,
+            teamgame,
+            clustered,
+            storyevents "storyevents!: i32",
+            newailvl "newailvl!: i32",
+            next_turn "next_turn: DateTime<Utc>",
+            password,
+            archived,
+            masterpass,
+            private,
+            last_activity "last_activity: DateTime<Utc>",
+            require_password,
+            select_start "select_start!: i32",
+            modified_mapcrc "modified_mapcrc?: i32",
+            cataclysm "cataclysm?: i32",
+            max_stales "max_stales?: i32",
+            motd,
+            conq_all,
+            binary_id "binary_id?: i32",
+            formal_diplo "formal_diplo!: i32",
+            research_9_slow,
+            cheat_detection,
+            mercslots "mercslots!: i32",
+            provs_per_player "provs_per_player!: i32",
+            randommap_wrapping "randommap_wrapping!: i32",
+            log_level "log_level!: i32",
+            borked"#, game_id).fetch_one(db).await
     }
 
-    pub async fn archive<'a, D>(game_id: i32, db: D) -> Result<(), sqlx::error::Error>
-    where
-        D: sqlx::Executor<'a, Database = Sqlite>
+    pub async fn archive<'a>(game_id: i32, db: &sqlx::Pool<Sqlite>) -> Result<(), sqlx::error::Error>
     {
         // Archive the game
         sqlx::query!("UPDATE games SET port=NULL, archived=TRUE, last_activity=datetime('now') WHERE id=$1", game_id)
-            .execute(&mut *db).await.unwrap();
+            .execute(db).await.unwrap();
 
         // Log the action
         sqlx::query!("INSERT INTO admin_logs (game_id, datetime, action) VALUES ($1, datetime('now'), 'Archived game')", game_id)
             .execute(db).await.unwrap();
         Ok(())
     }
-    pub async fn unarchive<'a, D>(game_id: i32, db: D) -> Result<(), sqlx::error::Error>
-    where
-        D: sqlx::Executor<'a, Database = Sqlite>
+    pub async fn unarchive<'a>(game_id: i32, db: &sqlx::Pool<Sqlite>) -> Result<(), sqlx::error::Error>
     {
         let port_var = env::var("PORT_RANGE").expect("PORT_RANGE must be set (ie. '10000,10999')");
         let range: Vec<&str> = port_var.split(",").collect();
@@ -498,13 +648,13 @@ impl Game {
             LEFT OUTER JOIN games g ON g.port=num
             WHERE g.port IS NULL",
             start_port, end_port
-        ).fetch_one(&mut *db).await.unwrap().port;
+        ).fetch_one(db).await.unwrap().port;
 
         // Update game
         sqlx::query!(
             "UPDATE games SET port=$2, archived=FALSE, last_activity=datetime('now') WHERE id=$1",
             game_id, new_port
-        ).execute(&mut *db).await.unwrap();
+        ).execute(db).await.unwrap();
 
         // Log the action
         sqlx::query!(
@@ -588,12 +738,65 @@ impl NewGame {
     pub async fn insert<'q, D>(&self, db: D) -> Result<Game, sqlx::error::Error> 
         where D: sqlx::Executor<'q, Database = Sqlite> 
     {
-        sqlx::query_as!(Game, "
+        sqlx::query_as!(Game, r#"
         INSERT INTO games ( name, era, maps_dom6_id, port, thrones_t1, thrones_t2, thrones_t3, throne_points_required, research_diff, research_rand, hof_size, global_size, indepstr, magicsites, eventrarity, richness, resources, recruitment, supplies, startprov, renaming, scoregraphs, nationinfo, artrest, teamgame, clustered, storyevents, newailvl, password, masterpass, binary_id)
         SELECT              $1,   $2,  $3,     $4,   $5,         $6,         $7,         $8,                     $9,            $10,           $11,      $12,         $13,      $14,        $15,         $16,      $17,       $18,         $19,      $20,       $21,      $22,         $23,        $24,     $25,      $26,       $27,         $28,      $29,      $30,        b.binary_id
         FROM (SELECT binary_id FROM binaries  ORDER BY binary_id DESC LIMIT 1) b
-        RETURNING *
-        " , 
+        RETURNING
+            id "id!: i32",
+            name,
+            era "era!: i32",
+            map_id "map_id!: i32",
+            maps_dom6_id "maps_dom6_id?: i32",
+            port "port?: i32",
+            timer "timer?: i32",
+            thrones_t1 "thrones_t1!: i32",
+            thrones_t2 "thrones_t2!: i32",
+            thrones_t3 "thrones_t3!: i32",
+            throne_points_required "throne_points_required!: i32",
+            research_diff "research_diff!: i32",
+            research_rand,
+            hof_size "hof_size!: i32",
+            global_size "global_size!: i32",
+            indepstr "indepstr!: i32",
+            magicsites "magicsites!: i32",
+            eventrarity "eventrarity!: i32",
+            richness "richness!: i32",
+            resources "resources!: i32",
+            recruitment "recruitment!: i32",
+            supplies "supplies!: i32",
+            startprov "startprov!: i32",
+            renaming,
+            scoregraphs,
+            nationinfo,
+            artrest,
+            teamgame,
+            clustered,
+            storyevents "storyevents!: i32",
+            newailvl "newailvl!: i32",
+            next_turn "next_turn: DateTime<Utc>",
+            password,
+            archived,
+            masterpass,
+            private,
+            last_activity "last_activity: DateTime<Utc>",
+            require_password,
+            select_start "select_start!: i32",
+            modified_mapcrc "modified_mapcrc?: i32",
+            cataclysm "cataclysm?: i32",
+            max_stales "max_stales?: i32",
+            motd,
+            conq_all,
+            binary_id "binary_id?: i32",
+            formal_diplo "formal_diplo!: i32",
+            research_9_slow,
+            cheat_detection,
+            mercslots "mercslots!: i32",
+            provs_per_player "provs_per_player!: i32",
+            randommap_wrapping "randommap_wrapping!: i32",
+            log_level "log_level!: i32",
+            borked
+        "# , 
         self.name,
         self.era,
         self.map_id,
@@ -650,10 +853,13 @@ impl<'a> NewFile<'a> {
     where
         D: sqlx::Executor<'q, Database = Sqlite>
     {
-        sqlx::query_as!(File, "
+        sqlx::query_as!(File, r#"
         INSERT INTO files (filename, filebinary)
         VALUES ($1, $2)
-        RETURNING *", self.filename, &self.filebinary
+        RETURNING
+            id "id!: i32",
+            filename,
+            filebinary"#, self.filename, self.filebinary
         )
         .fetch_one(db)
         .await
@@ -675,9 +881,9 @@ pub struct Map {
     pub province_count: i32,
     pub uw_count: i32,
     pub archived: bool,
-    pub map_crc: Option<i32>,
-    pub tga_crc: Option<i32>,
-    pub winter_crc: Option<i32>,
+    pub map_crc: Option<i64>,
+    pub tga_crc: Option<i64>,
+    pub winter_crc: Option<i64>,
     pub min_version: i32,
 }
 
@@ -688,16 +894,16 @@ pub enum MapCrcError {
 }
 
 impl Map {
-    pub fn get_crcs(game_id: i32, db: &sqlx::sqlite::SqlitePool) -> Result<((String, i64, i64), (String, i64, i64), Option<(String, i64, i64)>), MapCrcError> {
+    pub fn get_crcs(game_id: i32, db: &sqlx::sqlite::SqlitePool) -> Result<((String, u32, u32), (String, u32, u32), Option<(String, u32, u32)>), MapCrcError> {
         smol::block_on(async {
             let mut record =sqlx::query!(r#"
                 SELECT 
                     m.id, 
-                    modified_mapcrc, 
-                    COUNT(p.id) AS custom_starts, 
-                    m.map_crc, mapf.filename as mapfilename, CAST(length(mapf.filebinary) AS INTEGER) as "mapflen: i64", 
-                    m.tga_crc, tgaf.filename as tgafilename, CAST(length(tgaf.filebinary) AS INTEGER) as "tgaflen: i64", 
-                    m.winter_crc as "winter_crc?", winf.filename as "winterfilename?", CAST(length(winf.filebinary) AS INTEGER) as "winflen?: Option<i64>"
+                    modified_mapcrc "modified_mapcrc: u32", 
+                    COUNT(p.id) AS "custom_starts: Option<i32>", 
+                    m.map_crc "map_crc: u32", mapf.filename as mapfilename, length(mapf.filebinary) "mapflen: u32",
+                    m.tga_crc "tga_crc: u32", tgaf.filename as tgafilename, length(tgaf.filebinary) "tgaflen: u32",
+                    m.winter_crc as "winter_crc: u32", winf.filename as "winterfilename?", length(winf.filebinary) as "winflen?: u32"
                 FROM games g
                     LEFT JOIN maps m ON m.id=g.map_id
                     INNER JOIN files mapf ON mapf.id=m.mapfile_id
@@ -715,10 +921,10 @@ impl Map {
                     INNER JOIN files tgaf ON tgaf.id=m.tgafile_id
                     LEFT JOIN files winf ON winf.id=m.winterfile_id
                     WHERE m.id=$1"#, record.id).fetch_one(db).await?;
-                record.map_crc = Some(crate::util::calculate_crc(&binary_record.mapbinary[..]) as i32);
-                record.tga_crc = Some(crate::util::calculate_crc(&binary_record.tgabinary[..]) as i32);
+                record.map_crc = Some(crate::util::calculate_crc(&binary_record.mapbinary[..]));
+                record.tga_crc = Some(crate::util::calculate_crc(&binary_record.tgabinary[..]));
                 if let Some(winbinary) = binary_record.winbinary {
-                    record.winter_crc = Some(crate::util::calculate_crc(&winbinary[..]) as i32);
+                    record.winter_crc = Some(crate::util::calculate_crc(&winbinary[..]));
                 }
                 sqlx::query!("UPDATE maps SET map_crc=$2, tga_crc=$3, winter_crc=$4 WHERE id=$1", record.id, record.map_crc, record.tga_crc, record.winter_crc).execute(db).await?;
             }
@@ -734,21 +940,21 @@ impl Map {
                         .filebinary
                         .append(&mut format!("\n#specstart {} {}\n", player, prov).into_bytes());
                 }
-                record.modified_mapcrc = Some(crate::util::calculate_crc(&mapbinary.filebinary[..]) as i32);
+                record.modified_mapcrc = Some(crate::util::calculate_crc(&mapbinary.filebinary[..]));
                 sqlx::query!("UPDATE games SET modified_mapcrc=$2 WHERE id=$1", game_id, record.modified_mapcrc).execute(db).await?;
             }
             Ok((
                 (record.mapfilename,
                  match record.custom_starts {
                     Some(_) => {
-                        record.mapflen.unwrap_or(0) + sqlx::query!(r#"SELECT nationid, startprov as "startprov" FROM players WHERE game_id=$1 AND startprov IS NOT NULL"#, game_id)
+                        record.mapflen.unwrap_or(0) + sqlx::query!(r#"SELECT nationid "nationid: i32", startprov as "startprov: i32" FROM players WHERE game_id=$1 AND startprov IS NOT NULL"#, game_id)
                             .fetch_all(db).await?
                             .into_iter()
                             .filter_map(|record| match record.startprov {
                                 Some(sp) => Some((record.nationid, sp)),
                                 None => None
                             })
-                            .fold(0i32, |acc, (nationid, startprov)| acc + format!("\n#specstart {} {}\n", nationid, startprov).into_bytes().len() as i32)
+                            .fold(0u32, |acc, (nationid, startprov)| acc + format!("\n#specstart {} {}\n", nationid, startprov).into_bytes().len() as u32)
                     },
                     None => record.mapflen.unwrap_or(0)
                 }, match record.custom_starts {
@@ -772,13 +978,25 @@ impl Map {
         D: sqlx::Executor<'q, Database = Sqlite>
     {
         sqlx::query_as!(Map,
-            "
-        SELECT M.* 
+            r#"
+        SELECT
+            M.id "id!: i32",
+            M.name,
+            M.mapfile_id "mapfile_id: i32",
+            M.tgafile_id "tgafile_id: i32",
+            M.winterfile_id "winterfile_id: i32",
+            M.province_count "province_count: i32",
+            M.uw_count "uw_count: i32",
+            M.archived,
+            M.map_crc,
+            M.tga_crc,
+            M.winter_crc,
+            M.min_version "min_version: i32"
         FROM maps M
-        LEFT JOIN games G 
+        LEFT JOIN games G
             ON M.id=G.map_id AND G.id = $1
         WHERE (G.id IS NOT NULL OR M.archived IS FALSE)
-            AND (G.id IS NOT NULL OR $2 = TRUE)", game_id, is_admin
+            AND (G.id IS NOT NULL OR $2 = TRUE)"#, game_id, is_admin
         )
         .fetch_all(db).await
     }
@@ -792,12 +1010,20 @@ impl Map {
         let mut results = Vec::new();
 
         for (id, prov) in provs.iter().enumerate() {
-            let result = sqlx::query_as!(MapProvince, "
-            INSERT INTO map_provinces (map_id, province_id, x, y, unit_x, unit_y) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+            let id_i64 = id as i64;
+            let result = sqlx::query_as!(MapProvince, r#"
+            INSERT INTO map_provinces (map_id, province_id, x, y, unit_x, unit_y) VALUES ($1, $2, $3, $4, $5, $6) RETURNING
+                id "id!: i32",
+                map_id "map_id!: i32",
+                province_id "province_id: i32",
+                x "x: i32",
+                y "y: i32",
+                unit_x,
+                unit_y"#,
             self.id,
-            id as i32,
-            prov.x as i32,
-            prov.y as i32,
+            id_i64,
+            prov.x,
+            prov.y,
             prov.unit_x,
             prov.unit_y
             ).fetch_one(&mut *tx).await?;
@@ -813,8 +1039,8 @@ impl Map {
         D: sqlx::Executor<'q, Database = Sqlite>
     {
         sqlx::query_as!(MapProvince, r#"SELECT
-            id "id: i32",
-            map_id "map_id: i32",
+            id "id!: i32",
+            map_id "map_id!: i32",
             province_id "province_id: i32",
             x "x: i32",
             y "y: i32",
@@ -828,7 +1054,7 @@ impl Map {
         D: sqlx::Executor<'q, Database = Sqlite>
     {
         let file_contents = sqlx::query!(r#"
-        SELECT ma.id map_id, ma.filename map_filename, ma.filebinary map_binary, i.id image_id, i.filename image_filename, i.filebinary image_binary, wi.id "winter_id?", wi.filename "wi_filename?", wi.filebinary "winter_binary?"
+        SELECT ma.id "map_id: i32", ma.filename map_filename, ma.filebinary map_binary, i.id "image_id: i32", i.filename image_filename, i.filebinary image_binary, wi.id "winter_id: Option<i32>", wi.filename "wi_filename?", wi.filebinary "winter_binary?"
         FROM maps m
         INNER JOIN files i ON i.id=m.tgafile_id
         INNER JOIN files ma ON ma.id=m.mapfile_id
@@ -869,7 +1095,19 @@ impl NewMap {
     pub async fn insert<'q, D>(&self, db: D) -> Result<Map, sqlx::error::Error> 
         where D: sqlx::Executor<'q, Database = Sqlite>
     {
-        sqlx::query_as!(Map, "INSERT INTO maps (name, mapfile_id, tgafile_id, winterfile_id, province_count, uw_count, min_version) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+        sqlx::query_as!(Map, r#"INSERT INTO maps (name, mapfile_id, tgafile_id, winterfile_id, province_count, uw_count, min_version) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING
+            id "id!: i32",
+            name,
+            mapfile_id "mapfile_id: i32",
+            tgafile_id "tgafile_id: i32",
+            winterfile_id "winterfile_id: i32",
+            province_count "province_count: i32",
+            uw_count "uw_count: i32",
+            archived,
+            map_crc,
+            tga_crc,
+            winter_crc,
+            min_version "min_version: i32""#,
         self.name,
         self.mapfile_id,
         self.tgafile_id,
@@ -897,15 +1135,15 @@ impl Nation {
         D: sqlx::Executor<'q, Database = Sqlite>
     {
         sqlx::query_as!(Nation,
-            "SELECT
-                CAST(id AS INTEGER) as \"id: i32\",
-                CAST(game_id AS INTEGER) as \"game_id: i32\",
-                CAST(nation_id AS INTEGER) as \"nation_id: i32\",
+            r#"SELECT
+                id "id!: i32",
+                game_id "game_id: i32",
+                nation_id "nation_id: i32",
                 name,
                 epithet,
                 filename
             FROM nations
-            WHERE nation_id=$1 AND game_id=$2",
+            WHERE nation_id=$1 AND game_id=$2"#,
             nation_id, game_id).fetch_one(db).await
     }
     pub async fn get_all<'q, D>(game_id: i32, db: D) -> Result<Vec<Nation>, sqlx::error::Error>
@@ -913,15 +1151,15 @@ impl Nation {
         D: sqlx::Executor<'q, Database = Sqlite>
     {
         sqlx::query_as!(Nation,
-            "SELECT
-                CAST(id AS INTEGER) as \"id: i32\",
-                CAST(game_id AS INTEGER) as \"game_id: i32\",
-                CAST(nation_id AS INTEGER) as \"nation_id: i32\",
+            r#"SELECT
+                id "id!: i32",
+                game_id "game_id: i32",
+                nation_id "nation_id: i32",
                 name,
                 epithet,
                 filename
             FROM nations
-            WHERE game_id=$1",
+            WHERE game_id=$1"#,
             game_id).fetch_all(db).await
     }
 }
@@ -932,7 +1170,7 @@ pub struct Turn {
     pub game_id: i32,
     pub turn_number: i32,
     pub file_id: i32,
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
     pub archived: bool,
     pub turnkey: Option<i32>,
     pub winner: Option<i32>
@@ -961,7 +1199,7 @@ impl Turn {
         game_id: i32,
         turn_number: u32,
         db_pool: &sqlx::sqlite::SqlitePool,
-    ) -> Result<i32, TurnError> {
+    ) -> Result<u32, TurnError> {
         smol::block_on(async {
             let record = sqlx::query!(r#"SELECT id,turnkey "turnkey: u32",file_id FROM turns WHERE game_id=$1 AND turn_number=$2 AND archived != TRUE"#, game_id, turn_number).fetch_one(db_pool).await.map_err(TurnError::DbError)?;
             Ok(match record.turnkey {
@@ -994,18 +1232,18 @@ impl Turn {
         D: sqlx::Executor<'q, Database = Sqlite>
     {
         sqlx::query_as!(Turn,
-            "SELECT
-                CAST(id AS INTEGER) as \"id: i32\",
-                CAST(game_id AS INTEGER) as \"game_id: i32\",
-                CAST(turn_number AS INTEGER) as \"turn_number: i32\",
-                CAST(file_id AS INTEGER) as \"file_id: i32\",
-                created_at,
+            r#"SELECT
+                id "id!: i32",
+                game_id "game_id: i32",
+                turn_number "turn_number: i32",
+                file_id "file_id: i32",
+                created_at "created_at: DateTime<Utc>",
                 archived,
-                CAST(turnkey AS INTEGER) as \"turnkey: Option<i32>\",
-                CAST(winner AS INTEGER) as \"winner: Option<i32>\"
+                turnkey "turnkey: i32",
+                winner "winner: i32"
             FROM turns
             WHERE game_id=$1 AND archived=FALSE
-            ORDER BY turn_number ASC",
+            ORDER BY turn_number ASC"#,
             game_id).fetch_all(db).await
     }
     pub async fn current_turn<'q, D>(game_ids: &[i32], db: D) -> Result<Vec<Turn>, sqlx::error::Error>
@@ -1015,14 +1253,14 @@ impl Turn {
         let game_ids_json = serde_json::to_string(game_ids).unwrap();
         sqlx::query_as!(Turn, r#"
         SELECT
-            CAST(t.id AS INTEGER) as "id: i32",
-            CAST(t.game_id AS INTEGER) as "game_id: i32",
-            CAST(t.turn_number AS INTEGER) as "turn_number: i32",
-            CAST(t.file_id AS INTEGER) as "file_id: i32",
-            t.created_at,
+            t.id "id!: i32",
+            t.game_id "game_id: i32",
+            t.turn_number "turn_number: i32",
+            t.file_id "file_id: i32",
+            t.created_at "created_at: DateTime<Utc>",
             t.archived,
-            CAST(t.turnkey AS INTEGER) as "turnkey: Option<i32>",
-            CAST(t.winner AS INTEGER) as "winner: Option<i32>"
+            t.turnkey "turnkey: i32",
+            t.winner "winner: i32"
         FROM turns t
         INNER JOIN (
             SELECT game_id, MAX(turn_number) as max_turn
@@ -1043,7 +1281,13 @@ impl Turn {
                 let game_ids_json = serde_json::to_string(game_ids).unwrap();
                 sqlx::query_as!(TurnSummary, r#"
 WITH tt as (SELECT game_id,MAX(turn_number) as "turn_number" FROM turns WHERE ARCHIVED != true GROUP BY game_id)
-SELECT t.game_id, t.turn_number, n.name as "winner_name?", CAST(COUNT(submitted.nation_id) AS INTEGER) as "submitted: i64", CAST(COUNT(total.nation_id) AS INTEGER) as "total: i64", next_turn
+SELECT 
+    t.game_id "game_id: i32", 
+    t.turn_number "turn_number: i32", 
+    n.name as "winner_name?", 
+    COUNT(submitted.nation_id) "submitted: i64", 
+    COUNT(total.nation_id) "total: i64", 
+    next_turn "next_turn: DateTime<Utc>"
 FROM turns t
 INNER JOIN tt ON tt.game_id=t.game_id AND tt.turn_number=t.turn_number AND t.archived != TRUE
 LEFT JOIN nations n ON t.winner=n.nation_id AND t.game_id=n.game_id
@@ -1079,8 +1323,18 @@ impl PlayerTurn {
     where
         D: sqlx::Executor<'q, Database = Sqlite>
     {
-        let player_turns = sqlx::query_as!(PlayerTurn, "
-        SELECT * FROM player_turns WHERE game_id=$1 AND archived=false ORDER BY turn_number", game_id).fetch_all(db).await?;
+        let player_turns = sqlx::query_as!(PlayerTurn, r#"
+        SELECT
+            id,
+            turn_number "turn_number: i32",
+            nation_id "nation_id: i32",
+            game_id "game_id: i32",
+            trnfile_id,
+            twohfile_id,
+            archived,
+            status "status: i32",
+            twoh_crc "twoh_crc: i32"
+        FROM player_turns WHERE game_id=$1 AND archived=false ORDER BY turn_number"#, game_id).fetch_all(db).await?;
         Ok(player_turns.into_iter().fold(
             std::collections::HashMap::new(),
             |mut hm: std::collections::HashMap<i32, Vec<PlayerTurn>>, pt: PlayerTurn| {
@@ -1164,7 +1418,7 @@ impl Mod {
                                 );
                                 if let Err(e) = sqlx::query!(
                                     r#"UPDATE mods SET crc=$1 WHERE id=$2"#,
-                                    hash as i32,
+                                    hash,
                                     mod_record.id
                                 )
                                 .execute(db_pool)
@@ -1235,39 +1489,64 @@ impl Disciple {
     where
         D: sqlx::Executor<'q, Database = Sqlite>
     {
-        sqlx::query_as!(Disciple, "
-        INSERT INTO disciples (game_id, nation_id, is_disciple) VALUES($1, $2, 0) ON CONFLICT (game_id, nation_id) DO UPDATE SET nation_id=EXCLUDED.nation_id RETURNING *
-        ", game_id, nation_id).fetch_one(db).await
+        sqlx::query_as!(Disciple, r#"
+        INSERT INTO disciples (game_id, nation_id, is_disciple) VALUES($1, $2, 0) ON CONFLICT (game_id, nation_id) DO UPDATE SET nation_id=EXCLUDED.nation_id RETURNING
+            id "id!: i32",
+            game_id "game_id: i32",
+            nation_id "nation_id: i32",
+            is_disciple "is_disciple: i32",
+            team "team: i32"
+        "#, game_id, nation_id).fetch_one(db).await
     }
     pub async fn remove<'q, D>(&self, db: D) -> Result<Disciple, sqlx::error::Error>
     where
         D: sqlx::Executor<'q, Database = Sqlite>
     {
-        sqlx::query_as!(Disciple, "DELETE FROM disciples WHERE game_id=$1 AND nation_id=$2 RETURNING *", self.game_id, self.nation_id).fetch_one(db).await
+        sqlx::query_as!(Disciple, r#"DELETE FROM disciples WHERE game_id=$1 AND nation_id=$2 RETURNING
+            id "id!: i32",
+            game_id "game_id: i32",
+            nation_id "nation_id: i32",
+            is_disciple "is_disciple: i32",
+            team "team: i32""#, self.game_id, self.nation_id).fetch_one(db).await
     }
 
     pub async fn set_team<'q, D>(&self, team: Option<i32>, db: D) -> Result<Disciple, sqlx::error::Error>
     where
         D: sqlx::Executor<'q, Database = Sqlite>
     {
-        sqlx::query_as!(Disciple, "
+        sqlx::query_as!(Disciple, r#"
         INSERT INTO disciples (game_id, nation_id, is_disciple, team)
         SELECT $1, $2, $4, COALESCE($3, (SELECT MAX(team) + 1 FROM disciples WHERE game_id=$1))
         ON CONFLICT (game_id, nation_id) DO UPDATE SET team=EXCLUDED.team, is_disciple=EXCLUDED.is_disciple
-        RETURNING *
-        ", self.game_id, self.nation_id, team, self.is_disciple).fetch_one(db).await
+        RETURNING
+            id "id!: i32",
+            game_id "game_id: i32",
+            nation_id "nation_id: i32",
+            is_disciple "is_disciple: i32",
+            team "team: i32"
+        "#, self.game_id, self.nation_id, team, self.is_disciple).fetch_one(db).await
     }
     pub async fn unset_team<'q, D>(&self, db: D) -> Result<Disciple, sqlx::error::Error>
     where
         D: sqlx::Executor<'q, Database = Sqlite>
     {
-        sqlx::query_as!(Disciple, "UPDATE disciples SET team=NULL WHERE game_id=$1 AND nation_id=$2 RETURNING *", self.game_id, self.nation_id).fetch_one(db).await
+        sqlx::query_as!(Disciple, r#"UPDATE disciples SET team=NULL WHERE game_id=$1 AND nation_id=$2 RETURNING
+            id "id!: i32",
+            game_id "game_id: i32",
+            nation_id "nation_id: i32",
+            is_disciple "is_disciple: i32",
+            team "team: i32""#, self.game_id, self.nation_id).fetch_one(db).await
     }
     pub async fn set_disc<'q, D>(&self, is_disc: i32, db: D) -> Result<Disciple, sqlx::error::Error>
     where
         D: sqlx::Executor<'q, Database = Sqlite>
     {
-        sqlx::query_as!(Disciple, "UPDATE disciples SET is_disciple=$3 WHERE game_id=$1 AND nation_id=$2 RETURNING *", self.game_id, self.nation_id, is_disc).fetch_one(db).await
+        sqlx::query_as!(Disciple, r#"UPDATE disciples SET is_disciple=$3 WHERE game_id=$1 AND nation_id=$2 RETURNING
+            id "id!: i32",
+            game_id "game_id: i32",
+            nation_id "nation_id: i32",
+            is_disciple "is_disciple: i32",
+            team "team: i32""#, self.game_id, self.nation_id, is_disc).fetch_one(db).await
     }
 }
 
@@ -1283,7 +1562,12 @@ impl NewDisciple {
     where
         D: sqlx::Executor<'q, Database = Sqlite>
     {
-        sqlx::query_as!(Disciple, "INSERT INTO disciples (game_id, nation_id, is_disciple, team) VALUES ($1, $2, $3, $4) RETURNING *", self.game_id, self.nation_id, self.is_disciple, self.team).fetch_one(db).await
+        sqlx::query_as!(Disciple, r#"INSERT INTO disciples (game_id, nation_id, is_disciple, team) VALUES ($1, $2, $3, $4) RETURNING
+            id "id!: i32",
+            game_id "game_id: i32",
+            nation_id "nation_id: i32",
+            is_disciple "is_disciple: i32",
+            team "team: i32""#, self.game_id, self.nation_id, self.is_disciple, self.team).fetch_one(db).await
     }
 }
 
@@ -1291,7 +1575,7 @@ impl NewDisciple {
 pub struct AdminLog {
     id: i64,
     pub game_id: i32,
-    pub datetime: NaiveDateTime,
+    pub datetime: DateTime<Utc>,
     pub action: String,
 }
 
@@ -1303,7 +1587,7 @@ impl AdminLog {
         sqlx::query_as!(AdminLog, r#"SELECT
             id,
             game_id "game_id: i32",
-            datetime,
+            datetime "datetime: DateTime<Utc>",
             action
         FROM admin_logs WHERE game_id=$1 ORDER BY datetime DESC"#, game_id).fetch_all(db).await
     }
@@ -1314,7 +1598,7 @@ impl AdminLog {
 
 pub struct NewAdminLog {
     pub game_id: i32,
-    pub datetime: NaiveDateTime,
+    pub datetime: DateTime<Utc>,
     pub action: String,
 }
 impl NewAdminLog {
@@ -1322,7 +1606,11 @@ impl NewAdminLog {
     where
         D: sqlx::Executor<'q, Database = Sqlite>
     {
-        sqlx::query_as!(AdminLog, "INSERT INTO admin_logs (game_id, datetime, action) VALUES ($1, $2, $3) RETURNING *", self.game_id, self.datetime, self.action).fetch_one(db).await
+        sqlx::query_as!(AdminLog, r#"INSERT INTO admin_logs (game_id, datetime, action) VALUES ($1, $2, $3) RETURNING
+            id,
+            game_id "game_id: i32",
+            datetime "datetime: DateTime<Utc>",
+            action"#, self.game_id, self.datetime, self.action).fetch_one(db).await
     }
 }
 

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "WITH top as (select MAX(job_id) as last FROM jobs where finished_at is not null and game_id=$1)\n            SELECT reaped as \"reaped\" FROM jobs INNER JOIN top ON top.last=jobs.job_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "reaped",
+        "ordinal": 0,
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0db7e36cafee9351ee9892d03e0f6d7b131f379745d410508a0d6aedce0d3fb4"
+}

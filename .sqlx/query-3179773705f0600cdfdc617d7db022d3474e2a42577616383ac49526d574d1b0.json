@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE disciples SET is_disciple=1 WHERE team=$1 AND team>0 AND game_id=$2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "3179773705f0600cdfdc617d7db022d3474e2a42577616383ac49526d574d1b0"
+}

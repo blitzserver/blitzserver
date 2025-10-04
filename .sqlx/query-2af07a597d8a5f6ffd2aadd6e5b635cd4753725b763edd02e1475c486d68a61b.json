@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE players SET startprov=NULL WHERE game_id=$1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "2af07a597d8a5f6ffd2aadd6e5b635cd4753725b763edd02e1475c486d68a61b"
+}

@@ -1,0 +1,362 @@
+{
+  "db_name": "SQLite",
+  "query": "\nWITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),\ntopturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)\nSELECT\ng.id \"id!: i32\",\ng.name,\ng.era \"era: i32\",\ng.map_id \"map_id: i32\",\ng.maps_dom6_id \"maps_dom6_id: i32\",\ng.port \"port: i32\",\ng.timer \"timer?: Option<i32>\",\ng.thrones_t1 \"thrones_t1: i32\",\ng.thrones_t2 \"thrones_t2: i32\",\ng.thrones_t3 \"thrones_t3: i32\",\ng.throne_points_required \"throne_points_required: i32\",\ng.research_diff \"research_diff: i32\",\ng.research_rand,\ng.hof_size \"hof_size: i32\",\ng.global_size \"global_size: i32\",\ng.indepstr \"indepstr: i32\",\ng.magicsites \"magicsites: i32\",\ng.eventrarity \"eventrarity: i32\",\ng.richness \"richness: i32\",\ng.resources \"resources: i32\",\ng.recruitment \"recruitment: i32\",\ng.supplies \"supplies: i32\",\ng.startprov \"startprov: i32\",\ng.renaming,\ng.scoregraphs,\ng.nationinfo,\ng.artrest,\ng.teamgame,\ng.clustered,\ng.storyevents \"storyevents: i32\",\ng.newailvl \"newailvl: i32\",\ng.next_turn,\ng.password,\ng.archived,\ng.masterpass,\ng.private,\ng.last_activity,\ng.require_password,\ng.select_start \"select_start: i32\",\ng.modified_mapcrc \"modified_mapcrc?: Option<i32>\",\ng.cataclysm \"cataclysm?: Option<i32>\",\ng.max_stales \"max_stales?: Option<i32>\",\ng.motd,\ng.conq_all,\ng.binary_id \"binary_id?: Option<i32>\",\ng.formal_diplo \"formal_diplo: i32\",\ng.research_9_slow,\ng.cheat_detection,\ng.mercslots \"mercslots: i32\",\ng.provs_per_player \"provs_per_player: i32\",\ng.randommap_wrapping \"randommap_wrapping: i32\",\ng.log_level \"log_level: i32\",\ng.borked,\n(SELECT json_group_array(mp.prov_count)\n FROM map_planes mp\n WHERE mp.map_id=g.maps_dom6_id\n ORDER BY mp.map_file_id) as \"planes: String\",\nls.failed_count as \"fail_count: i64\",\nls.current_job as \"current_job?: Option<i64>\",\nMAX(p.nationid) AS \"playing?: Option<i32>\",\nMIN(pt.status) as \"turn_status?: Option<i32>\"\nFROM games g\n  LEFT JOIN topturn tt ON tt.game_id=g.id\n  LEFT JOIN players p ON p.id IN (SELECT value FROM json_each($1)) AND p.game_id=g.id\n  LEFT JOIN player_turns pt ON pt.nation_id=p.nationid AND pt.game_id=g.id AND pt.turn_number=tt.max AND pt.archived IS NOT TRUE\nLEFT JOIN (\n  SELECT last.game_id, COUNT(*) failed_count, MAX(cj.job_id) \"current_job\"\n  FROM last_success last\n    LEFT JOIN jobs j ON j.job_id>last.job_id AND j.game_id=last.game_id AND j.reaped IS TRUE\n    LEFT JOIN jobs cj ON cj.game_id=j.game_id AND cj.finished_at IS NULL\n  GROUP BY last.game_id\n) AS ls ON ls.game_id=g.id\nWHERE g.private!=TRUE\nGROUP BY g.id , ls.game_id, ls.failed_count, ls.current_job\nORDER BY MIN(pt.status), MAX(p.nationid), g.id\n\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "era: i32",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "map_id: i32",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "maps_dom6_id: i32",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "port: i32",
+        "ordinal": 5,
+        "type_info": "Int64"
+      },
+      {
+        "name": "timer?: Option<i32>",
+        "ordinal": 6,
+        "type_info": "Int64"
+      },
+      {
+        "name": "thrones_t1: i32",
+        "ordinal": 7,
+        "type_info": "Int64"
+      },
+      {
+        "name": "thrones_t2: i32",
+        "ordinal": 8,
+        "type_info": "Int64"
+      },
+      {
+        "name": "thrones_t3: i32",
+        "ordinal": 9,
+        "type_info": "Int64"
+      },
+      {
+        "name": "throne_points_required: i32",
+        "ordinal": 10,
+        "type_info": "Int64"
+      },
+      {
+        "name": "research_diff: i32",
+        "ordinal": 11,
+        "type_info": "Int64"
+      },
+      {
+        "name": "research_rand",
+        "ordinal": 12,
+        "type_info": "Bool"
+      },
+      {
+        "name": "hof_size: i32",
+        "ordinal": 13,
+        "type_info": "Int64"
+      },
+      {
+        "name": "global_size: i32",
+        "ordinal": 14,
+        "type_info": "Int64"
+      },
+      {
+        "name": "indepstr: i32",
+        "ordinal": 15,
+        "type_info": "Int64"
+      },
+      {
+        "name": "magicsites: i32",
+        "ordinal": 16,
+        "type_info": "Int64"
+      },
+      {
+        "name": "eventrarity: i32",
+        "ordinal": 17,
+        "type_info": "Int64"
+      },
+      {
+        "name": "richness: i32",
+        "ordinal": 18,
+        "type_info": "Int64"
+      },
+      {
+        "name": "resources: i32",
+        "ordinal": 19,
+        "type_info": "Int64"
+      },
+      {
+        "name": "recruitment: i32",
+        "ordinal": 20,
+        "type_info": "Int64"
+      },
+      {
+        "name": "supplies: i32",
+        "ordinal": 21,
+        "type_info": "Int64"
+      },
+      {
+        "name": "startprov: i32",
+        "ordinal": 22,
+        "type_info": "Int64"
+      },
+      {
+        "name": "renaming",
+        "ordinal": 23,
+        "type_info": "Bool"
+      },
+      {
+        "name": "scoregraphs",
+        "ordinal": 24,
+        "type_info": "Bool"
+      },
+      {
+        "name": "nationinfo",
+        "ordinal": 25,
+        "type_info": "Bool"
+      },
+      {
+        "name": "artrest",
+        "ordinal": 26,
+        "type_info": "Bool"
+      },
+      {
+        "name": "teamgame",
+        "ordinal": 27,
+        "type_info": "Bool"
+      },
+      {
+        "name": "clustered",
+        "ordinal": 28,
+        "type_info": "Bool"
+      },
+      {
+        "name": "storyevents: i32",
+        "ordinal": 29,
+        "type_info": "Int64"
+      },
+      {
+        "name": "newailvl: i32",
+        "ordinal": 30,
+        "type_info": "Int64"
+      },
+      {
+        "name": "next_turn",
+        "ordinal": 31,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "password",
+        "ordinal": 32,
+        "type_info": "Text"
+      },
+      {
+        "name": "archived",
+        "ordinal": 33,
+        "type_info": "Bool"
+      },
+      {
+        "name": "masterpass",
+        "ordinal": 34,
+        "type_info": "Text"
+      },
+      {
+        "name": "private",
+        "ordinal": 35,
+        "type_info": "Bool"
+      },
+      {
+        "name": "last_activity",
+        "ordinal": 36,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "require_password",
+        "ordinal": 37,
+        "type_info": "Bool"
+      },
+      {
+        "name": "select_start: i32",
+        "ordinal": 38,
+        "type_info": "Int64"
+      },
+      {
+        "name": "modified_mapcrc?: Option<i32>",
+        "ordinal": 39,
+        "type_info": "Int64"
+      },
+      {
+        "name": "cataclysm?: Option<i32>",
+        "ordinal": 40,
+        "type_info": "Int64"
+      },
+      {
+        "name": "max_stales?: Option<i32>",
+        "ordinal": 41,
+        "type_info": "Int64"
+      },
+      {
+        "name": "motd",
+        "ordinal": 42,
+        "type_info": "Text"
+      },
+      {
+        "name": "conq_all",
+        "ordinal": 43,
+        "type_info": "Bool"
+      },
+      {
+        "name": "binary_id?: Option<i32>",
+        "ordinal": 44,
+        "type_info": "Int64"
+      },
+      {
+        "name": "formal_diplo: i32",
+        "ordinal": 45,
+        "type_info": "Int64"
+      },
+      {
+        "name": "research_9_slow",
+        "ordinal": 46,
+        "type_info": "Bool"
+      },
+      {
+        "name": "cheat_detection",
+        "ordinal": 47,
+        "type_info": "Bool"
+      },
+      {
+        "name": "mercslots: i32",
+        "ordinal": 48,
+        "type_info": "Int64"
+      },
+      {
+        "name": "provs_per_player: i32",
+        "ordinal": 49,
+        "type_info": "Int64"
+      },
+      {
+        "name": "randommap_wrapping: i32",
+        "ordinal": 50,
+        "type_info": "Int64"
+      },
+      {
+        "name": "log_level: i32",
+        "ordinal": 51,
+        "type_info": "Int64"
+      },
+      {
+        "name": "borked",
+        "ordinal": 52,
+        "type_info": "Bool"
+      },
+      {
+        "name": "planes: String",
+        "ordinal": 53,
+        "type_info": "Null"
+      },
+      {
+        "name": "fail_count: i64",
+        "ordinal": 54,
+        "type_info": "Null"
+      },
+      {
+        "name": "current_job?: Option<i64>",
+        "ordinal": 55,
+        "type_info": "Null"
+      },
+      {
+        "name": "playing?: Option<i32>",
+        "ordinal": 56,
+        "type_info": "Null"
+      },
+      {
+        "name": "turn_status?: Option<i32>",
+        "ordinal": 57,
+        "type_info": "Null"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "65c5e1830bb85ab95f14bd891fa2a5602e74c843a2b2dc035e779ad94bfabda2"
+}

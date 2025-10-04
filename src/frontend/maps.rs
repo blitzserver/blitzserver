@@ -44,9 +44,9 @@ pub async fn details(
         province_count "province_count: i32",
         uw_count "uw_count: i32",
         archived,
-        map_crc "map_crc: i32",
-        tga_crc "tga_crc: i32",
-        winter_crc "winter_crc: i32",
+        map_crc "map_crc",
+        tga_crc "tga_crc",
+        winter_crc "winter_crc",
         min_version "min_version: i32"
         FROM maps WHERE id=$1"#, *path_id)
         .fetch_one(&sqlx_pool)
@@ -61,9 +61,9 @@ pub async fn details(
         province_count: map_result.province_count,
         uw_count: map_result.uw_count,
         archived: map_result.archived,
-        map_crc: map_result.map_crc.map(|x| x as i64),
-        tga_crc: map_result.tga_crc.map(|x| x as i64),
-        winter_crc: map_result.winter_crc.map(|x| x as i64),
+        map_crc: map_result.map_crc,
+        tga_crc: map_result.tga_crc,
+        winter_crc: map_result.winter_crc,
         min_version: map_result.min_version,
     };
     Ok(HttpResponse::Ok()

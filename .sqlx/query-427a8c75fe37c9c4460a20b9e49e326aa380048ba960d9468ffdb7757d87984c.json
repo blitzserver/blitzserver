@@ -1,0 +1,56 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n            id \"id!: i32\",\n            map_id \"map_id!: i32\",\n            province_id \"province_id: i32\",\n            x \"x: i32\",\n            y \"y: i32\",\n            unit_x,\n            unit_y\n        FROM map_provinces WHERE map_id=$1",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!: i32",
+        "ordinal": 0,
+        "type_info": "Int64"
+      },
+      {
+        "name": "map_id!: i32",
+        "ordinal": 1,
+        "type_info": "Int64"
+      },
+      {
+        "name": "province_id: i32",
+        "ordinal": 2,
+        "type_info": "Int64"
+      },
+      {
+        "name": "x: i32",
+        "ordinal": 3,
+        "type_info": "Int64"
+      },
+      {
+        "name": "y: i32",
+        "ordinal": 4,
+        "type_info": "Int64"
+      },
+      {
+        "name": "unit_x",
+        "ordinal": 5,
+        "type_info": "Float"
+      },
+      {
+        "name": "unit_y",
+        "ordinal": 6,
+        "type_info": "Float"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "427a8c75fe37c9c4460a20b9e49e326aa380048ba960d9468ffdb7757d87984c"
+}

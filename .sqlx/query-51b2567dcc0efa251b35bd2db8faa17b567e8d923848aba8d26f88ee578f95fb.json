@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE player_turns SET status=1 WHERE game_id=$1 AND turn_number=$2 AND status=2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "51b2567dcc0efa251b35bd2db8faa17b567e8d923848aba8d26f88ee578f95fb"
+}
