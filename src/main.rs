@@ -146,6 +146,8 @@ async fn main() -> std::io::Result<()> {
             .service(frontend::mods::download)
             .service(frontend::mods::image)
             .service(frontend::help::help)
+            .service(frontend::settings::settings)
+            .service(frontend::settings::settings_post)
             .service(frontend::binaries::list)
             .service(frontend::binaries::upload)
             // .service(frontend::api::game_json)

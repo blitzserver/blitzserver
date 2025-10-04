@@ -1,6 +1,7 @@
 pub mod player;
 pub mod binary;
 pub mod maps;
+pub mod settings;
 
 use std::{ env};
 use chrono::{Utc, DateTime};

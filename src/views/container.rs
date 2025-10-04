@@ -23,6 +23,7 @@ pub fn wrap_container(title: Option<&str>, meta: Option<html_node::Node>, conten
                         <a href="/games">games</a>
                         <a href="/maps">maps</a>
                         <a href="/mods">mods</a>
+                        <a href="/settings">settings</a>
                         <a href="/help">about</a>
                         <span class="version"><a href={ text!("https://github.com/blitzserver/blitzserver/releases/tag/{}", env!("CARGO_PKG_VERSION")) }>
                             {text!("{}", env!("CARGO_PKG_VERSION"))}
