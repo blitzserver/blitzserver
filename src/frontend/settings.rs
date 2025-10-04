@@ -144,21 +144,45 @@ pub async fn admin_upload_binary(
 
                 std::thread::sleep(std::time::Duration::from_secs(1));
 
-                let command = std::process::Command::new(tmp_path.join(&fname))
+                let output = match std::process::Command::new(tmp_path.join(&fname))
                     .arg("--version")
-                    .output()
-                    .unwrap();
-                let stdout = std::str::from_utf8(&command.stdout).unwrap();
-                let version = regex::Regex::new("Dominions ., version (.+?) ")
-                    .unwrap()
-                    .captures(stdout)
-                    .unwrap()
-                    .get(1)
-                    .unwrap()
-                    .as_str();
-                Binary::new(&version, &filename, &contents, &fname, &db)
-                    .await
-                    .unwrap();
+                    .output() {
+                    Ok(output) => output,
+                    Err(e) => {
+                        return Ok(HttpResponse::BadRequest()
+                            .content_type("text/html")
+                            .body(format!("Failed to execute binary for version detection: {}\n\nThis is often caused by missing system libraries required by the Dominions binary.", e)));
+                    }
+                };
+
+                let stdout = std::str::from_utf8(&output.stdout).unwrap_or("<invalid UTF-8>");
+                let stderr = std::str::from_utf8(&output.stderr).unwrap_or("<invalid UTF-8>");
+
+                let version_regex = regex::Regex::new("Dominions ., version (.+?) ").unwrap();
+                let captures = match version_regex.captures(stdout) {
+                    Some(captures) => captures,
+                    None => {
+                        return Ok(HttpResponse::BadRequest()
+                            .content_type("text/html")
+                            .body(format!("Could not find version in command output.\n\nStdout:\n{}\n\nStderr:\n{}", stdout, stderr)));
+                    }
+                };
+
+                let version = match captures.get(1) {
+                    Some(version_match) => version_match.as_str(),
+                    None => {
+                        return Ok(HttpResponse::BadRequest()
+                            .content_type("text/html")
+                            .body(format!("Could not parse version from command output.\n\nStdout:\n{}\n\nStderr:\n{}", stdout, stderr)));
+                    }
+                };
+
+                if let Err(e) = Binary::new(&version, &filename, &contents, &fname, &db).await {
+                    return Ok(HttpResponse::BadRequest()
+                        .content_type("text/html")
+                        .body(format!("Database error while saving binary: {}", e)));
+                }
+
                 println!("Binary saved to database");
             }
             _ => {
@@ -187,7 +211,7 @@ fn admin_view(settings_list: Vec<Setting>, binaries: Vec<Binary>) -> ActixHtmlNo
                                     let is_empty = setting.value.as_deref().unwrap_or("").is_empty();
                                     html! {
                                         <div class="input-group">
-                                            <label for={text!("{}", &setting.key)} style="min-width: 200px; font-weight: bold;">
+                                            <label for={text!("{}", &setting.key)} style={text!("min-width: 200px;{}", if is_empty { " font-weight: bold;" } else { "" })}>
                                                 {text!("{}", &setting.key)}
                                             </label>
                                             <input
