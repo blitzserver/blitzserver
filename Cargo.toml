@@ -33,7 +33,7 @@ thiserror = "*"
 chrono = { version = "*", features = ["serde"] }
 crc = "*"
 fletcher = "*"
-reqwest = { version = "*", features = ["blocking", "json"] }
+reqwest = { version = "*", features = ["blocking", "json", "native-tls-vendored"] }
 base64 = "*"
 tungstenite = "*"
 url = "*"

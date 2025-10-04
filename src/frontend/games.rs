@@ -1,6 +1,6 @@
+use super::AppData;
 use super::fragments;
 use super::utils::*;
-use super::AppData;
 use chrono::Utc;
 use itertools::Itertools;
 use std::convert::TryFrom;
@@ -10,15 +10,15 @@ use std::io::Write;
 use std::iter::MapWhile;
 
 use crate::dom5_turn::Dom5Turn;
-use crate::models::maps::MapSummary;
 use crate::models::MapWrapping;
+use crate::models::maps::MapSummary;
 use crate::models::{
-    AdminLog, Disciple, Game, Map, MapProvince, Mod, Nation,
-    NewAdminLog, NewGame, Player, PlayerTurn, Turn,
+    AdminLog, Disciple, Game, Map, MapProvince, Mod, Nation, NewAdminLog, NewGame, Player,
+    PlayerTurn, Turn,
 };
 use crate::packets::map_req;
 use actix_web::http::header;
-use actix_web::{get, post, web, HttpResponse, Result};
+use actix_web::{HttpResponse, Result, get, post, web};
 use askama::Template;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -816,9 +816,51 @@ async fn details(
         .get("watches")
         .unwrap()
         .unwrap_or(std::collections::HashSet::new());
-    let watch_ids_json = serde_json::to_string(&watch_player_ids.into_iter().collect::<Vec<i32>>()).unwrap();
-    // TODO: Fix complex GameDetailsPlayer query - temporarily using empty vec
-    let players: Vec<GameDetailsPlayer> = vec![];
+    let watch_ids_json =
+        serde_json::to_string(&watch_player_ids.into_iter().collect::<Vec<i32>>()).unwrap();
+    /*
+    let players = sqlx::query_as!(
+        GameDetailsPlayer,
+        r#"
+        WITH topturn as (select MAX(id) as id,nation_id,game_id FROM player_turns WHERE archived IS NOT TRUE GROUP BY nation_id, game_id)
+        SELECT 
+            (SELECT array_agg(name) FROM players pd WHERE pd.cdkey=p.cdkey AND pd.game_id=p.game_ID AND pd.id!=p.id) duplicate_cdkey_nationnames,
+            p.*,
+            p.id=ANY($2) as "playing", 
+            pt.status as "turn_status?"
+        FROM players p
+        LEFT JOIN topturn tt ON tt.game_id=$1 AND tt.nation_id=p.nationid
+        LEFT JOIN player_turns pt ON pt.id=tt.id
+        WHERE p.game_id=$1"#,
+        game.id,
+        &watch_player_ids.into_iter().collect::<Vec<i32>>()[..]
+    )
+    .fetch_all(&sqlx_db)
+    .await.unwrap();
+    */
+    let players = sqlx::query_as!(
+        GameDetailsPlayer,
+        r#"
+        WITH topturn as (select MAX(id) as id,nation_id,game_id FROM player_turns WHERE archived IS NOT TRUE GROUP BY nation_id, game_id)
+        SELECT 
+            p.id "id: i32",
+            p.nationid "nationid: i32",
+            p.game_id "game_id: i32",
+            p.file_id "file_id: i32",
+            p.name,
+            p.password,
+            p.startprov "startprov: i32",
+            p.cdkey,
+            false as "playing: bool", 
+            pt.status as "turn_status: i32"
+        FROM players p
+        LEFT JOIN topturn tt ON tt.game_id=$1 AND tt.nation_id=p.nationid
+        LEFT JOIN player_turns pt ON pt.id=tt.id
+        WHERE p.game_id=$1"#,
+        game.id,
+    )
+    .fetch_all(&sqlx_db)
+    .await.unwrap();
     let nations = Nation::get_all(game.id, &sqlx_db).await.unwrap();
     // TODO: Fix complex Disciple query - temporarily using empty vec
     let disciples: Vec<Disciple> = vec![];
@@ -835,7 +877,7 @@ async fn details(
         (
             {
                 let mapfilter_pattern = format!("%{}%", game_settings.mapfilter);
-            sqlx::query!(r#"SELECT  m.map_id "map_id: i32", m.is_randommap, name,
+                sqlx::query!(r#"SELECT  m.map_id "map_id: i32", m.is_randommap, name,
                     (SELECT json_group_array(mp.prov_count)
                      FROM map_planes mp
                      WHERE mp.map_id=m.map_id
@@ -881,15 +923,18 @@ async fn details(
                 .await
                 .unwrap();
 
-                mod_results.into_iter().map(|result| Mod {
-                    id: result.id.unwrap_or(0),
-                    name: result.name,
-                    dm_filename: result.dm_filename,
-                    file_id: result.file_id,
-                    icon_file_id: result.icon_file_id,
-                    crc: result.crc,
-                }).collect()
-            }
+                mod_results
+                    .into_iter()
+                    .map(|result| Mod {
+                        id: result.id.unwrap_or(0),
+                        name: result.name,
+                        dm_filename: result.dm_filename,
+                        file_id: result.file_id,
+                        icon_file_id: result.icon_file_id,
+                        crc: result.crc,
+                    })
+                    .collect()
+            },
         )
     } else {
         (
@@ -913,7 +958,7 @@ async fn details(
                 map_id: r.map_id.unwrap_or(0),
                 is_randommap: r.is_randommap,
                 name: r.name,
-                planes: r.planes.and_then(|p| serde_json::from_str(&p).ok())
+                planes: r.planes.and_then(|p| serde_json::from_str(&p).ok()),
             })
             .collect(),
             sqlx::query_as!(
@@ -1097,7 +1142,7 @@ async fn create_post(
     let start_port = range[0].parse::<i32>().unwrap();
     let end_port = range[1].parse::<i32>().unwrap();
     let new_port: i32 = sqlx::query!(
-                    "WITH RECURSIVE series(num) AS (
+        "WITH RECURSIVE series(num) AS (
                         SELECT $1 as num
                         UNION ALL
                         SELECT num + 1 FROM series WHERE num < $2
@@ -1107,20 +1152,24 @@ async fn create_post(
                     WHERE g.id IS NULL
                     ORDER BY num ASC
                     LIMIT 1",
-                    start_port, end_port
-                )
-                .fetch_one(&sqlx_db)
-                .await
-                .unwrap().num.unwrap();
+        start_port,
+        end_port
+    )
+    .fetch_one(&sqlx_db)
+    .await
+    .unwrap()
+    .num
+    .unwrap();
     new_game.port = new_port;
     new_game.name = params.name;
     new_game.password = params.password.clone();
     new_game.masterpass = Some(params.password);
-    new_game.map_id = sqlx::query!(r#"SELECT map_id "map_id: i32" FROM maps_dom6 ORDER BY map_id DESC LIMIT 1"#)
-        .fetch_one(&sqlx_db)
-        .await
-        .unwrap()
-        .map_id;
+    new_game.map_id =
+        sqlx::query!(r#"SELECT map_id "map_id: i32" FROM maps_dom6 ORDER BY map_id DESC LIMIT 1"#)
+            .fetch_one(&sqlx_db)
+            .await
+            .unwrap()
+            .map_id;
 
     let game: Game = new_game.insert(&sqlx_db).await.unwrap();
 
@@ -1190,7 +1239,8 @@ async fn list(
         .unwrap()
         .unwrap_or(std::collections::HashSet::new());
 
-    let watch_ids_json = serde_json::to_string(&watch_player_ids.into_iter().collect::<Vec<i32>>()).unwrap();
+    let watch_ids_json =
+        serde_json::to_string(&watch_player_ids.into_iter().collect::<Vec<i32>>()).unwrap();
     let mut results = sqlx::query!(r#"
 WITH last_success as (SELECT game_id,MAX(job_id) as job_id FROM jobs WHERE finished_at IS NOT NULL AND reaped IS NOT TRUE GROUP BY game_id),
 topturn AS (SELECT MAX(turn_number) as max, game_id FROM turns WHERE archived IS NOT TRUE GROUP BY game_id)
@@ -1273,28 +1323,27 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
 
         "#, watch_ids_json).fetch_all(&sqlx_db).await.unwrap();
     let game_ids = &results.iter().map(|g| g.id).collect::<Vec<i32>>();
-    let player_counts = crate::models::Game::get_player_count(
-        &game_ids,
-        &sqlx_db,
-    )
-    .await
-    .unwrap();
-    let turn_summaries = crate::models::Turn::turn_summary(
-        game_ids,
-        &sqlx_db,
-    );
+    let player_counts = crate::models::Game::get_player_count(&game_ids, &sqlx_db)
+        .await
+        .unwrap();
+    let turn_summaries = crate::models::Turn::turn_summary(game_ids, &sqlx_db);
     let archived_games: Vec<ArchivedGame> = results
         .extract_if(.., |g| g.archived)
         .map(|g| ArchivedGame { id: g.id })
         .collect();
     let abandoned_games: Vec<AbandonedGame> = results
         .extract_if(.., |g| {
-            chrono::Utc::now().signed_duration_since(g.last_activity.and_utc()) > chrono::Duration::days(7)
+            chrono::Utc::now().signed_duration_since(g.last_activity.and_utc())
+                > chrono::Duration::days(7)
         })
         .map(|g| AbandonedGame {
             id: g.id,
             map_id: g.maps_dom6_id.unwrap_or(0),
-            planes: g.planes.as_ref().and_then(|p| serde_json::from_str(p).ok()).unwrap_or_else(|| vec![]),
+            planes: g
+                .planes
+                .as_ref()
+                .and_then(|p| serde_json::from_str(p).ok())
+                .unwrap_or_else(|| vec![]),
             name: g.name.clone(),
             address: format!(
                 "{}:{}",
@@ -1318,12 +1367,18 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
         })
         .collect();
     let active_games: Vec<ActiveGame> = results
-        .extract_if(.., |g| turn_summaries.iter().find(|t| t.game_id == g.id).is_some())
+        .extract_if(.., |g| {
+            turn_summaries.iter().find(|t| t.game_id == g.id).is_some()
+        })
         .map(|g| ActiveGame {
             id: g.id,
             fail_count: g.fail_count.unwrap_or(0) as i32,
             map_id: g.maps_dom6_id.unwrap_or(0),
-            planes: g.planes.as_ref().and_then(|p| serde_json::from_str(p).ok()).unwrap_or_else(|| vec![]),
+            planes: g
+                .planes
+                .as_ref()
+                .and_then(|p| serde_json::from_str(p).ok())
+                .unwrap_or_else(|| vec![]),
             turn_status: g.turn_status.flatten(),
             hosting: g.current_job.is_some(),
             turn_summary: turn_summaries
@@ -1345,7 +1400,11 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
             id: g.id,
             fail_count: g.fail_count.unwrap_or(0) as i32,
             map_id: g.maps_dom6_id.unwrap_or(0),
-            planes: g.planes.as_ref().and_then(|p| serde_json::from_str(p).ok()).unwrap_or_else(|| vec![]),
+            planes: g
+                .planes
+                .as_ref()
+                .and_then(|p| serde_json::from_str(p).ok())
+                .unwrap_or_else(|| vec![]),
             joined: g.playing.is_some(),
             players: player_counts.get(&g.id).copied().unwrap_or(0),
             address: format!(
@@ -1462,12 +1521,17 @@ async fn settings_post(
             .expect("Failed to refresh nations after mod change");
     }
     if game.map_id != old_game.map_id || (game.select_start == 0 && old_game.select_start != 0) {
-        sqlx::query!("UPDATE players SET startprov=NULL WHERE game_id=$1", game.id)
-            .execute(&sqlx_db).await.unwrap();
-        sqlx::query!("UPDATE games SET modified_mapcrc=NULL WHERE id=$1", game.id)
-        .execute(&app_data.sqlx_pool)
+        sqlx::query!(
+            "UPDATE players SET startprov=NULL WHERE game_id=$1",
+            game.id
+        )
+        .execute(&sqlx_db)
         .await
         .unwrap();
+        sqlx::query!("UPDATE games SET modified_mapcrc=NULL WHERE id=$1", game.id)
+            .execute(&app_data.sqlx_pool)
+            .await
+            .unwrap();
     }
     Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#settings", game.id))
@@ -1495,7 +1559,9 @@ pub async fn archive_post(
     }
     match form.archived {
         true => Game::archive(*path_id, &app_data.sqlx_pool).await.unwrap(),
-        false => Game::unarchive(*path_id, &app_data.sqlx_pool).await.unwrap(),
+        false => Game::unarchive(*path_id, &app_data.sqlx_pool)
+            .await
+            .unwrap(),
     }
 
     return Ok(HttpResponse::Found()
@@ -1586,7 +1652,9 @@ pub async fn unstart_post(
             .finish());
     }
     Game::unstart(*path_id, &app_data.sqlx_pool).await.unwrap();
-    Game::remove_timer(*path_id, &app_data.sqlx_pool).await.unwrap();
+    Game::remove_timer(*path_id, &app_data.sqlx_pool)
+        .await
+        .unwrap();
     return Ok(HttpResponse::Found()
         .header(header::LOCATION, format!("/game/{}#schedule", *path_id))
         .finish());
@@ -1700,9 +1768,15 @@ pub async fn assign_start(
     let form = cfg.deserialize_bytes::<StartLocForm>(&bytes).unwrap();
     match form.password.get(&nation_id) {
         Some(password) => {
-            sqlx::query!("UPDATE games SET modified_mapcrc=NULL WHERE id=$1 AND select_start=1", path_id)
-                .execute(&app_data.sqlx_pool).await.unwrap();
-            sqlx::query!("UPDATE players SET startprov=$1
+            sqlx::query!(
+                "UPDATE games SET modified_mapcrc=NULL WHERE id=$1 AND select_start=1",
+                path_id
+            )
+            .execute(&app_data.sqlx_pool)
+            .await
+            .unwrap();
+            sqlx::query!(
+                "UPDATE players SET startprov=$1
                 WHERE game_id=$2 AND nationid=$3 AND password=$4
                 AND EXISTS (SELECT 1 FROM games WHERE id=$2 AND select_start=1)",
                 form.province_start,
@@ -1720,9 +1794,15 @@ pub async fn assign_start(
             .unwrap_or(AuthStatus::Unauthed)
             == AuthStatus::AuthSuccess =>
         {
-            sqlx::query!("UPDATE games SET modified_mapcrc=NULL WHERE id=$1 AND select_start=2", path_id)
-                .execute(&app_data.sqlx_pool).await.unwrap();
-            sqlx::query!("UPDATE players SET startprov=$1
+            sqlx::query!(
+                "UPDATE games SET modified_mapcrc=NULL WHERE id=$1 AND select_start=2",
+                path_id
+            )
+            .execute(&app_data.sqlx_pool)
+            .await
+            .unwrap();
+            sqlx::query!(
+                "UPDATE players SET startprov=$1
                 WHERE game_id=$2 AND nationid=$3
                 AND EXISTS (SELECT 1 FROM games WHERE id=$2 AND select_start=2)",
                 form.province_start,
