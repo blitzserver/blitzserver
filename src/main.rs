@@ -17,6 +17,7 @@ use actix_web::http::header;
 use actix_web::{App, HttpResponse, HttpServer, Result, get, middleware};
 use dotenv::dotenv;
 use sqlx::migrate::MigrateDatabase;
+use sqlx::sqlite::SqliteConnectOptions;
 use std::env;
 use std::fs::exists;
 use std::str::FromStr;
@@ -66,12 +67,9 @@ async fn main() -> std::io::Result<()> {
 
     // Db
     let db_loc = std::env::var("DATABASE_URL").unwrap();
-    if !sqlx::Sqlite::database_exists(&db_loc).await.unwrap() {
-        sqlx::Sqlite::create_database(&db_loc).await.unwrap();
-    }
     let sqlx_pool = sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(20)
-        .connect(&db_loc)
+        .connect_with(SqliteConnectOptions::from_str(&db_loc).unwrap().create_if_missing(true))
         .await
         .unwrap();
     sqlx::migrate!("./migrations")
@@ -79,7 +77,6 @@ async fn main() -> std::io::Result<()> {
         .await
         .unwrap();
 
-    
     let gateway = dom5_gateway::Gateway {
         pool: sqlx_pool.clone(),
     };
