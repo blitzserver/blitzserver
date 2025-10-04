@@ -219,12 +219,9 @@ struct PlayerSummary {
 struct GameDetailsPlayer {
     pub id: i32,
     pub nationid: i32,
-    pub game_id: i32,
-    pub file_id: i32,
     pub name: String,
     pub password: Option<String>,
     pub startprov: Option<i32>,
-    pub cdkey: Option<i64>,
     pub playing: Option<bool>,
     pub turn_status: Option<i32>,
 }
@@ -845,12 +842,9 @@ async fn details(
         SELECT 
             p.id "id: i32",
             p.nationid "nationid: i32",
-            p.game_id "game_id: i32",
-            p.file_id "file_id: i32",
             p.name,
             p.password,
             p.startprov "startprov: i32",
-            p.cdkey,
             false as "playing: bool", 
             pt.status as "turn_status: i32"
         FROM players p

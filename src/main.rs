@@ -11,12 +11,15 @@ extern crate num_derive;
 extern crate num_traits;
 extern crate sqlx;
 
-use actix_session::storage::CookieSessionStore;
 use actix_session::SessionMiddleware;
+use actix_session::storage::CookieSessionStore;
 use actix_web::http::header;
-use actix_web::{get, middleware, App, HttpResponse, HttpServer, Result};
+use actix_web::{App, HttpResponse, HttpServer, Result, get, middleware};
 use dotenv::dotenv;
+use sqlx::migrate::MigrateDatabase;
 use std::env;
+use std::fs::exists;
+use std::str::FromStr;
 
 pub mod dom5_conn;
 pub mod dom5_gateway;
@@ -58,14 +61,25 @@ async fn styles() -> Result<HttpResponse> {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
-    // Db
+    // config
     dotenv().ok();
 
+    // Db
+    let db_loc = std::env::var("DATABASE_URL").unwrap();
+    if !sqlx::Sqlite::database_exists(&db_loc).await.unwrap() {
+        sqlx::Sqlite::create_database(&db_loc).await.unwrap();
+    }
     let sqlx_pool = sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(20)
-        .connect(&env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://blitzserver.db".to_string()))
+        .connect(&db_loc)
         .await
         .unwrap();
+    sqlx::migrate!("./migrations")
+        .run(&sqlx_pool)
+        .await
+        .unwrap();
+
+    
     let gateway = dom5_gateway::Gateway {
         pool: sqlx_pool.clone(),
     };
