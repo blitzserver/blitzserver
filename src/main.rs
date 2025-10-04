@@ -15,7 +15,6 @@ use actix_session::SessionMiddleware;
 use actix_session::storage::CookieSessionStore;
 use actix_web::http::header;
 use actix_web::{App, HttpResponse, HttpServer, Result, get, middleware};
-use dotenv::dotenv;
 use sqlx::migrate::MigrateDatabase;
 use sqlx::sqlite::SqliteConnectOptions;
 use std::env;
@@ -35,6 +34,7 @@ pub mod util;
 pub mod views;
 
 use frontend::AppData;
+use models::settings::Setting;
 
 #[get("/")]
 async fn index() -> Result<HttpResponse> {
@@ -62,11 +62,9 @@ async fn styles() -> Result<HttpResponse> {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
-    // config
-    dotenv().ok();
 
     // Db
-    let db_loc = std::env::var("DATABASE_URL").unwrap();
+    let db_loc = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://./db".to_string());
     let sqlx_pool = sqlx::sqlite::SqlitePoolOptions::new()
         .max_connections(20)
         .connect_with(SqliteConnectOptions::from_str(&db_loc).unwrap().create_if_missing(true))
@@ -90,6 +88,32 @@ async fn main() -> std::io::Result<()> {
         sqlx_pool: sqlx_pool.clone(),
     };
 
+    // Get settings that are needed for server configuration
+    let cookie_key = match Setting::get_or_env(&sqlx_pool, "COOKIE_KEY").await {
+        Some(key) => key,
+        None => {
+            // Generate a random 64-character hex string for the cookie key
+            use rand::Rng;
+            let mut rng = rand::thread_rng();
+            let random_bytes: [u8; 32] = std::array::from_fn(|_| rng.r#gen::<u8>());
+
+            // Convert bytes to hex string manually
+            let generated_key = random_bytes
+                .iter()
+                .map(|b| format!("{:02x}", b))
+                .collect::<String>();
+
+            // Save the generated key to the database
+            Setting::update(&sqlx_pool, "COOKIE_KEY", Some(&generated_key)).await
+                .expect("Failed to save generated COOKIE_KEY to database");
+
+            println!("Generated new COOKIE_KEY and saved to database");
+            generated_key
+        }
+    };
+    let web_port = Setting::get_or_env(&sqlx_pool, "WEB_PORT").await
+        .unwrap_or_else(|| "8080".to_string());
+
     HttpServer::new(move || {
         // TODO: Hack here, we create the map thumbnail dir VERY ahead of time since the file
         // watcher needs it to be there otherwise it wont discover new files
@@ -97,11 +121,7 @@ async fn main() -> std::io::Result<()> {
         if !maps_dir.exists() {
             std::fs::create_dir_all(&maps_dir).unwrap();
         }
-        let secret_key = actix_web::cookie::Key::from(
-            env::var("COOKIE_KEY")
-                .expect("Missing COOKIE_KEY phrase, needed for signed cookies!")
-                .as_bytes(),
-        );
+        let secret_key = actix_web::cookie::Key::from(cookie_key.as_bytes());
 
         App::new()
             .wrap(middleware::Logger::default())
@@ -153,10 +173,7 @@ async fn main() -> std::io::Result<()> {
             // .service(frontend::api::game_json)
             .service(actix_files::Files::new("/", "./content"))
     })
-    .bind(format!(
-        "0.0.0.0:{}",
-        env::var("WEB_PORT").unwrap_or("8080".to_string())
-    ))?
+    .bind(format!("0.0.0.0:{}", web_port))?
     .run()
     .await
 }

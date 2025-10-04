@@ -43,14 +43,14 @@ fn settings_view(settings_list: Vec<Setting>) -> ActixHtmlNode {
         Some("Settings"),
         None,
         Some(html! {
-            <div class="settings">
-                <h1>Settings</h1>
+            <div class="pane" style="margin: 15px;">
                 <form method="post" action="/settings">
-                    <div class="settings-list">
+                    <h3>Server Settings</h3>
+                    <div class="settings-group">
                         {settings_list.iter().map(|setting| {
                             html! {
-                                <div class="setting-item">
-                                    <label for={text!("{}", &setting.key)}>
+                                <div class="input-group">
+                                    <label for={text!("{}", &setting.key)} style="min-width: 200px;">
                                         {text!("{}", &setting.key)}
                                     </label>
                                     <input
@@ -59,14 +59,13 @@ fn settings_view(settings_list: Vec<Setting>) -> ActixHtmlNode {
                                         name={text!("{}", &setting.key)}
                                         value={text!("{}", setting.value.as_deref().unwrap_or(""))}
                                         placeholder="Not configured"
+                                        style="flex: 1; max-width: 400px;"
                                     />
                                 </div>
                             }
                         })}
                     </div>
-                    <div class="setting-actions">
-                        <button type="submit">Save Settings</button>
-                    </div>
+                    <input class="btn btn-block btn-primary" type="submit" value="Save Settings" style="max-width: 200px;"/>
                 </form>
             </div>
         }),

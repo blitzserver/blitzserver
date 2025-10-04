@@ -633,7 +633,8 @@ impl Game {
     }
     pub async fn unarchive<'a>(game_id: i32, db: &sqlx::Pool<Sqlite>) -> Result<(), sqlx::error::Error>
     {
-        let port_var = env::var("PORT_RANGE").expect("PORT_RANGE must be set (ie. '10000,10999')");
+        let port_var = crate::models::settings::Setting::get_or_env(db, "PORT_RANGE").await
+            .expect("PORT_RANGE must be set (ie. '10000,10999')");
         let range: Vec<&str> = port_var.split(",").collect();
         let start_port = range[0].parse::<i32>().unwrap();
         let end_port = range[1].parse::<i32>().unwrap();

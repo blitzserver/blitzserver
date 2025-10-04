@@ -1,6 +1,7 @@
 use super::AppData;
 use crate::models::maps::{MapSummary, PlaneImage};
 use crate::models::Map;
+use crate::models::settings::Setting;
 use crate::util::calculate_crc;
 use ::image::ImageFormat;
 use actix_multipart::Multipart;
@@ -143,17 +144,19 @@ pub async fn image(
 struct ListMapsTemplate<'a> {
     maps: &'a [MapSummary],
     errors: &'a [String],
+    upload_location: String,
 }
 
 impl<'a> ListMapsTemplate<'a> {
-    pub fn get_upload_location() -> String {
-        return format!(
-            "{}/maps/upload",
-            std::env::var("UPLOAD_ADDRESS").unwrap_or(
-                std::env::var("ADDRESS")
-                    .expect("GAMES_ADDRESS env varnot specified, needed for map upload form")
-            )
-        );
+    pub async fn get_upload_location(pool: &sqlx::SqlitePool) -> String {
+        let upload_address = Setting::get_or_env(pool, "UPLOAD_ADDRESS").await;
+        let address = if upload_address.is_some() {
+            upload_address.unwrap()
+        } else {
+            Setting::get_or_env(pool, "ADDRESS").await
+                .expect("ADDRESS env var not specified, needed for map upload form")
+        };
+        return format!("{}/maps/upload", address);
     }
 }
 
@@ -179,10 +182,12 @@ async fn download((app_data, mapid): (web::Data<AppData>, web::Path<i64>)) -> Re
 async fn list(app_data: web::Data<AppData>) -> Result<HttpResponse> {
     let sqlx_db = app_data.sqlx_pool.clone();
     let result_maps = MapSummary::get_map_list(&sqlx_db).await.unwrap();
+    let upload_location = ListMapsTemplate::get_upload_location(&sqlx_db).await;
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (ListMapsTemplate {
             errors: &vec![],
             maps: &result_maps,
+            upload_location,
         })
         .render()
         .unwrap(),
@@ -325,16 +330,18 @@ async fn upload_post(
     }
     if errors.len() > 0 {
         let result_maps = MapSummary::get_map_list(&sqlx_db).await.unwrap();
+        let upload_location = ListMapsTemplate::get_upload_location(&sqlx_db).await;
         return Ok(HttpResponse::Ok().content_type("text/html").body(
             (ListMapsTemplate {
                 errors: &errors,
                 maps: &result_maps,
+                upload_location,
             })
             .render()
             .unwrap(),
         ));
     } else {
-        let address = std::env::var("ADDRESS").expect("ADDRESS env var not specified");
+        let address = Setting::get_or_env(&app_data.sqlx_pool, "ADDRESS").await.expect("ADDRESS env var not specified");
         return Ok(HttpResponse::Found()
             .append_header((header::LOCATION, format!("{}/maps", address)))
             .finish());

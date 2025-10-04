@@ -16,6 +16,7 @@ use crate::models::{
     AdminLog, Disciple, Game, Map, MapProvince, Mod, Nation, NewAdminLog, NewGame, Player,
     PlayerTurn, Turn,
 };
+use crate::models::settings::Setting;
 use crate::packets::map_req;
 use actix_web::http::header;
 use actix_web::{HttpResponse, Result, get, post, web};
@@ -1060,9 +1061,8 @@ async fn details(
             disciples: &disciples,
             nations: &nations,
             turns: player_turn_map,
-            games_address: std::env::var("GAMES_ADDRESS").unwrap_or(
-                std::env::var("ADDRESS").expect("ADDRESS required for showing game location"),
-            ),
+            games_address: Setting::get_or_env(&app_data.sqlx_pool, "GAMES_ADDRESS").await
+                .unwrap_or_else(|| "localhost".to_string()),
             admin_logs: &admin_logs,
             unhealthy: sqlx::query!(r#"WITH top as (select MAX(job_id) as last FROM jobs where finished_at is not null and game_id=$1)
             SELECT reaped as "reaped" FROM jobs INNER JOIN top ON top.last=jobs.job_id"#,game.id).fetch_all(&sqlx_db).await.unwrap().into_iter().next().map_or(false, |t| t.reaped),
@@ -1116,9 +1116,10 @@ async fn create_post(
     }
     let config = serde_qs::Config::new(10, false);
     let params: CreateGame = config.deserialize_bytes(&*bytes).unwrap();
-    if AppData::get_antibot_question().is_some() {
+    if app_data.get_antibot_question().await.is_some() {
         if params.antibot.is_none()
-            || AppData::get_antibot_answer()
+            || app_data.get_antibot_answer()
+                .await
                 .as_ref()
                 .unwrap()
                 .to_ascii_lowercase()
@@ -1131,7 +1132,8 @@ async fn create_post(
     }
 
     let mut new_game = NewGame::default();
-    let port_var = env::var("PORT_RANGE").expect("PORT_RANGE must be set (ie. '10000,10999')");
+    let port_var = Setting::get_or_env(&app_data.sqlx_pool, "PORT_RANGE").await
+        .expect("PORT_RANGE must be set (ie. '10000,10999')");
     let range: Vec<&str> = port_var.split(",").collect();
     let start_port = range[0].parse::<i32>().unwrap();
     let end_port = range[1].parse::<i32>().unwrap();
@@ -1186,6 +1188,8 @@ async fn list(
     query: serde_qs::actix::QsQuery<GamesListPayload>,
 ) -> Result<HttpResponse> {
     let sqlx_db = app_data.sqlx_pool.clone();
+    let games_address = Setting::get_or_env(&app_data.sqlx_pool, "GAMES_ADDRESS").await
+        .unwrap_or_else(|| "localhost".to_string());
 
     // BACKLOAD MISSSING PROVINCES
     let missing_map_provs = sqlx::query!(
@@ -1341,7 +1345,7 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
             name: g.name.clone(),
             address: format!(
                 "{}:{}",
-                std::env::var("GAMES_ADDRESS").unwrap(),
+                games_address,
                 g.port.unwrap_or(0)
             ),
             auto_archive_in: {
@@ -1383,7 +1387,7 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
             name: g.name.clone(),
             address: format!(
                 "{}:{}",
-                std::env::var("GAMES_ADDRESS").unwrap(),
+                games_address,
                 g.port.unwrap_or(0)
             ),
         })
@@ -1403,7 +1407,7 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
             players: player_counts.get(&g.id).copied().unwrap_or(0),
             address: format!(
                 "{}:{}",
-                std::env::var("GAMES_ADDRESS").unwrap(),
+                games_address,
                 g.port.unwrap_or(0)
             ),
             name: g.name.clone(),
@@ -1417,7 +1421,7 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
             abandoned_games: &abandoned_games,
             archived_games: &archived_games,
             antibot_failed: query.antibot_failed,
-            antibot_question: AppData::get_antibot_question(),
+            antibot_question: app_data.get_antibot_question().await,
         })
         .render()
         .unwrap(),

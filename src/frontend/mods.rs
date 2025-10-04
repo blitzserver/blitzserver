@@ -1,5 +1,6 @@
 use super::AppData;
 use crate::models::{File, Mod, ModDefinition, NewFile};
+use crate::models::settings::Setting;
 use actix_multipart::Multipart;
 use actix_web::{get, http::header, post, web, HttpResponse, Result};
 use askama::Template;
@@ -11,17 +12,19 @@ use std::io::Read;
 pub struct ListModsTemplate<'a> {
     errors: &'a [String],
     mods: Vec<Mod>,
+    upload_location: String,
 }
 
 impl<'a> ListModsTemplate<'a> {
-    pub fn get_upload_location() -> String {
-        return format!(
-            "{}/mods/upload",
-            std::env::var("UPLOAD_ADDRESS").unwrap_or(
-                std::env::var("ADDRESS")
-                    .expect("GAMES_ADDRESS env varnot specified, needed for map upload form")
-            )
-        );
+    pub async fn get_upload_location(pool: &sqlx::SqlitePool) -> String {
+        let upload_address = Setting::get_or_env(pool, "UPLOAD_ADDRESS").await;
+        let address = if upload_address.is_some() {
+            upload_address.unwrap()
+        } else {
+            Setting::get_or_env(pool, "ADDRESS").await
+                .expect("ADDRESS env var not specified, needed for mod upload form")
+        };
+        return format!("{}/mods/upload", address);
     }
 }
 
@@ -34,6 +37,7 @@ pub struct ModDetailsTemplate<'a> {
 #[get("/mods")]
 pub async fn list(app_data: web::Data<AppData>) -> Result<HttpResponse> {
     let db = app_data.sqlx_pool.clone();
+    let upload_location = ListModsTemplate::get_upload_location(&db).await;
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (ListModsTemplate {
             errors: &vec![],
@@ -49,6 +53,7 @@ pub async fn list(app_data: web::Data<AppData>) -> Result<HttpResponse> {
                 .fetch_all(&db)
                 .await
                 .unwrap(),
+            upload_location,
         })
         .render()
         .unwrap(),
@@ -203,13 +208,14 @@ pub async fn upload_post(
                                         crc"#,
                                     name_ref, dm_filename_ref, file_id, icon_file_id)
                                     .fetch_one(&sqlx_db).await.unwrap();
-                                let address = std::env::var("ADDRESS")
+                                let address = Setting::get_or_env(&sqlx_db, "ADDRESS").await
                                     .expect("ADDRESS env var not specified");
                                 return Ok(HttpResponse::Found()
                                     .append_header((header::LOCATION, format!("{}/mods", address)))
                                     .finish());
                             }
                             _ => {
+                                let upload_location = ListModsTemplate::get_upload_location(&sqlx_db).await;
                                 return Ok(HttpResponse::Ok().content_type("text/html").body(
                                     (ListModsTemplate {
                                         errors: &vec!["Unable to find mod in zip (make sure there's a file that ends in .dm)".to_string()],
@@ -225,6 +231,7 @@ pub async fn upload_post(
                                             .fetch_all(&sqlx_db)
                                             .await
                                             .unwrap(),
+                                        upload_location,
                                     })
                                     .render()
                                     .unwrap(),
@@ -233,6 +240,7 @@ pub async fn upload_post(
                         }
                     }
                     _ => {
+                        let upload_location = ListModsTemplate::get_upload_location(&sqlx_db).await;
                         return Ok(HttpResponse::Ok().content_type("text/html").body(
                             (ListModsTemplate {
                                 mods: sqlx::query_as!(Mod,
@@ -248,6 +256,7 @@ pub async fn upload_post(
                                     .await
                                     .unwrap(),
                                 errors: &vec!["File is not a zip".to_string()],
+                                upload_location,
                             })
                             .render()
                             .unwrap(),
@@ -258,6 +267,7 @@ pub async fn upload_post(
             _ => {}
         }
     }
+    let upload_location = ListModsTemplate::get_upload_location(&sqlx_db).await;
     Ok(HttpResponse::Ok().content_type("text/html").body(
         (ListModsTemplate {
             mods: sqlx::query_as!(Mod,
@@ -273,6 +283,7 @@ pub async fn upload_post(
                 .await
                 .unwrap(),
             errors: &vec!["Form post is complete garbage".to_string()],
+            upload_location,
         })
         .render()
         .unwrap(),

@@ -4,21 +4,20 @@ use async_std::{fs::create_dir, io::stdout};
 use html_node::{html, text};
 use smol::stream::StreamExt;
 
-use crate::{models::binary::Binary, views::container::wrap_container};
+use crate::{models::binary::Binary, models::settings::Setting, views::container::wrap_container};
 
 use super::{AppData, utils::ActixHtmlNode};
 
 struct ListTemplate<'a> {
     binaries: &'a [Binary],
+    upload_location: String,
 }
 
 impl<'a> ListTemplate<'a> {
-    pub fn get_upload_location() -> String {
-        return format!(
-            "{}/binaries",
-            std::env::var("UPLOAD_ADDRESS")
-                .expect("GAMES_ADDRESS env varnot specified, needed for binary upload form")
-        );
+    pub async fn get_upload_location(pool: &sqlx::SqlitePool) -> String {
+        let upload_address = Setting::get_or_env(pool, "UPLOAD_ADDRESS").await
+            .expect("UPLOAD_ADDRESS env var not specified, needed for binary upload form");
+        return format!("{}/binaries", upload_address);
     }
 }
 
@@ -26,8 +25,10 @@ impl<'a> ListTemplate<'a> {
 pub async fn list(app_data: Data<AppData>) -> Result<ActixHtmlNode> {
     let db = app_data.sqlx_pool.clone();
     let binaries = Binary::get_all(&db).await.unwrap();
+    let upload_location = ListTemplate::get_upload_location(&db).await;
     Ok(list_view(ListTemplate {
         binaries: &binaries,
+        upload_location,
     }))
 }
 
@@ -98,7 +99,7 @@ fn list_view(data: ListTemplate) -> ActixHtmlNode {
         Some(html! {
             <div class="games-list">
                 <div class="pane">
-                    <form enctype="multipart/form-data" action={ListTemplate::get_upload_location()} method="post">
+                    <form enctype="multipart/form-data" action={text!("{}", data.upload_location)} method="post">
                         <h3>Upload Binary</h3>
                         <div class="input-group">
                             <label>Archive</label>

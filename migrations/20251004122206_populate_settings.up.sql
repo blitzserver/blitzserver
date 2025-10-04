@@ -1,12 +1,12 @@
 -- Populate settings table with environment variables used in the application
+-- COOKIE_KEY is left NULL and should be generated on first run
 INSERT OR IGNORE INTO settings (key, value) VALUES
-    ('UPLOAD_ADDRESS', NULL),
-    ('ADDRESS', NULL),
-    ('GAMES_ADDRESS', NULL),
-    ('PORT_RANGE', NULL),
+    ('UPLOAD_ADDRESS', 'http://localhost:8080'),
+    ('ADDRESS', 'http://localhost:8080'),
+    ('GAMES_ADDRESS', 'localhost'),
+    ('PORT_RANGE', '10000,10999'),
     ('ANTIBOT_QUESTION', NULL),
     ('ANTIBOT_ANSWER', NULL),
-    ('MIN_VERSION', NULL),
-    ('DATABASE_URL', NULL),
+    ('MIN_VERSION', '554'),
     ('COOKIE_KEY', NULL),
-    ('WEB_PORT', NULL);
+    ('WEB_PORT', '8080');

@@ -1,4 +1,4 @@
-use crate::{models::{Player, Mod, self}, packets::astralpacket_resp::AstralPacketResp};
+use crate::{models::{Player, Mod, self, settings::Setting}, packets::astralpacket_resp::AstralPacketResp};
 use std::{io::Read};
 use chrono::Utc;
 use crate::packets::{ MapImageFileResp, ModFileResp, TwoHResp, DmFileResp, MapWinterFileResp,  Submit2hResp, MapFileResp, TrnResp, MapResp, TwoHCrcResp, BodyContents, PasswordsResp, PAResp, DisconnectResp, GameInfoResp, LoadingMessageResp, Packet };
@@ -70,7 +70,7 @@ impl Dom5Conn {
         smol::block_on(async {
             let twoh: SaveFile = bincode::deserialize(&req.pretender_contents[..]).unwrap();
             // Make sure pretender is new enough
-            let required_version = std::env::var("MIN_VERSION").ok()
+            let required_version = Setting::get_or_env(&self.db_pool, "MIN_VERSION").await
                 .or_else(|| {
                     log::warn!("No MIN_VERSION specified! Unable to validate pretenders min versions.");
                     None

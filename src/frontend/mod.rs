@@ -10,17 +10,19 @@ pub mod binaries;
 pub mod fragments;
 pub mod api;
 
+use crate::models::settings::Setting;
+
 #[derive(Clone)]
 pub struct AppData {
     pub sqlx_pool: sqlx::sqlite::SqlitePool,
 }
 
 impl AppData {
-    pub fn get_antibot_question() -> Option<String> {
-        return env::var("ANTIBOT_QUESTION").ok()
+    pub async fn get_antibot_question(&self) -> Option<String> {
+        Setting::get_or_env(&self.sqlx_pool, "ANTIBOT_QUESTION").await
     }
-    pub fn get_antibot_answer() -> Option<String> {
-        return env::var("ANTIBOT_ANSWER").ok()
+    pub async fn get_antibot_answer(&self) -> Option<String> {
+        Setting::get_or_env(&self.sqlx_pool, "ANTIBOT_ANSWER").await
     }
 }
 
