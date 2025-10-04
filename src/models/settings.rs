@@ -29,12 +29,12 @@ impl Setting {
     }
 
     pub async fn get_or_env(pool: &SqlitePool, key: &str) -> Option<String> {
-        // First try database
-        if let Ok(Some(value)) = Self::get(pool, key).await {
+        // First try environment variable
+        if let Ok(value) = std::env::var(key) {
             return Some(value);
         }
-        // Fall back to environment variable
-        std::env::var(key).ok()
+        // Fall back to database
+        Self::get(pool, key).await.ok().flatten()
     }
 
     pub async fn update(pool: &SqlitePool, key: &str, value: Option<&str>) -> Result<(), sqlx::Error> {

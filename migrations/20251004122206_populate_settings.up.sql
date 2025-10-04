@@ -9,4 +9,5 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
     ('ANTIBOT_ANSWER', NULL),
     ('MIN_VERSION', '554'),
     ('COOKIE_KEY', NULL),
-    ('WEB_PORT', '8080');
+    ('WEB_PORT', '8080'),
+    ('ADMIN_PASSWORD', NULL);
