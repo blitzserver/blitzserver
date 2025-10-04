@@ -6,14 +6,14 @@ use crate::models::{Map, MapWrapping};
 use crate::util::calculate_crc;
 use encoding::{DecoderTrap, Encoding, all::ISO_8859_1};
 use itertools::Itertools;
-use nonblock::NonBlockingReader;
 use serde::Deserialize;
 use serde_dom5::ftherlnd_contents::FtherlndContents;
 use serde_dom5::game_settings::GameSettings;
 use serde_dom5::kingdom::KingdomType;
 use serde_dom5::{Body, SaveFile};
 use std::convert::TryFrom;
-use std::io::{Read, Seek, Write};
+use std::io::{Read, Seek, Write, ErrorKind};
+use std::process::{ChildStdout, ChildStderr};
 use thiserror::Error;
 
 pub struct AutokilledProc(std::process::Child);
@@ -44,6 +44,85 @@ impl std::ops::Deref for AutokilledProc {
 impl std::ops::DerefMut for AutokilledProc {
     fn deref_mut(&mut self) -> &mut std::process::Child {
         &mut self.0
+    }
+}
+
+// Cross-platform non-blocking reader for process output
+struct NonBlockingReader<T: Read> {
+    stream: T,
+    eof: bool,
+}
+
+impl NonBlockingReader<ChildStdout> {
+    fn from_stdout(stream: ChildStdout) -> Self {
+        // Set non-blocking mode
+        #[cfg(unix)]
+        {
+            use std::os::unix::io::AsRawFd;
+            unsafe {
+                let fd = stream.as_raw_fd();
+                let flags = libc::fcntl(fd, libc::F_GETFL, 0);
+                libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK);
+            }
+        }
+
+        #[cfg(windows)]
+        {
+            // Windows pipes from child processes are already non-blocking for reads
+            // when using try_read-like operations
+        }
+
+        NonBlockingReader { stream, eof: false }
+    }
+}
+
+impl NonBlockingReader<ChildStderr> {
+    fn from_stderr(stream: ChildStderr) -> Self {
+        // Set non-blocking mode
+        #[cfg(unix)]
+        {
+            use std::os::unix::io::AsRawFd;
+            unsafe {
+                let fd = stream.as_raw_fd();
+                let flags = libc::fcntl(fd, libc::F_GETFL, 0);
+                libc::fcntl(fd, libc::F_SETFL, flags | libc::O_NONBLOCK);
+            }
+        }
+
+        #[cfg(windows)]
+        {
+            // Windows pipes from child processes are already non-blocking for reads
+            // when using try_read-like operations
+        }
+
+        NonBlockingReader { stream, eof: false }
+    }
+}
+
+impl<T: Read> NonBlockingReader<T> {
+    fn read_available(&mut self, out: &mut Vec<u8>) -> Result<(), std::io::Error> {
+        let mut buf = [0u8; 8192];
+        loop {
+            match self.stream.read(&mut buf) {
+                Ok(0) => {
+                    self.eof = true;
+                    break;
+                }
+                Ok(n) => {
+                    out.extend_from_slice(&buf[..n]);
+                }
+                Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::Interrupted => {
+                    // No more data available right now
+                    break;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
+    }
+
+    fn is_eof(&self) -> bool {
+        self.eof
     }
 }
 
@@ -364,9 +443,9 @@ impl Dom5Turn {
             let mut wait_counter: i32 = 10;
 
             let stdout = proc.stdout.take().unwrap();
-            let mut noblock_stdout = NonBlockingReader::from_fd(stdout).unwrap();
+            let mut noblock_stdout = NonBlockingReader::from_stdout(stdout);
             let stderr = proc.stderr.take().unwrap();
-            let mut noblock_stderr = NonBlockingReader::from_fd(stderr).unwrap();
+            let mut noblock_stderr = NonBlockingReader::from_stderr(stderr);
 
             loop {
                 if let Some(subjob_id) = subjob_id {
@@ -842,9 +921,9 @@ impl Dom5Turn {
             );
 
             let stdout = child.stdout.take().unwrap();
-            let mut noblock_stdout = NonBlockingReader::from_fd(stdout).unwrap();
+            let mut noblock_stdout = NonBlockingReader::from_stdout(stdout);
             let stderr = child.stderr.take().unwrap();
-            let mut noblock_stderr = NonBlockingReader::from_fd(stderr).unwrap();
+            let mut noblock_stderr = NonBlockingReader::from_stderr(stderr);
             let mut waits: i32 = 0;
             while !noblock_stdout.is_eof() {
                 std::thread::sleep(std::time::Duration::from_secs(1));

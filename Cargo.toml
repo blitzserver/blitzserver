@@ -45,7 +45,6 @@ sqlx = { version = "0.7", features = [
   "chrono",
   "sqlite",
 ] }
-nonblock = "*"
 async-std = "*"
 derive_more = "*"
 encoding = "*"
@@ -58,3 +57,6 @@ walkdir = "2.4.0"
 mime = "0.3.17"
 safe-transmute = "0.11.2"
 enum_derive = "0.1.7"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
