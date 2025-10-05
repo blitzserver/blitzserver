@@ -144,8 +144,12 @@ pub async fn admin_upload_binary(
                 let linux_path = linux_executable.unwrap().to_string();
                 let windows_path = windows_executable.unwrap().to_string();
 
-                // Use the first available executable for version detection
-                let test_executable = linux_executable.or(windows_executable).unwrap();
+                // Use the platform-appropriate executable for version detection
+                let test_executable = if cfg!(windows) {
+                    windows_executable.unwrap()
+                } else {
+                    linux_executable.unwrap()
+                };
 
                 // Set executable permission on the test executable
                 let test_executable_path = tmp_path.join(test_executable);
