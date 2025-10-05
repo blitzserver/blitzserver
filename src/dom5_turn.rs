@@ -68,8 +68,8 @@ impl NonBlockingReader<ChildStdout> {
 
         #[cfg(windows)]
         {
-            // Windows pipes from child processes are already non-blocking for reads
-            // when using try_read-like operations
+            // On Windows, we need to use a different approach for non-blocking reads
+            // We'll handle this in the read_available method by using timeouts
         }
 
         NonBlockingReader { stream, eof: false }
@@ -91,8 +91,8 @@ impl NonBlockingReader<ChildStderr> {
 
         #[cfg(windows)]
         {
-            // Windows pipes from child processes are already non-blocking for reads
-            // when using try_read-like operations
+            // On Windows, we need to use a different approach for non-blocking reads
+            // We'll handle this in the read_available method by using timeouts
         }
 
         NonBlockingReader { stream, eof: false }
@@ -176,8 +176,7 @@ impl Dom5Turn {
         }
         None
     }
-    fn populate_mods(&mut self) -> Result<(), Dom5TurnErr> {
-        smol::block_on(async {
+    async fn populate_mods(&mut self) -> Result<(), Dom5TurnErr> {
             let mod_dir = std::env::current_dir()
                 .map_err(Dom5TurnErr::UncleanModDir)?
                 .join("tmp")
@@ -217,10 +216,8 @@ impl Dom5Turn {
                 }
             }
             Ok(())
-        })
     }
-    fn populate_maps(&mut self) -> Result<(), Dom5TurnErr> {
-        smol::block_on(async {
+    async fn populate_maps(&mut self) -> Result<(), Dom5TurnErr> {
             let mapstuff = sqlx::query!(
                 r#"
                 SELECT g.name as "game_name!", m.is_randommap "is_randommap!", m.name as "name!", mf.filename as "filename!", mf.filebinary as "filebinary!"
@@ -271,10 +268,8 @@ impl Dom5Turn {
                     .map_err(Dom5TurnErr::UncleanMapDir)?;
             }
             Ok(())
-        })
     }
-    fn populate_pretenders(&mut self) -> Result<(), Dom5TurnErr> {
-        smol::block_on(async {
+    async fn populate_pretenders(&mut self) -> Result<(), Dom5TurnErr> {
             let save_files = sqlx::query!(
                 r#"SELECT g.name, filename,filebinary
                 FROM games g
@@ -307,10 +302,8 @@ impl Dom5Turn {
             }
 
             Ok(())
-        })
     }
-    fn populate_saves(&mut self, turn_number: i32) -> Result<(), Dom5TurnErr> {
-        smol::block_on(async {
+    async fn populate_saves(&mut self, turn_number: i32) -> Result<(), Dom5TurnErr> {
             let ftherlnd = sqlx::query!(
                 r#"
                 SELECT g.name, f.filename, f.filebinary 
@@ -361,10 +354,8 @@ impl Dom5Turn {
                 }
             }
             Ok(())
-        })
     }
-    fn _update_nations(&mut self, subjob_id: Option<i32>) -> Result<(), Dom5TurnErr> {
-        smol::block_on(async {
+    async fn _update_nations(&mut self, subjob_id: Option<i32>) -> Result<(), Dom5TurnErr> {
             let game = sqlx::query!(
                 "SELECT g.era, g.name FROM games g WHERE g.id=$1",
                 self.game_id
@@ -429,6 +420,7 @@ impl Dom5Turn {
                 .await
                 .unwrap();
             }
+            println!("Starting dom6 to scrape nations");
             let mut proc = AutokilledProc(
                 std::process::Command::new(path)
                     .stdout(std::process::Stdio::piped())
@@ -442,33 +434,10 @@ impl Dom5Turn {
             let statusdump;
             let mut wait_counter: i32 = 10;
 
-            let stdout = proc.stdout.take().unwrap();
-            let mut noblock_stdout = NonBlockingReader::from_stdout(stdout);
-            let stderr = proc.stderr.take().unwrap();
-            let mut noblock_stderr = NonBlockingReader::from_stderr(stderr);
+            let mut stdout = proc.stdout.take().unwrap();
+            let mut stderr = proc.stderr.take().unwrap();
 
             loop {
-                if let Some(subjob_id) = subjob_id {
-                    let mut outbuf: Vec<u8> = vec![];
-                    let mut errbuf: Vec<u8> = vec![];
-                    noblock_stdout.read_available(&mut outbuf).unwrap();
-                    noblock_stderr.read_available(&mut errbuf).unwrap();
-                    let outbuf = match ISO_8859_1.decode(&outbuf, DecoderTrap::Ignore) {
-                        Ok(s) => s,
-                        Err(e) => format!("\nERROR: Failed to read stdout from Dom5: {:?}", e),
-                    };
-                    let errbuf = match ISO_8859_1.decode(&errbuf, DecoderTrap::Ignore) {
-                        Ok(s) => s,
-                        Err(e) => format!("\nERROR: Failed to read stderr from Dom5: {:?}", e),
-                    };
-                    sqlx::query!("UPDATE subjobs SET logs=concat(logs, $2::text, $3::text) WHERE subjob_id=$1",
-                        subjob_id,
-                        outbuf,
-                        errbuf
-                    )
-                    .execute(&self.db_pool)
-                    .await?;
-                }
                 match std::fs::File::open(save_dir.join("statusdump.txt")) {
                     Ok(f) => {
                         statusdump = Some(f);
@@ -494,13 +463,15 @@ impl Dom5Turn {
                 statusdump.read_to_end(&mut contents).unwrap();
                 let statusdump_str = String::from_utf8_lossy(&contents);
                 if let Some(subjob_id) = subjob_id {
+                    let mut tx = self.db_pool.begin().await?;
                     sqlx::query!(
                         "UPDATE subjobs SET logs=concat(logs, $2::text) WHERE subjob_id=$1",
                         subjob_id,
                         statusdump_str
                     )
-                    .execute(&self.db_pool)
+                    .execute(&mut *tx)
                     .await?;
+                    tx.commit().await?;
                 }
                 for l in statusdump_str
                     .lines()
@@ -549,19 +520,49 @@ impl Dom5Turn {
                 "#,
                 self.game_id, nation_ids[i], names[i], epithets[i], filenames[i]).execute(&self.db_pool).await?;
             }
+            println!("Killing process");
             proc.kill().map_err(Dom5TurnErr::ProcessError)?;
+            println!("Reaping process");
             proc.wait().map_err(Dom5TurnErr::ProcessError)?;
+            println!("Reaped process");
+
+            // Now collect any remaining logs from the process (after it's been killed)
+            if let Some(subjob_id) = subjob_id {
+                let mut outbuf = Vec::new();
+                let mut errbuf = Vec::new();
+                println!("Reading from stdout and stderr after process killed");
+                // Read whatever is available in the pipes after process termination
+                let _ = stdout.read_to_end(&mut outbuf);
+                let _ = stderr.read_to_end(&mut errbuf);
+                println!("Read from stdout and stderr after process killed");
+                let outbuf = match ISO_8859_1.decode(&outbuf, DecoderTrap::Ignore) {
+                    Ok(s) => s,
+                    Err(e) => format!("\nERROR: Failed to read stdout from Dom5: {:?}", e),
+                };
+                let errbuf = match ISO_8859_1.decode(&errbuf, DecoderTrap::Ignore) {
+                    Ok(s) => s,
+                    Err(e) => format!("\nERROR: Failed to read stderr from Dom5: {:?}", e),
+                };
+                let mut tx = self.db_pool.begin().await?;
+                sqlx::query!("UPDATE subjobs SET logs=concat(logs, $2::text, $3::text) WHERE subjob_id=$1",
+                    subjob_id,
+                    outbuf,
+                    errbuf
+                )
+                .execute(&mut *tx)
+                .await?;
+                tx.commit().await?;
+            }
+
             Ok(())
-        })
     }
 
-    pub fn update_nations(mut self) -> Result<(), Dom5TurnErr> {
-        self.populate_mods()?;
-        self._update_nations(None)?;
+    pub async fn update_nations(mut self) -> Result<(), Dom5TurnErr> {
+        self.populate_mods().await?;
+        self._update_nations(None).await?;
         Ok(())
     }
-    pub fn run(mut self, job_id: i32) -> Result<(), Dom5TurnErr> {
-        smol::block_on(async {
+    pub async fn run(mut self, job_id: i32) -> Result<(), Dom5TurnErr> {
             let job = sqlx::query!(
                 r#"SELECT turn_number "turn_number: i32" FROM jobs WHERE job_id=$1"#,
                 job_id
@@ -576,16 +577,18 @@ impl Dom5Turn {
             .fetch_one(&self.db_pool)
             .await?;
             match job.turn_number {
-                0 => self.populate_pretenders()?,
-                tt => self.populate_saves(tt)?,
+                0 => self.populate_pretenders().await?,
+                tt => self.populate_saves(tt).await?,
             }
-            // Update previous subjob and job
+            // Update previous subjob and job with explicit transaction
+            let mut tx = self.db_pool.begin().await?;
             sqlx::query!(
                 "UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1",
                 subjob.subjob_id
             )
-            .execute(&self.db_pool)
+            .execute(&mut *tx)
             .await?;
+            tx.commit().await?;
             sqlx::query!(
                 "UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1",
                 job_id
@@ -600,14 +603,16 @@ impl Dom5Turn {
             )
             .fetch_one(&self.db_pool)
             .await?;
-            self.populate_maps()?;
-            // Update previous subjob and job
+            self.populate_maps().await?;
+            // Update previous subjob and job with explicit transaction
+            let mut tx = self.db_pool.begin().await?;
             sqlx::query!(
                 "UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1",
                 subjob.subjob_id
             )
-            .execute(&self.db_pool)
+            .execute(&mut *tx)
             .await?;
+            tx.commit().await?;
             sqlx::query!(
                 "UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1",
                 job_id
@@ -622,14 +627,16 @@ impl Dom5Turn {
             )
             .fetch_one(&self.db_pool)
             .await?;
-            self.populate_mods()?;
-            // Update previous subjob and job
+            self.populate_mods().await?;
+            // Update previous subjob and job with explicit transaction
+            let mut tx = self.db_pool.begin().await?;
             sqlx::query!(
                 "UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1",
                 subjob.subjob_id
             )
-            .execute(&self.db_pool)
+            .execute(&mut *tx)
             .await?;
+            tx.commit().await?;
             sqlx::query!(
                 "UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1",
                 job_id
@@ -644,14 +651,22 @@ impl Dom5Turn {
             )
             .fetch_one(&self.db_pool)
             .await?;
-            self._update_nations(Some(subjob.subjob_id))?;
-            // Update previous subjob and job
+            self._update_nations(Some(subjob.subjob_id)).await?;
+            // Update previous subjob and job with explicit transaction
+            let mut tx = self.db_pool.begin().await?;
             sqlx::query!(
                 "UPDATE subjobs SET finished_at=datetime('now') WHERE subjob_id=$1",
                 subjob.subjob_id
             )
-            .execute(&self.db_pool)
+            .execute(&mut *tx)
             .await?;
+            tx.commit().await?;
+            log::debug!("Nation update subjob committed for game {}", self.game_id);
+            // Force WAL checkpoint to ensure changes are visible on Windows
+            sqlx::raw_sql("PRAGMA wal_checkpoint(TRUNCATE)")
+                .execute(&self.db_pool)
+                .await?;
+            log::debug!("WAL checkpoint completed for game {}", self.game_id);
             sqlx::query!(
                 "UPDATE jobs SET updated_at=datetime('now') WHERE job_id=$1",
                 job_id
@@ -1247,6 +1262,5 @@ impl Dom5Turn {
             sqlx::query!("UPDATE jobs SET finished_at=datetime('now'), updated_at=datetime('now') WHERE job_id=$1", job_id).execute(&self.db_pool).await?;
 
             Ok(())
-        })
     }
 }

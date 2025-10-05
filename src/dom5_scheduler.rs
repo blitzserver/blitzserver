@@ -67,7 +67,7 @@ impl Scheduler {
                                                 db_pool,
                                                 game_id: game.game_id
                                             };
-                                            dom5_turn.run(game.job_id).unwrap();
+                                            smol::block_on(dom5_turn.run(game.job_id)).unwrap();
                                             log::debug!("Completed host for game {}", game_id);
                                         });
                                     }

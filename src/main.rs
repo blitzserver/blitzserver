@@ -66,11 +66,12 @@ async fn main() -> std::io::Result<()> {
     // Db
     let db_loc = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://./db".to_string());
     let sqlx_pool = sqlx::sqlite::SqlitePoolOptions::new()
-        .max_connections(20)
+        .max_connections(5)
         .connect_with(
             SqliteConnectOptions::from_str(&db_loc)
                 .unwrap()
                 .journal_mode(SqliteJournalMode::Wal)
+                .synchronous(sqlx::sqlite::SqliteSynchronous::Full)
                 .create_if_missing(true),
         )
         .await

@@ -1199,7 +1199,7 @@ async fn create_post(
             db_pool,
             game_id,
         };
-        if let Err(e) = dom5_proc.update_nations() {
+        if let Err(e) = smol::block_on(dom5_proc.update_nations()) {
             log::error!("Failed to update nations for game {}: {:?}", game_id, e);
         }
     });
@@ -1550,7 +1550,7 @@ async fn settings_post(
             game_id: game.id,
         };
         dom5_proc
-            .update_nations()
+            .update_nations().await
             .expect("Failed to refresh nations after mod change");
     }
     if game.map_id != old_game.map_id || (game.select_start == 0 && old_game.select_start != 0) {
