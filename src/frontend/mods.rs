@@ -151,7 +151,7 @@ pub async fn upload_post(
                                                     c.as_str().to_owned()
                                                 }))
                                                 .to_string_lossy()
-                                                .to_string()
+                                                .replace('\\', "/")
                                         },
                                     ),
                                     dm_filename: archive_file.name().to_owned(),
@@ -169,7 +169,7 @@ pub async fn upload_post(
                                 } else {
                                     let path = std::path::PathBuf::from(&icon_filename);
                                     let cleaned =
-                                        path.to_string_lossy().to_string().replace("./", "");
+                                        path.to_string_lossy().replace('\\', "/").replace("./", "");
                                     println!("Icon location {:?}", cleaned);
                                     let contents: Vec<u8> = archive
                                         .by_name(&cleaned)
