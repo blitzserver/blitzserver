@@ -274,7 +274,7 @@ async fn upload_post(
                         for name in image_names {
                             let hash = {
                                 let hash_file = match &central_dir {
-                                    Some(cd) => cd.join(&name).to_string_lossy().to_string(),
+                                    Some(cd) => cd.join(&name).to_string_lossy().replace('\\', "/"),
                                     None => name.clone(),
                                 };
                                 let img = match archive.by_name(&hash_file) {
@@ -294,7 +294,7 @@ async fn upload_post(
                             };
                             {
                                 let hash_file = match &central_dir {
-                                    Some(cd) => cd.join(&name).to_string_lossy().to_string(),
+                                    Some(cd) => cd.join(&name).to_string_lossy().replace('\\', "/"),
                                     None => name,
                                 };
                                 let mut img = match archive.by_name(&hash_file) {
