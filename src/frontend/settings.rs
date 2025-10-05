@@ -99,7 +99,8 @@ pub async fn admin_upload_binary(
 
     let db = app_data.sqlx_pool.clone();
     println!("Recv binary upload request");
-    let binary_match = regex::Regex::new("dom._amd64").unwrap();
+    let linux_binary_match = regex::Regex::new("dom._amd64").unwrap();
+    let windows_binary_match = regex::Regex::new("Dominions6\\.exe").unwrap();
 
     while let Ok(Some(mut field)) = payload.try_next().await {
         let content_type = field.content_disposition().clone();
@@ -125,26 +126,42 @@ pub async fn admin_upload_binary(
                     .join("landing")
                     .join(std::path::PathBuf::from(rand::random::<u32>().to_string()));
                 archive.extract(&tmp_path).unwrap();
-                let fname = archive
+                // Find both Windows and Linux executables
+                let linux_executable = archive
                     .file_names()
-                    .find(|fname| binary_match.is_match(fname))
-                    .unwrap();
+                    .find(|fname| linux_binary_match.is_match(fname));
+                let windows_executable = archive
+                    .file_names()
+                    .find(|fname| windows_binary_match.is_match(fname));
 
-                // Set executable permission on dom6_amd64 for Windows-uploaded binaries
-                let executable_path = tmp_path.join(fname);
-                if executable_path.exists() {
+                // We need both executables
+                if linux_executable.is_none() || windows_executable.is_none() {
+                    return Ok(HttpResponse::BadRequest()
+                        .content_type("text/html")
+                        .body("Archive must contain both Linux ('dom6_amd64') and Windows ('Dominions6.exe') executables."));
+                }
+
+                let linux_path = linux_executable.unwrap().to_string();
+                let windows_path = windows_executable.unwrap().to_string();
+
+                // Use the first available executable for version detection
+                let test_executable = linux_executable.or(windows_executable).unwrap();
+
+                // Set executable permission on the test executable
+                let test_executable_path = tmp_path.join(test_executable);
+                if test_executable_path.exists() {
                     #[cfg(unix)]
                     {
                         use std::os::unix::fs::PermissionsExt;
-                        let mut perms = std::fs::metadata(&executable_path).unwrap().permissions();
+                        let mut perms = std::fs::metadata(&test_executable_path).unwrap().permissions();
                         perms.set_mode(perms.mode() | 0o111); // Add execute permission for owner, group, and others
-                        std::fs::set_permissions(&executable_path, perms).unwrap();
+                        std::fs::set_permissions(&test_executable_path, perms).unwrap();
                     }
                 }
 
                 std::thread::sleep(std::time::Duration::from_secs(1));
 
-                let output = match std::process::Command::new(tmp_path.join(&fname))
+                let output = match std::process::Command::new(&test_executable_path)
                     .arg("--version")
                     .output() {
                     Ok(output) => output,
@@ -177,7 +194,7 @@ pub async fn admin_upload_binary(
                     }
                 };
 
-                if let Err(e) = Binary::new(&version, &filename, &contents, &fname, &db).await {
+                if let Err(e) = Binary::new(&version, &filename, &contents, &linux_path, &windows_path, &db).await {
                     return Ok(HttpResponse::BadRequest()
                         .content_type("text/html")
                         .body(format!("Database error while saving binary: {}", e)));

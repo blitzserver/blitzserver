@@ -1,6 +1,7 @@
 
 SELECT
-  b.executable_path,
+  b.executable_path_linux,
+  b.executable_path_windows,
   b.version,
   f.filename
 FROM

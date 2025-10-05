@@ -7,7 +7,8 @@ CREATE TABLE admin_logs (
 
 CREATE TABLE binaries (
     binary_id INTEGER PRIMARY KEY,
-    executable_path TEXT NOT NULL,
+    executable_path_linux TEXT NOT NULL,
+    executable_path_windows TEXT NOT NULL,
     version TEXT NOT NULL,
     version_number INTEGER NOT NULL,
     foldered_maps BOOLEAN NOT NULL

@@ -5,10 +5,25 @@ use zip::ZipArchive;
 
 pub struct Binary {
     pub binary_id: i32,
-    pub executable_path: String,
+    pub executable_path_linux: String,
+    pub executable_path_windows: String,
     pub version: String,
     pub version_number: i32,
     pub foldered_maps: bool,
+}
+
+impl Binary {
+    /// Get the executable path for the current platform
+    pub fn get_executable_path(&self) -> &str {
+        #[cfg(windows)]
+        {
+            &self.executable_path_windows
+        }
+        #[cfg(not(windows))]
+        {
+            &self.executable_path_linux
+        }
+    }
 }
 
 impl Binary {
@@ -16,7 +31,8 @@ impl Binary {
         version: &str,
         filename: &str,
         contents: &[u8],
-        executable_path: &str,
+        executable_path_linux: &str,
+        executable_path_windows: &str,
         db: &sqlx::sqlite::SqlitePool,
     ) -> Result<Self, sqlx::error::Error> {
         let mut tx = db.begin().await?;
@@ -47,17 +63,19 @@ impl Binary {
         // Insert binary
         let binary = sqlx::query_as!(
             Binary,
-            r#"INSERT INTO binaries (binary_id, executable_path, version, version_number, foldered_maps)
-            VALUES($1, $2, $3, $4, $5)
+            r#"INSERT INTO binaries (binary_id, executable_path_linux, executable_path_windows, version, version_number, foldered_maps)
+            VALUES($1, $2, $3, $4, $5, $6)
             ON CONFLICT(binary_id) DO UPDATE SET version=EXCLUDED.version
             RETURNING
                 binary_id "binary_id: i32",
-                executable_path,
+                executable_path_linux,
+                executable_path_windows,
                 version,
                 version_number "version_number: i32",
                 foldered_maps"#,
             file.id,
-            executable_path,
+            executable_path_linux,
+            executable_path_windows,
             version,
             version_number,
             foldered_maps
@@ -98,8 +116,13 @@ impl Binary {
             let mut zip = ZipArchive::new(std::io::Cursor::new(&binary.filebinary)).unwrap();
             zip.extract(Path::new(&binary_path)).unwrap();
 
-            // Set executable permission on dom6_amd64 for Windows-uploaded binaries
-            let executable_path = binary_path.join(&binary.executable_path);
+            // Set executable permission on the binary for the current platform
+            let executable_filename = if cfg!(windows) {
+                &binary.executable_path_windows
+            } else {
+                &binary.executable_path_linux
+            };
+            let executable_path = binary_path.join(executable_filename);
             if executable_path.exists() {
                 #[cfg(unix)]
                 {
@@ -111,6 +134,11 @@ impl Binary {
             }
         }
 
-        return Ok(PathBuf::from(&binary_path).join(std::path::Path::new(&binary.executable_path)));
+        let executable_filename = if cfg!(windows) {
+            &binary.executable_path_windows
+        } else {
+            &binary.executable_path_linux
+        };
+        return Ok(PathBuf::from(&binary_path).join(std::path::Path::new(executable_filename)));
     }
 }

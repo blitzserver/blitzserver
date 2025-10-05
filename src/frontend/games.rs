@@ -1181,15 +1181,28 @@ async fn create_post(
             .unwrap()
             .map_id;
 
-    let game: Game = new_game.insert(&sqlx_db).await.unwrap();
+    // Use a transaction to ensure the game is fully committed
+    let mut tx = sqlx_db.begin().await.unwrap();
+    let game: Game = new_game.insert(&mut *tx).await.unwrap();
+    let game_id = game.id;
+    let game_password = new_game.password.clone();
 
-    let addr = format!("/game/{}?password={}#settings", game.id, new_game.password);
+    // Commit the transaction explicitly
+    tx.commit().await.unwrap();
 
-    let dom5_proc = Dom5Turn {
-        db_pool: app_data.sqlx_pool.clone(),
-        game_id: game.id,
-    };
-    dom5_proc.update_nations();
+    let addr = format!("/game/{}?password={}#settings", game_id, game_password);
+
+    // Spawn nation update in background to avoid blocking
+    let db_pool = app_data.sqlx_pool.clone();
+    std::thread::spawn(move || {
+        let dom5_proc = Dom5Turn {
+            db_pool,
+            game_id,
+        };
+        if let Err(e) = dom5_proc.update_nations() {
+            log::error!("Failed to update nations for game {}: {:?}", game_id, e);
+        }
+    });
 
     Ok(HttpResponse::Found()
         .header(header::LOCATION, addr)
