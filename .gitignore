@@ -7,3 +7,4 @@ src/schema.rs
 db
 db-*
 database*
+releases/
