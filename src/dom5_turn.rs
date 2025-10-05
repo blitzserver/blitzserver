@@ -183,6 +183,7 @@ impl Dom5Turn {
                 .join("games")
                 .join(self.game_id.to_string())
                 .join("mods");
+            std::fs::create_dir_all(&mod_dir).map_err(Dom5TurnErr::UncleanSaveDir)?;
             for mod_record in sqlx::query!(
                 "SELECT f.filebinary
             FROM games g
@@ -1041,6 +1042,7 @@ impl Dom5Turn {
                 .join(self.game_id.to_string())
                 .join("savedgames")
                 .join(&game.name);
+            std::fs::create_dir_all(&save_dir).map_err(Dom5TurnErr::UncleanSaveDir)?;
             if game.mapfilename.is_none() {
                 let abovemapfilenanme = format!("__randommap_{}.map", game.name);
                 let aboved6mfilenanme = format!("__randommap_{}.d6m", game.name);
@@ -1229,7 +1231,7 @@ impl Dom5Turn {
             }
 
             if winner.is_none() {
-                sqlx::query!("UPDATE games SET next_turn=datetime('now', '+' || timer || ' minutes') WHERE id=$1 AND timer IS NOT NULL", self.game_id).execute(&mut *transaction).await?;
+                sqlx::query!("UPDATE games SET next_turn=CASE WHEN timer IS NOT NULL THEN datetime('now', '+' || timer || ' minutes') ELSE NULL END WHERE id=$1", self.game_id).execute(&mut *transaction).await?;
             } else {
                 sqlx::query!(
                     "UPDATE games SET next_turn=NULL WHERE id=$1 AND timer IS NOT NULL",

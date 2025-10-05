@@ -11,13 +11,13 @@ use std::iter::MapWhile;
 
 use crate::dom5_turn::Dom5Turn;
 use crate::models::MapWrapping;
+use crate::models::binary::Binary;
 use crate::models::maps::MapSummary;
+use crate::models::settings::Setting;
 use crate::models::{
     AdminLog, Disciple, Game, Map, MapProvince, Mod, Nation, NewAdminLog, NewGame, Player,
     PlayerTurn, Turn,
 };
-use crate::models::binary::Binary;
-use crate::models::settings::Setting;
 use crate::packets::map_req;
 use actix_web::http::header;
 use actix_web::{HttpRequest, HttpResponse, Result, get, post, web};
@@ -873,7 +873,9 @@ async fn details(
     } else {
         (&game, &game.get_mods(&sqlx_db).await.unwrap()[..]).into()
     };
-    let (maps, mods, binaries): (Vec<MapSummary>, Vec<Mod>, Vec<Binary>) = if authed == AuthStatus::AuthSuccess {
+    let (maps, mods, binaries): (Vec<MapSummary>, Vec<Mod>, Vec<Binary>) = if authed
+        == AuthStatus::AuthSuccess
+    {
         (
             {
                 let mapfilter_pattern = format!("%{}%", game_settings.mapfilter);
@@ -935,7 +937,9 @@ async fn details(
                     })
                     .collect()
             },
-            Binary::get_all(&sqlx_db).await.unwrap_or_else(|_| Vec::new()),
+            Binary::get_all(&sqlx_db)
+                .await
+                .unwrap_or_else(|_| Vec::new()),
         )
     } else {
         (
@@ -980,7 +984,9 @@ async fn details(
             .fetch_all(&sqlx_db)
             .await
             .unwrap(),
-            Binary::get_all(&sqlx_db).await.unwrap_or_else(|_| Vec::new()),
+            Binary::get_all(&sqlx_db)
+                .await
+                .unwrap_or_else(|_| Vec::new()),
         )
     };
     // Insert log entry first
@@ -1132,7 +1138,8 @@ async fn create_post(
     let params: CreateGame = config.deserialize_bytes(&*bytes).unwrap();
     if app_data.get_antibot_question().await.is_some() {
         if params.antibot.is_none()
-            || app_data.get_antibot_answer()
+            || app_data
+                .get_antibot_answer()
                 .await
                 .as_ref()
                 .unwrap()
@@ -1146,7 +1153,8 @@ async fn create_post(
     }
 
     let mut new_game = NewGame::default();
-    let port_var = Setting::get_or_env(&app_data.sqlx_pool, "PORT_RANGE").await
+    let port_var = Setting::get_or_env(&app_data.sqlx_pool, "PORT_RANGE")
+        .await
         .expect("PORT_RANGE must be set (ie. '10000,10999')");
     let range: Vec<&str> = port_var.split(",").collect();
     let start_port = range[0].parse::<i32>().unwrap();
@@ -1194,12 +1202,9 @@ async fn create_post(
 
     // Spawn nation update in background to avoid blocking
     let db_pool = app_data.sqlx_pool.clone();
-    std::thread::spawn(move || {
-        let dom5_proc = Dom5Turn {
-            db_pool,
-            game_id,
-        };
-        if let Err(e) = smol::block_on(dom5_proc.update_nations()) {
+    actix_web::rt::spawn(async move {
+        let dom5_proc = Dom5Turn { db_pool, game_id };
+        if let Err(e) = dom5_proc.update_nations().await {
             log::error!("Failed to update nations for game {}: {:?}", game_id, e);
         }
     });
@@ -1216,7 +1221,8 @@ async fn list(
     req: HttpRequest,
 ) -> Result<HttpResponse> {
     let sqlx_db = app_data.sqlx_pool.clone();
-    let games_address = req.headers()
+    let games_address = req
+        .headers()
         .get("host")
         .and_then(|h| h.to_str().ok())
         .unwrap_or("localhost")
@@ -1377,11 +1383,7 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
                 .and_then(|p| serde_json::from_str(p).ok())
                 .unwrap_or_else(|| vec![]),
             name: g.name.clone(),
-            address: format!(
-                "{}:{}",
-                games_address,
-                g.port.unwrap_or(0)
-            ),
+            address: format!("{}:{}", games_address, g.port.unwrap_or(0)),
             auto_archive_in: {
                 let duration = g
                     .last_activity
@@ -1419,11 +1421,7 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
                 .unwrap()
                 .clone(),
             name: g.name.clone(),
-            address: format!(
-                "{}:{}",
-                games_address,
-                g.port.unwrap_or(0)
-            ),
+            address: format!("{}:{}", games_address, g.port.unwrap_or(0)),
         })
         .collect();
     let pending_games: Vec<PendingGame> = results
@@ -1439,11 +1437,7 @@ ORDER BY MIN(pt.status), MAX(p.nationid), g.id
                 .unwrap_or_else(|| vec![]),
             joined: g.playing.is_some(),
             players: player_counts.get(&g.id).copied().unwrap_or(0),
-            address: format!(
-                "{}:{}",
-                games_address,
-                g.port.unwrap_or(0)
-            ),
+            address: format!("{}:{}", games_address, g.port.unwrap_or(0)),
             name: g.name.clone(),
             hosting: g.current_job.is_some(),
         })
@@ -1550,7 +1544,8 @@ async fn settings_post(
             game_id: game.id,
         };
         dom5_proc
-            .update_nations().await
+            .update_nations()
+            .await
             .expect("Failed to refresh nations after mod change");
     }
     if game.map_id != old_game.map_id || (game.select_start == 0 && old_game.select_start != 0) {
