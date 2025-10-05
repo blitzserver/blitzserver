@@ -119,9 +119,10 @@ impl Packet {
         protocol: Protocol,
     ) -> PacketResult<Packet> {
         let header = Header::from_reader(r)?;
+        log::info!("Recv header");
         let mut body_buf: Vec<u8> = vec![0u8; header.length as usize];
         if let Err(e) = r.read_exact(&mut body_buf) {
-            println!("Warn; ran out of bytes? {:?}", e);
+            log::warn!("Failed to read {} bytes for packet body: {:?}", header.length, e);
         }
         let mut reader = &body_buf[..];
         let body = if header.compression == CompressionType::Zlib {
@@ -153,6 +154,7 @@ pub struct Header {
 
 impl Header {
     pub fn from_reader<R: std::io::Read>(r: &mut R) -> PacketResult<Header> {
+        log::info!("Get header");
         let unk: u8 = r.read_u8()?;
         let compression_byte = r.read_u8()?;
         let compression = FromPrimitive::from_u8(compression_byte)
