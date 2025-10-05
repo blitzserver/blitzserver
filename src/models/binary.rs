@@ -134,11 +134,20 @@ impl Binary {
             }
         }
 
+        log::debug!("Binary paths - Linux: '{}', Windows: '{}'",
+                   binary.executable_path_linux, binary.executable_path_windows);
+
         let executable_filename = if cfg!(windows) {
+            log::debug!("Detected Windows platform, using Windows executable path");
             &binary.executable_path_windows
         } else {
+            log::debug!("Detected non-Windows platform, using Linux executable path");
             &binary.executable_path_linux
         };
-        return Ok(PathBuf::from(&binary_path).join(std::path::Path::new(executable_filename)));
+
+        let full_path = PathBuf::from(&binary_path).join(std::path::Path::new(executable_filename));
+        log::info!("Attempting to execute binary: {:?}", full_path);
+
+        return Ok(full_path);
     }
 }

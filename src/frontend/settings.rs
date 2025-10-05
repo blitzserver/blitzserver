@@ -99,8 +99,8 @@ pub async fn admin_upload_binary(
 
     let db = app_data.sqlx_pool.clone();
     println!("Recv binary upload request");
-    let linux_binary_match = regex::Regex::new("dom._amd64").unwrap();
-    let windows_binary_match = regex::Regex::new("Dominions6\\.exe").unwrap();
+    let linux_binary_match = regex::Regex::new("dom._amd64$").unwrap();
+    let windows_binary_match = regex::Regex::new("Dominions6\\.exe$").unwrap();
 
     while let Ok(Some(mut field)) = payload.try_next().await {
         let content_type = field.content_disposition().clone();
