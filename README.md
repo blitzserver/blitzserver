@@ -12,4 +12,4 @@ Tool for managing/hosting Dominions 5 servers
 
 ## Settings
 
-All the settings are controlled through the admin page with one exception, `DATABASE_URL` will set the location of the sqlite file blitzserver stores *everything* in. It defaults to `./db`, which should create the `db` file next to the binary.
+All the settings are controlled through the admin page with one exception, `DATABASE_URL` will set the location of the sqlite file blitzserver stores *everything* in. It defaults to `sqlite://./db`, which should create the `db` file next to the binary.
